@@ -56,5 +56,10 @@ export default defineConfig(({ mode }) => {
 			sourcemap: false,
 			chunkSizeWarningLimit: 1500,
 		},
+		// 将环境变量注入到 import.meta.env 中
+		// 这样在代码中可以通过 import.meta.env.VITE_API_BASE_URL 访问
+		define: {
+			'import.meta.env.VITE_API_BASE_URL': JSON.stringify(apiBaseUrl),
+		},
 	};
 });

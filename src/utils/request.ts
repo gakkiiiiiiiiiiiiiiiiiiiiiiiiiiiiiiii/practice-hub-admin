@@ -3,13 +3,16 @@ import { message } from 'ant-design-vue';
 import { getToken, clearAuth } from './auth';
 import router from '@/router';
 
-// 解决类型“ImportMeta”上不存在属性“env”问题：
-// 用全局声明文件声明 VITE_API_BASE_URL，或直接用 process.env（见 Dockerfile, vite.config）
-// 这里优先从 process.env.VITE_API_BASE_URL 取，其次 '/api'
-const API_BASE_URL: string =
-	typeof process !== 'undefined' && process.env && process.env.VITE_API_BASE_URL
-		? process.env.VITE_API_BASE_URL
-		: '/api';
+// 使用 Vite 的环境变量
+// Vite 会将 VITE_ 开头的环境变量注入到 import.meta.env 中
+// 在 vite.config.ts 中通过 define 确保环境变量被正确注入
+const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL || '/api';
+
+// 开发环境打印 API 地址，方便调试
+if (import.meta.env.DEV) {
+	console.log('🔗 API Base URL:', API_BASE_URL);
+	console.log('📦 import.meta.env.VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL);
+}
 
 const service: AxiosInstance = axios.create({
 	baseURL: API_BASE_URL,
