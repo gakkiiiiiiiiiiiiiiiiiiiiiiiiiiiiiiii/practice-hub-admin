@@ -56,8 +56,5 @@ export default defineConfig(({ mode }) => {
 			sourcemap: false,
 			chunkSizeWarningLimit: 1500,
 		},
-		define: {
-			'import.meta.env.VITE_API_BASE_URL': JSON.stringify(apiBaseUrl),
-		},
 	};
 });
