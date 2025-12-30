@@ -35,12 +35,16 @@ ENV VITE_ENABLE_PROXY=false
 # 跳过类型检查，直接构建（类型检查应在开发阶段完成）
 # 使用 vite build 而不是 npm run build，避免 vue-tsc 在 Docker 环境中的兼容性问题
 # ENV 设置的环境变量会被 vite.config.ts 中的 loadEnv 读取
-# 打印环境变量用于调试（帮助排查问题）
-RUN echo "🔍 Docker Build Environment:" && \
-    echo "  ARG VITE_API_BASE_URL=${VITE_API_BASE_URL:-'(not set)'}" && \
-    echo "  ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}" && \
-    echo "  System env VITE_API_BASE_URL=$(printenv VITE_API_BASE_URL || echo 'not set')" && \
-    echo "  Final VITE_API_BASE_URL=${VITE_API_BASE_URL}" && \
+# 打印环境变量用于调试
+# 注意：这些日志会在构建日志中显示，需要在微信云托管控制台的"构建日志"中查看
+RUN echo "===========================================" && \
+    echo "🔍 Docker Build Environment Debug Info" && \
+    echo "===========================================" && \
+    echo "ARG VITE_API_BASE_URL=${VITE_API_BASE_URL:-'(not set)'}" && \
+    echo "ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}" && \
+    echo "System env VITE_API_BASE_URL=$(printenv VITE_API_BASE_URL || echo 'not set')" && \
+    echo "Final VITE_API_BASE_URL=${VITE_API_BASE_URL}" && \
+    echo "===========================================" && \
     npx vite build --mode production
 
 # 生产阶段 - 使用 Nginx 提供静态文件服务
