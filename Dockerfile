@@ -19,13 +19,15 @@ RUN npm ci --legacy-peer-deps
 COPY . .
 
 # 构建参数：API 基础地址（可通过 --build-arg 传入）
-# 默认值：/api（相对路径，适用于同域名部署）
-ARG VITE_API_BASE_URL=/api
+# 注意：ARG 必须在使用之前声明
+# 如果微信云托管通过构建参数传入，ARG 会接收该值
+ARG VITE_API_BASE_URL
 
 # 设置环境变量（用于构建时）
 # 注意：Vite 的环境变量必须以 VITE_ 开头，且需要在构建时可用
-# 使用 ARG 的值设置 ENV，确保在构建时可用
-ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
+# 优先使用 ARG 的值（构建参数），如果没有则使用默认值 /api
+# 如果微信云托管在构建时设置了系统环境变量，需要在构建命令中通过 --build-arg 传入
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL:-/api}
 ENV NODE_ENV=production
 ENV VITE_ENABLE_PROXY=false
 
@@ -33,7 +35,13 @@ ENV VITE_ENABLE_PROXY=false
 # 跳过类型检查，直接构建（类型检查应在开发阶段完成）
 # 使用 vite build 而不是 npm run build，避免 vue-tsc 在 Docker 环境中的兼容性问题
 # ENV 设置的环境变量会被 vite.config.ts 中的 loadEnv 读取
-RUN npx vite build --mode production
+# 打印环境变量用于调试（帮助排查问题）
+RUN echo "🔍 Docker Build Environment:" && \
+    echo "  ARG VITE_API_BASE_URL=${VITE_API_BASE_URL:-'(not set)'}" && \
+    echo "  ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}" && \
+    echo "  System env VITE_API_BASE_URL=$(printenv VITE_API_BASE_URL || echo 'not set')" && \
+    echo "  Final VITE_API_BASE_URL=${VITE_API_BASE_URL}" && \
+    npx vite build --mode production
 
 # 生产阶段 - 使用 Nginx 提供静态文件服务
 FROM nginx:alpine AS production

@@ -20,6 +20,12 @@ export default defineConfig(({ mode }) => {
 	const apiBaseUrl = process.env.VITE_API_BASE_URL || env.VITE_API_BASE_URL || '/api';
 	const proxyTarget = process.env.VITE_PROXY_TARGET || env.VITE_PROXY_TARGET || 'http://localhost:3333';
 
+	// 构建时打印环境变量，方便调试
+	console.log('🔍 Vite Config - Environment Variables:');
+	console.log('  process.env.VITE_API_BASE_URL:', process.env.VITE_API_BASE_URL);
+	console.log('  env.VITE_API_BASE_URL:', env.VITE_API_BASE_URL);
+	console.log('  Final apiBaseUrl:', apiBaseUrl);
+
 	return {
 		plugins: [
 			vue(),
