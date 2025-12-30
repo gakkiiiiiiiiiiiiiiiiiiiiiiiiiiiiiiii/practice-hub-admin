@@ -27,7 +27,7 @@ ARG VITE_API_BASE_URL
 # 注意：Vite 的环境变量必须以 VITE_ 开头，且需要在构建时可用
 # 优先使用 ARG 的值（构建参数），如果没有则使用默认值 /api
 # 如果微信云托管在构建时设置了系统环境变量，需要在构建命令中通过 --build-arg 传入
-ENV VITE_API_BASE_URL=https://express-aug7-210395-7-1392943725.sh.run.tcloudbase.com
+ENV VITE_API_BASE_URL=https://express-aug7-210395-7-1392943725.sh.run.tcloudbase.com/api
 ENV NODE_ENV=production
 ENV VITE_ENABLE_PROXY=false
 
