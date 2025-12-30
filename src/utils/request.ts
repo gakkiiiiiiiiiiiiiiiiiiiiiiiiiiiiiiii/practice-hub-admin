@@ -9,9 +9,8 @@ import router from '@/router';
 const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL || '/api';
 
 // 开发环境打印 API 地址，方便调试
-if (import.meta.env.DEV) {
-	console.log('🔗 API Base URL:', API_BASE_URL);
-	console.log('📦 import.meta.env.VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL);
+if (import.meta.env) {
+	console.log('📦 import.meta.env:', import.meta.env);
 }
 
 const service: AxiosInstance = axios.create({
@@ -38,7 +37,7 @@ service.interceptors.request.use(
 service.interceptors.response.use(
 	(response: AxiosResponse) => {
 		const res = response.data;
-
+		console.log('🔗 API Base URL:', API_BASE_URL);
 		// 后端响应格式：{ code, msg, data }
 		// 如果返回的状态码不是200，则视为错误
 		if (res.code !== 200 && res.code !== 0) {
