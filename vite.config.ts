@@ -5,6 +5,8 @@ import { viteMockServe } from 'vite-plugin-mock';
 
 export default defineConfig(({ mode }) => {
 	// 加载环境变量
+	// loadEnv 会从 .env 文件和系统环境变量中读取
+	// 在 Docker 构建时，系统环境变量会被 loadEnv 读取
 	const env = loadEnv(mode, process.cwd(), '');
 
 	// 是否启用代理（当后端服务可用时设置为 true）
@@ -14,8 +16,9 @@ export default defineConfig(({ mode }) => {
 	// 从环境变量获取 API 基础地址和代理目标
 	// VITE_API_BASE_URL: 生产环境使用的 API 基础地址（如：https://api.example.com）
 	// VITE_PROXY_TARGET: 开发环境代理目标（如：http://localhost:3333）
-	const apiBaseUrl = env.VITE_API_BASE_URL || '/api';
-	const proxyTarget = env.VITE_PROXY_TARGET || 'http://localhost:3333';
+	// 优先使用系统环境变量（Docker 构建时），然后使用 .env 文件中的值
+	const apiBaseUrl = process.env.VITE_API_BASE_URL || env.VITE_API_BASE_URL || '/api';
+	const proxyTarget = process.env.VITE_PROXY_TARGET || env.VITE_PROXY_TARGET || 'http://localhost:3333';
 
 	return {
 		plugins: [
