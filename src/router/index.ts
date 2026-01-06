@@ -172,6 +172,14 @@ const routes: RouteRecordRaw[] = [
 				},
 			},
 			{
+				path: 'feedback',
+				name: 'SystemFeedback',
+				component: () => import('@/views/feedback/index.vue'),
+				meta: {
+					title: '功能反馈',
+				},
+			},
+			{
 				path: 'recommend',
 				name: 'SystemRecommend',
 				component: () => import('@/views/recommend/index.vue'),
