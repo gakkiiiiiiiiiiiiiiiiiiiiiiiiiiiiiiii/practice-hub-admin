@@ -63,6 +63,9 @@
 					placeholder="请输入排序值（数字越小越靠前）"
 				/>
 			</a-form-item>
+			<a-form-item label="课程介绍" name="introduction">
+				<WangEditor v-model="formState.introduction" placeholder="请输入课程介绍（支持富文本）" />
+			</a-form-item>
 		</a-form>
 	</a-modal>
 </template>
@@ -74,6 +77,7 @@ import { PlusOutlined } from '@ant-design/icons-vue';
 import { createCourse, updateCourse } from '@/api/course';
 import { uploadImage } from '@/api/upload';
 import type { UploadProps } from 'ant-design-vue';
+import WangEditor from '@/components/WangEditor/index.vue';
 
 const props = defineProps<{
 	open: boolean;
@@ -101,7 +105,9 @@ const formState = ref({
 	price: 0,
 	is_vip_free: 0,
 	sort: 0,
+	introduction: '',
 });
+
 
 const rules = {
 	name: [{ required: true, message: '请输入课程名称', trigger: 'blur' }],
@@ -125,6 +131,7 @@ watch(
 					price: props.record.price || 0,
 					is_vip_free: props.record.is_vip_free ?? 0,
 					sort: props.record.sort || 0,
+					introduction: props.record.introduction || '',
 				};
 				if (formState.value.cover_img) {
 					fileList.value = [
@@ -150,6 +157,7 @@ watch(
 					price: 0,
 					is_vip_free: 0,
 					sort: 0,
+					introduction: '',
 				};
 				fileList.value = [];
 			}
@@ -247,6 +255,9 @@ const handleSubmit = async () => {
 		}
 		if (formState.value.sort !== undefined) {
 			submitData.sort = formState.value.sort;
+		}
+		if (formState.value.introduction !== undefined) {
+			submitData.introduction = formState.value.introduction;
 		}
 
 		if (props.record) {

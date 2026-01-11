@@ -47,7 +47,7 @@ const loading = ref(false);
 
 const menuList = [
 	{ value: 'dashboard', label: '仪表盘' },
-	{ value: 'question:subject', label: '课程管理' },
+	{ value: 'question:course', label: '课程管理' },
 	{ value: 'question:chapter', label: '章节管理' },
 	{ value: 'question:list', label: '试题管理' },
 	{ value: 'agent:code', label: '激活码管理' },
@@ -56,6 +56,7 @@ const menuList = [
 	{ value: 'system:account', label: '账号管理' },
 	{ value: 'system:role', label: '角色管理' },
 	{ value: 'system:config', label: '运营配置' },
+	{ value: 'system:distributor', label: '分销管理' },
 ];
 
 const formState = ref({

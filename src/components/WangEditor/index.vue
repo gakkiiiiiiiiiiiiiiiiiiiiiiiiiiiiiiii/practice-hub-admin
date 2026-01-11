@@ -51,17 +51,33 @@ const editorConfig: Partial<IEditorConfig> = {
 			// 自定义上传处理
 			async customUpload(file: File, insertFn: (url: string, alt: string, href: string) => void) {
 				try {
-					const response = await uploadImage(file)
-					const url = response.url || response.imageUrl
-
-					if (url) {
-						insertFn(url, file.name, url)
-					} else {
-						throw new Error('上传失败：未返回图片URL')
+					// 验证文件类型
+					const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+					if (!allowedTypes.includes(file.type)) {
+						throw new Error('不支持的图片格式，仅支持 jpg、png、gif、webp');
 					}
+
+					// 验证文件大小（5MB）
+					const maxSize = 5 * 1024 * 1024;
+					if (file.size > maxSize) {
+						throw new Error('图片大小不能超过 5MB');
+					}
+
+					// 上传图片
+					const response = await uploadImage(file);
+					const url = response.url || response.imageUrl;
+
+					if (!url) {
+						throw new Error('上传失败：未返回图片URL');
+					}
+
+					// 插入图片到编辑器
+					insertFn(url, file.name, url);
 				} catch (error: any) {
-					console.error('图片上传失败:', error)
-					throw error
+					console.error('图片上传失败:', error);
+					// 显示错误提示
+					const errorMessage = error?.response?.data?.msg || error?.message || '图片上传失败，请重试';
+					throw new Error(errorMessage);
 				}
 			},
 		},

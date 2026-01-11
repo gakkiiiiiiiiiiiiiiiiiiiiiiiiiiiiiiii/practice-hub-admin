@@ -30,15 +30,15 @@
           />
         </a-form-item>
         <a-form-item label="状态">
-          <a-select
+            <a-select
             v-model:value="searchForm.status"
             placeholder="请选择"
             style="width: 150px"
             allow-clear
           >
-            <a-select-option value="pending">待使用</a-select-option>
-            <a-select-option value="used">已使用</a-select-option>
-            <a-select-option value="expired">已过期</a-select-option>
+            <a-select-option :value="0">待使用</a-select-option>
+            <a-select-option :value="1">已使用</a-select-option>
+            <a-select-option :value="2">已作废</a-select-option>
           </a-select>
         </a-form-item>
         <a-form-item>
@@ -71,37 +71,58 @@
           <template v-else-if="column.key === 'status'">
             <a-tag
               :color="
-                record.status === 'pending'
+                record.status === 0
                   ? 'blue'
-                  : record.status === 'used'
+                  : record.status === 1
                   ? 'green'
                   : 'red'
               "
             >
               {{
-                record.status === 'pending'
+                record.status === 0
                   ? '待使用'
-                  : record.status === 'used'
+                  : record.status === 1
                   ? '已使用'
-                  : '已过期'
+                  : '已作废'
               }}
             </a-tag>
           </template>
-          <template v-else-if="column.key === 'activatedUser'">
-            <span v-if="record.activatedUser">
-              {{ maskNickname(record.activatedUser) }}
+          <template v-else-if="column.key === 'used_time'">
+            <span v-if="record.used_time">
+              {{ dayjs(record.used_time).format('YYYY-MM-DD HH:mm:ss') }}
             </span>
             <span v-else>-</span>
+          </template>
+          <template v-else-if="column.key === 'create_time'">
+            <span>{{ dayjs(record.create_time).format('YYYY-MM-DD HH:mm:ss') }}</span>
           </template>
           <template v-else-if="column.key === 'action'">
             <a-space>
               <a-button
-                v-if="record.status === 'pending'"
+                type="link"
+                size="small"
+                @click="handleViewDetail(record)"
+              >
+                <template #icon><EyeOutlined /></template>
+                详情
+              </a-button>
+              <a-button
+                v-if="record.status === 0"
                 type="link"
                 size="small"
                 @click="handleExport(record)"
               >
                 导出
+              </a-button>
+              <a-button
+                v-if="record.status === 0"
+                type="link"
+                size="small"
+                danger
+                @click="handleDelete(record)"
+              >
+                <template #icon><DeleteOutlined /></template>
+                删除
               </a-button>
             </a-space>
           </template>
@@ -119,17 +140,109 @@
       v-model:open="buyModalVisible"
       @success="handleRefresh"
     />
+
+    <!-- 统计卡片 -->
+    <a-row :gutter="16" style="margin-top: 16px">
+      <a-col :span="6">
+        <a-card>
+          <a-statistic title="总数" :value="statistics.total" />
+        </a-card>
+      </a-col>
+      <a-col :span="6">
+        <a-card>
+          <a-statistic title="待使用" :value="statistics.pending" value-style="color: #1890ff" />
+        </a-card>
+      </a-col>
+      <a-col :span="6">
+        <a-card>
+          <a-statistic title="已使用" :value="statistics.used" value-style="color: #52c41a" />
+        </a-card>
+      </a-col>
+      <a-col :span="6">
+        <a-card>
+          <a-statistic title="已作废" :value="statistics.invalid" value-style="color: #ff4d4f" />
+        </a-card>
+      </a-col>
+    </a-row>
+
+    <!-- 详情弹窗 -->
+    <a-modal
+      v-model:open="detailModalVisible"
+      title="激活码详情"
+      width="600px"
+      :footer="null"
+    >
+      <a-descriptions v-if="currentDetail" :column="2" bordered>
+        <a-descriptions-item label="激活码">
+          <span>{{ currentDetail.code }}</span>
+          <a-button
+            type="link"
+            size="small"
+            style="margin-left: 8px"
+            @click="handleCopy(currentDetail.code)"
+          >
+            复制
+          </a-button>
+        </a-descriptions-item>
+        <a-descriptions-item label="批次号">
+          {{ currentDetail.batch_id }}
+        </a-descriptions-item>
+        <a-descriptions-item label="关联课程">
+          {{ currentDetail.course?.name || '-' }}
+        </a-descriptions-item>
+        <a-descriptions-item label="状态">
+          <a-tag
+            :color="
+              currentDetail.status === 0
+                ? 'blue'
+                : currentDetail.status === 1
+                ? 'green'
+                : 'red'
+            "
+          >
+            {{
+              currentDetail.status === 0
+                ? '待使用'
+                : currentDetail.status === 1
+                ? '已使用'
+                : '已作废'
+            }}
+          </a-tag>
+        </a-descriptions-item>
+        <a-descriptions-item label="创建时间">
+          {{ dayjs(currentDetail.create_time).format('YYYY-MM-DD HH:mm:ss') }}
+        </a-descriptions-item>
+        <a-descriptions-item v-if="currentDetail.used_time" label="激活时间">
+          {{ dayjs(currentDetail.used_time).format('YYYY-MM-DD HH:mm:ss') }}
+        </a-descriptions-item>
+      </a-descriptions>
+    </a-modal>
+
+    <!-- 删除确认弹窗 -->
+    <a-modal
+      v-model:open="deleteModalVisible"
+      title="删除激活码"
+      :confirm-loading="deleteLoading"
+      @ok="confirmDelete"
+      @cancel="handleCancelDelete"
+    >
+      <p>确定要删除这条激活码吗？删除后无法恢复。</p>
+    </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { message } from 'ant-design-vue'
-import { PlusOutlined, ShoppingCartOutlined } from '@ant-design/icons-vue'
+import { PlusOutlined, ShoppingCartOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons-vue'
 import { useUserStore } from '@/store/user'
+import dayjs from 'dayjs'
 import {
   getActivationCodeList,
   exportActivationCodes,
+  deleteActivationCode,
+  getActivationCodeStatistics,
+  getActivationCodeDetail,
 } from '@/api/agent'
 import GenerateModal from './components/GenerateModal.vue'
 import BuyModal from './components/BuyModal.vue'
@@ -141,6 +254,17 @@ const loading = ref(false)
 const dataSource = ref([])
 const generateModalVisible = ref(false)
 const buyModalVisible = ref(false)
+const statistics = ref({
+  total: 0,
+  pending: 0,
+  used: 0,
+  invalid: 0,
+})
+const detailModalVisible = ref(false)
+const currentDetail = ref<any>(null)
+const deleteModalVisible = ref(false)
+const deletingId = ref<number | null>(null)
+const deleteLoading = ref(false)
 
 const searchForm = ref({
   batchNo: undefined,
@@ -161,11 +285,11 @@ const columns = [
   },
   {
     title: '批次号',
-    dataIndex: 'batchNo',
-    key: 'batchNo',
+    dataIndex: 'batch_id',
+    key: 'batch_id',
   },
   {
-    title: '关联题库',
+    title: '关联课程',
     dataIndex: 'courseName',
     key: 'courseName',
   },
@@ -175,20 +299,21 @@ const columns = [
     width: 100,
   },
   {
-    title: '激活人',
-    key: 'activatedUser',
-    width: 120,
+    title: '激活时间',
+    dataIndex: 'used_time',
+    key: 'used_time',
+    width: 180,
   },
   {
-    title: '激活时间',
-    dataIndex: 'activatedAt',
-    key: 'activatedAt',
+    title: '创建时间',
+    dataIndex: 'create_time',
+    key: 'create_time',
     width: 180,
   },
   {
     title: '操作',
     key: 'action',
-    width: 100,
+    width: 150,
   },
 ]
 
@@ -196,7 +321,8 @@ const fetchData = async () => {
   loading.value = true
   try {
     const res = await getActivationCodeList({
-      ...searchForm.value,
+      batchNo: searchForm.value.batchNo,
+      status: searchForm.value.status,
       page: pagination.value.current,
       pageSize: pagination.value.pageSize,
     })
@@ -206,6 +332,15 @@ const fetchData = async () => {
     message.error('获取激活码列表失败')
   } finally {
     loading.value = false
+  }
+}
+
+const fetchStatistics = async () => {
+  try {
+    const res = await getActivationCodeStatistics()
+    statistics.value = res.data
+  } catch (error) {
+    console.error('获取统计信息失败:', error)
   }
 }
 
@@ -241,16 +376,54 @@ const handleCopy = (code: string) => {
   message.success('已复制到剪贴板')
 }
 
+const handleViewDetail = async (record: any) => {
+  try {
+    const res = await getActivationCodeDetail(record.id)
+    currentDetail.value = res.data
+    detailModalVisible.value = true
+  } catch (error: any) {
+    message.error(error?.message || '获取详情失败')
+  }
+}
+
+const handleDelete = (record: any) => {
+  deletingId.value = record.id
+  deleteModalVisible.value = true
+}
+
+const confirmDelete = async () => {
+  if (!deletingId.value) return
+
+  deleteLoading.value = true
+  try {
+    await deleteActivationCode(deletingId.value)
+    message.success('删除成功')
+    deleteModalVisible.value = false
+    deletingId.value = null
+    fetchData()
+    fetchStatistics()
+  } catch (error: any) {
+    message.error(error?.message || '删除失败')
+  } finally {
+    deleteLoading.value = false
+  }
+}
+
+const handleCancelDelete = () => {
+  deleteModalVisible.value = false
+  deletingId.value = null
+}
+
 const handleExport = async (record: any) => {
   try {
     const blob = await exportActivationCodes({
-      batchNo: record.batchNo,
-      status: 'pending',
+      batchNo: record.batch_id,
+      status: 0,
     })
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `激活码_${record.batchNo}.xlsx`
+    link.download = `激活码_${record.batch_id}.xlsx`
     link.click()
     window.URL.revokeObjectURL(url)
     message.success('导出成功')
@@ -261,6 +434,7 @@ const handleExport = async (record: any) => {
 
 const handleRefresh = () => {
   fetchData()
+  fetchStatistics()
 }
 
 const maskCode = (code: string) => {
@@ -277,6 +451,7 @@ const maskNickname = (nickname: string) => {
 
 onMounted(() => {
   fetchData()
+  fetchStatistics()
 })
 </script>
 

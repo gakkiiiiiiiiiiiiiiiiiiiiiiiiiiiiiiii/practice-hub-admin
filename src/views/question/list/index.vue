@@ -4,6 +4,15 @@
 			<template #title>试题管理</template>
 			<template #extra>
 				<a-space>
+					<a-button
+						v-if="selectedRowKeys.length > 0"
+						type="primary"
+						danger
+						@click="showBatchDeleteModal"
+					>
+						<template #icon><delete-outlined /></template>
+						批量删除 ({{ selectedRowKeys.length }})
+					</a-button>
 					<a-button @click="handleDownloadTemplate">
 						<template #icon><download-outlined /></template>
 						下载模板
@@ -56,6 +65,7 @@
 				:data-source="dataSource"
 				:loading="loading"
 				:pagination="pagination"
+				:row-selection="{ selectedRowKeys, onChange: onSelectChange }"
 				@change="handleTableChange"
 				row-key="id"
 			>
@@ -103,6 +113,18 @@
 				题目ID: {{ currentDeleteRecord.id }}
 			</p>
 		</a-modal>
+
+		<!-- 批量删除确认弹窗 -->
+		<a-modal
+			v-model:open="batchDeleteModalVisible"
+			title="批量删除确认"
+			:confirm-loading="batchDeleteLoading"
+			@ok="confirmBatchDelete"
+			@cancel="cancelBatchDelete"
+		>
+			<p>确定要删除选中的 {{ selectedRowKeys.length }} 道题目吗？</p>
+			<p style="color: #ff4d4f; font-size: 12px; margin-top: 8px">此操作不可恢复，请谨慎操作！</p>
+		</a-modal>
 	</div>
 </template>
 
@@ -110,10 +132,11 @@
 import { ref, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { message } from 'ant-design-vue';
-import { PlusOutlined, DownloadOutlined, UploadOutlined } from '@ant-design/icons-vue';
+import { PlusOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined } from '@ant-design/icons-vue';
 import {
 	getQuestionList,
 	deleteQuestion,
+	deleteQuestionsBatch,
 	getChapterList,
 	downloadQuestionTemplate,
 	importQuestions,
@@ -129,6 +152,9 @@ const chapterList = ref<any[]>([]);
 const deleteModalVisible = ref(false);
 const deleteLoading = ref(false);
 const currentDeleteRecord = ref<any>(null);
+const selectedRowKeys = ref<number[]>([]);
+const batchDeleteModalVisible = ref(false);
+const batchDeleteLoading = ref(false);
 
 const searchForm = ref({
 	courseId: undefined,
@@ -280,11 +306,49 @@ const confirmDelete = async () => {
 		message.success('删除成功');
 		deleteModalVisible.value = false;
 		currentDeleteRecord.value = null;
+		selectedRowKeys.value = [];
 		fetchData();
 	} catch (error) {
 		message.error('删除失败');
 	} finally {
 		deleteLoading.value = false;
+	}
+};
+
+// 选择变化
+const onSelectChange = (keys: number[]) => {
+	selectedRowKeys.value = keys;
+};
+
+// 显示批量删除确认弹窗
+const showBatchDeleteModal = () => {
+	if (selectedRowKeys.value.length === 0) {
+		message.warning('请先选择要删除的题目');
+		return;
+	}
+	batchDeleteModalVisible.value = true;
+};
+
+// 取消批量删除
+const cancelBatchDelete = () => {
+	batchDeleteModalVisible.value = false;
+};
+
+// 确认批量删除
+const confirmBatchDelete = async () => {
+	if (selectedRowKeys.value.length === 0) return;
+
+	batchDeleteLoading.value = true;
+	try {
+		await deleteQuestionsBatch(selectedRowKeys.value);
+		message.success(`成功删除 ${selectedRowKeys.value.length} 道题目`);
+		batchDeleteModalVisible.value = false;
+		selectedRowKeys.value = [];
+		fetchData();
+	} catch (error: any) {
+		message.error(error.msg || '批量删除失败');
+	} finally {
+		batchDeleteLoading.value = false;
 	}
 };
 

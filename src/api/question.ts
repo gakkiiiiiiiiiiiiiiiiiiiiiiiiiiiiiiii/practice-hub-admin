@@ -66,6 +66,10 @@ export function deleteQuestion(id: number) {
 	return request.delete(`/admin/questions/${id}`);
 }
 
+export function deleteQuestionsBatch(ids: number[]) {
+	return request.post('/admin/questions/batch-delete', { ids });
+}
+
 // 批量导入
 export function importQuestions(data: FormData) {
 	return request.post('/admin/questions/import', data, {

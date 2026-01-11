@@ -62,9 +62,9 @@ const routes: RouteRecordRaw[] = [
 		},
 		children: [
 			{
-				path: 'subject',
-				name: 'QuestionSubject',
-				component: () => import('@/views/question/subject/index.vue'),
+				path: 'course',
+				name: 'QuestionCourse',
+				component: () => import('@/views/question/course/index.vue'),
 				meta: {
 					title: '课程管理',
 				},
@@ -185,6 +185,14 @@ const routes: RouteRecordRaw[] = [
 				component: () => import('@/views/recommend/index.vue'),
 				meta: {
 					title: '首页推荐管理',
+				},
+			},
+			{
+				path: 'distributor',
+				name: 'SystemDistributor',
+				component: () => import('@/views/distributor/index.vue'),
+				meta: {
+					title: '分销管理',
 				},
 			},
 		],

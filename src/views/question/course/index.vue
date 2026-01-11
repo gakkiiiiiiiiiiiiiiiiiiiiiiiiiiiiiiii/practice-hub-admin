@@ -35,6 +35,7 @@
 					<template v-else-if="column.key === 'action'">
 						<a-space>
 							<a-button type="link" size="small" @click="handleEdit(record)"> 编辑 </a-button>
+							<a-button type="link" size="small" @click="handleExamConfig(record)"> 考试配置 </a-button>
 							<a-popconfirm title="确定要删除这个课程吗？" @confirm="handleDelete(record)">
 								<a-button type="link" danger size="small">删除</a-button>
 							</a-popconfirm>
@@ -45,6 +46,12 @@
 		</a-card>
 
 		<course-modal v-model:open="modalVisible" :record="currentRecord" @success="handleRefresh" />
+		<exam-config-drawer
+			:open="examDrawerVisible"
+			:course-id="currentCourseId"
+			:course-name="currentCourseName"
+			@close="examDrawerVisible = false"
+		/>
 	</div>
 </template>
 
@@ -54,11 +61,15 @@ import { message } from 'ant-design-vue';
 import { PlusOutlined } from '@ant-design/icons-vue';
 import { getCourseList, deleteCourse } from '@/api/course';
 import CourseModal from './components/CourseModal.vue';
+import ExamConfigDrawer from './components/ExamConfigDrawer.vue';
 
 const loading = ref(false);
 const dataSource = ref([]);
 const modalVisible = ref(false);
 const currentRecord = ref(null);
+const examDrawerVisible = ref(false);
+const currentCourseId = ref<number | null>(null);
+const currentCourseName = ref<string>('');
 
 const pagination = ref({
 	current: 1,
@@ -122,7 +133,8 @@ const columns = [
 	{
 		title: '操作',
 		key: 'action',
-		width: 200,
+		width: 280,
+		fixed: 'right',
 	},
 ];
 
@@ -175,6 +187,12 @@ const handleRefresh = () => {
 	fetchData();
 };
 
+const handleExamConfig = (record: any) => {
+	currentCourseId.value = record.id;
+	currentCourseName.value = record.name;
+	examDrawerVisible.value = true;
+};
+
 onMounted(() => {
 	fetchData();
 });
@@ -182,6 +200,6 @@ onMounted(() => {
 
 <style scoped lang="scss">
 .course-management {
-	// 样式
+	padding: 24px;
 }
 </style>

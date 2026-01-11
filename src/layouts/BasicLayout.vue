@@ -112,7 +112,7 @@ const menuItems = computed(() => {
 			icon: h(BookOutlined),
 			label: '题库管理',
 			children: [
-				{ key: '/question/subject', label: '课程管理' },
+				{ key: '/question/course', label: '课程管理' },
 				{ key: '/question/chapter', label: '章节管理' },
 				{ key: '/question/list', label: '试题管理' },
 			],
@@ -153,6 +153,7 @@ const menuItems = computed(() => {
 				{ key: '/system/config', label: '运营配置' },
 				{ key: '/system/recommend', label: '首页推荐管理' },
 				{ key: '/system/feedback', label: '功能反馈' },
+				{ key: '/system/distributor', label: '分销管理' },
 			],
 		});
 	}
@@ -171,6 +172,8 @@ watch(
 		} else if (path.startsWith('/agent')) {
 			openKeys.value = ['agent'];
 		} else if (path.startsWith('/system')) {
+			openKeys.value = ['system'];
+		} else if (path.startsWith('/distributor')) {
 			openKeys.value = ['system'];
 		}
 	},

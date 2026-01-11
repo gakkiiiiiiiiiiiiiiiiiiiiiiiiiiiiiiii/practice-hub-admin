@@ -8,8 +8,8 @@
 		width="600px"
 	>
 		<a-form ref="formRef" :model="formState" :rules="rules" :label-col="{ span: 6 }" :wrapper-col="{ span: 18 }">
-			<a-form-item label="目标题库" name="courseId">
-				<a-select v-model:value="formState.courseId" placeholder="请选择题库">
+			<a-form-item label="目标课程" name="course_id">
+				<a-select v-model:value="formState.course_id" placeholder="请选择课程">
 					<a-select-option v-for="course in courseList" :key="course.id" :value="course.id">
 						{{ course.name }}
 					</a-select-option>
@@ -55,14 +55,14 @@ const loading = ref(false);
 const courseList = ref([]);
 
 const formState = ref({
-	courseId: undefined,
+	course_id: undefined,
 	count: 100,
 	expireDays: 365,
 	remark: '',
 });
 
 const rules = {
-	courseId: [{ required: true, message: '请选择目标题库', trigger: 'change' }],
+	course_id: [{ required: true, message: '请选择目标课程', trigger: 'change' }],
 	count: [{ required: true, message: '请输入生成数量', trigger: 'blur' }],
 	expireDays: [{ required: true, message: '请输入有效期', trigger: 'blur' }],
 };
@@ -81,7 +81,7 @@ watch(
 	(val) => {
 		if (val) {
 			formState.value = {
-				courseId: undefined,
+				course_id: undefined,
 				count: 100,
 				expireDays: 365,
 				remark: '',
@@ -100,7 +100,10 @@ const handleSubmit = async () => {
 		await formRef.value?.validate();
 		loading.value = true;
 
-		await generateActivationCodes(formState.value);
+		await generateActivationCodes({
+			course_id: formState.value.course_id,
+			count: formState.value.count,
+		});
 		message.success('生成成功');
 		emit('success');
 		emit('update:open', false);
@@ -108,7 +111,7 @@ const handleSubmit = async () => {
 		if (error?.errorFields) {
 			return;
 		}
-		message.error('生成失败');
+		message.error(error?.message || '生成失败');
 	} finally {
 		loading.value = false;
 	}

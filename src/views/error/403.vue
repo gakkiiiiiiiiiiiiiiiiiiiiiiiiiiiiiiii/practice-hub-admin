@@ -29,7 +29,7 @@ const getDefaultPath = (): string => {
     case 'super_admin':
       return '/dashboard/analysis'
     case 'content_admin':
-      return '/question/subject'
+      return '/question/course'
     case 'agent':
       return '/dashboard/agent-workbench'
     default:

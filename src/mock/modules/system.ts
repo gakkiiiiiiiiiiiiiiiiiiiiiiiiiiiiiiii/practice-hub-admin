@@ -54,13 +54,13 @@ export default [
           id: 1,
           value: 'super_admin',
           name: '系统管理员',
-          menus: ['dashboard', 'question:subject', 'question:chapter', 'question:list'],
+          menus: ['dashboard', 'question:course', 'question:chapter', 'question:list'],
         },
         {
           id: 2,
           value: 'content_admin',
           name: '题库管理员',
-          menus: ['question:subject', 'question:chapter', 'question:list'],
+          menus: ['question:course', 'question:chapter', 'question:list'],
         },
       ]
 
