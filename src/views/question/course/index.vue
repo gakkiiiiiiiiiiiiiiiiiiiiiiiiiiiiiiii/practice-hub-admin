@@ -78,11 +78,11 @@ const pagination = ref({
 });
 
 const columns = [
-	{
-		title: '封面图',
-		key: 'cover',
-		width: 100,
-	},
+	// {
+	// 	title: '封面图',
+	// 	key: 'cover',
+	// 	width: 100,
+	// },
 	{
 		title: '课程名称',
 		dataIndex: 'name',
