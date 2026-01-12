@@ -52,7 +52,7 @@ const questionTypeConfigs: Record<QuestionType, QuestionTypeConfig> = {
 				难度: '中等',
 			},
 		],
-		note: '填写说明：\n1. 题干：题目的主要内容，支持HTML格式\n2. 选项A-D：四个选项的内容\n3. 答案：填写单个选项（如A）\n4. 解析：题目的解析说明，支持HTML格式\n5. 难度：简单、中等、困难',
+		note: '【填写说明】\n\n1. 题干（必填）：题目的主要内容\n   • 支持HTML格式，可使用 <br> 换行、<strong> 加粗等标签\n   • 示例：<strong>问题：</strong>下列哪个选项是正确的？\n\n2. 选项A-D（必填）：四个选项的内容\n   • 每个选项独立填写，不要留空\n   • 选项内容支持HTML格式\n\n3. 答案（必填）：填写单个选项字母\n   • 只能填写 A、B、C、D 中的一个\n   • 示例：A\n\n4. 解析（选填）：题目的解析说明\n   • 支持HTML格式，用于解释答案\n   • 可以为空，但建议填写\n\n5. 难度（选填）：题目的难度等级\n   • 可选值：简单、中等、困难\n   • 不填写则默认为"中等"\n\n【注意事项】\n• 第一行为表头，请勿修改\n• 第二行为示例数据，导入时会被自动跳过\n• 从第三行开始填写实际题目数据\n• 题干和答案字段为必填项，其他字段可选',
 	},
 	[QuestionType.MULTIPLE_CHOICE]: {
 		name: '多选题',
@@ -79,7 +79,7 @@ const questionTypeConfigs: Record<QuestionType, QuestionTypeConfig> = {
 				难度: '中等',
 			},
 		],
-		note: '填写说明：\n1. 题干：题目的主要内容，支持HTML格式\n2. 选项A-D：四个选项的内容\n3. 答案：填写多个选项，用逗号分隔（如A,B）\n4. 解析：题目的解析说明，支持HTML格式\n5. 难度：简单、中等、困难',
+		note: '【填写说明】\n\n1. 题干（必填）：题目的主要内容\n   • 支持HTML格式，可使用 <br> 换行、<strong> 加粗等标签\n   • 建议在题干中明确标注"多选"或"多选题"\n   • 示例：以下<strong>哪些</strong>选项是正确的？（多选）\n\n2. 选项A-D（必填）：四个选项的内容\n   • 每个选项独立填写，不要留空\n   • 选项内容支持HTML格式\n   • 多选题至少需要2个选项\n\n3. 答案（必填）：填写多个选项，用英文逗号分隔\n   • 至少选择2个选项，最多4个选项\n   • 选项之间用英文逗号分隔，不要有空格\n   • 示例：A,B 或 A,B,C\n\n4. 解析（选填）：题目的解析说明\n   • 支持HTML格式，用于解释答案\n   • 建议说明为什么选择这些选项\n   • 可以为空，但建议填写\n\n5. 难度（选填）：题目的难度等级\n   • 可选值：简单、中等、困难\n   • 不填写则默认为"中等"\n\n【注意事项】\n• 第一行为表头，请勿修改\n• 第二行为示例数据，导入时会被自动跳过\n• 从第三行开始填写实际题目数据\n• 题干和答案字段为必填项，其他字段可选\n• 多选题答案必须至少包含2个选项',
 	},
 	[QuestionType.JUDGE]: {
 		name: '判断题',
@@ -102,7 +102,7 @@ const questionTypeConfigs: Record<QuestionType, QuestionTypeConfig> = {
 				难度: '简单',
 			},
 		],
-		note: '填写说明：\n1. 题干：题目的主要内容，支持HTML格式\n2. 选项A：通常填写"正确"\n3. 选项B：通常填写"错误"\n4. 答案：填写A或B\n5. 解析：题目的解析说明，支持HTML格式\n6. 难度：简单、中等、困难',
+		note: '【填写说明】\n\n1. 题干（必填）：题目的主要内容\n   • 支持HTML格式，可使用 <br> 换行、<strong> 加粗等标签\n   • 判断题通常是一个陈述句，需要判断其正确性\n   • 示例：<strong>判断：</strong>地球是圆的。\n\n2. 选项A（必填）：通常填写"正确"\n   • 也可以填写"是"、"对"等表示正确的词语\n   • 支持HTML格式\n\n3. 选项B（必填）：通常填写"错误"\n   • 也可以填写"否"、"错"等表示错误的词语\n   • 支持HTML格式\n\n4. 答案（必填）：填写A或B\n   • A 表示正确，B 表示错误\n   • 只能填写 A 或 B 中的一个\n   • 示例：A（表示该陈述是正确的）\n\n5. 解析（选填）：题目的解析说明\n   • 支持HTML格式，用于解释为什么正确或错误\n   • 建议说明判断的依据\n   • 可以为空，但建议填写\n\n6. 难度（选填）：题目的难度等级\n   • 可选值：简单、中等、困难\n   • 不填写则默认为"中等"\n\n【注意事项】\n• 第一行为表头，请勿修改\n• 第二行为示例数据，导入时会被自动跳过\n• 从第三行开始填写实际题目数据\n• 题干、选项A、选项B和答案字段为必填项',
 	},
 	[QuestionType.FILL_BLANK]: {
 		name: '填空题',
@@ -121,7 +121,7 @@ const questionTypeConfigs: Record<QuestionType, QuestionTypeConfig> = {
 				难度: '简单',
 			},
 		],
-		note: '填写说明：\n1. 题干：题目的主要内容，支持HTML格式，空白处用下划线表示（如______）\n2. 答案：填写正确答案内容，如果有多个空，用逗号分隔（如：北京,上海）\n3. 解析：题目的解析说明，支持HTML格式\n4. 难度：简单、中等、困难',
+		note: '【填写说明】\n\n1. 题干（必填）：题目的主要内容，空白处用下划线表示\n   • 支持HTML格式，可使用 <br> 换行、<strong> 加粗等标签\n   • 空白处用连续的下划线（______）表示，建议使用4-6个下划线\n   • 多个空白处用不同的下划线标记，如：中国的首都是______，人口最多的城市是______\n   • 示例：请填写空白处：中国的首都是<strong>______</strong>。\n\n2. 答案（必填）：填写正确答案内容\n   • 单个空白：直接填写答案，如：北京\n   • 多个空白：用英文逗号分隔，顺序与题干中的空白处一一对应\n   • 示例：北京,上海（表示第一个空填"北京"，第二个空填"上海"）\n   • 答案内容支持HTML格式\n\n3. 解析（选填）：题目的解析说明\n   • 支持HTML格式，用于解释答案\n   • 建议说明每个空白处为什么填写这个答案\n   • 可以为空，但建议填写\n\n4. 难度（选填）：题目的难度等级\n   • 可选值：简单、中等、困难\n   • 不填写则默认为"中等"\n\n【注意事项】\n• 第一行为表头，请勿修改\n• 第二行为示例数据，导入时会被自动跳过\n• 从第三行开始填写实际题目数据\n• 题干和答案字段为必填项，其他字段可选\n• 题干中的下划线数量要与答案数量对应',
 	},
 	[QuestionType.READING_COMPREHENSION]: {
 		name: '阅读理解',
@@ -164,7 +164,7 @@ const questionTypeConfigs: Record<QuestionType, QuestionTypeConfig> = {
 				难度: '中等',
 			},
 		],
-		note: '填写说明：\n1. 题干：阅读材料的内容，支持HTML格式\n2. 子题：可以添加多个子题，每个子题包含题干、选项A-D、答案、解析\n3. 答案：单选题填写单个选项（如A），多选题填写多个选项用逗号分隔（如A,B）\n4. 解析：题目的解析说明，支持HTML格式\n5. 难度：简单、中等、困难\n注意：阅读理解题的子题需要在系统中单独创建，这里仅提供材料模板',
+		note: '【填写说明】\n\n1. 题干（必填）：阅读材料的内容\n   • 支持HTML格式，可使用 <br> 换行、<strong> 加粗、<p> 段落等标签\n   • 这是阅读理解的背景材料，所有子题都基于此材料\n   • 示例：<p><strong>材料一：</strong></p><p>这是一段阅读材料的内容...</p>\n\n2. 子题（必填）：每个子题包含题干、选项A-D、答案、解析\n   • 本模板提供2个子题的格式，可根据需要扩展\n   • 子题1题干：第一道题的题干内容\n   • 子题1选项A-D：第一道题的四个选项\n   • 子题1答案：第一道题的答案（A、B、C、D 或 A,B 等多选格式）\n   • 子题1解析：第一道题的解析说明\n   • 子题2同理\n\n3. 答案格式：\n   • 单选题：填写单个选项字母，如 A\n   • 多选题：填写多个选项，用英文逗号分隔，如 A,B\n   • 答案必须与选项对应\n\n4. 解析（选填）：题目的解析说明\n   • 支持HTML格式，用于解释答案\n   • 建议说明为什么选择这个答案\n   • 可以为空，但建议填写\n\n5. 难度（选填）：题目的难度等级\n   • 可选值：简单、中等、困难\n   • 不填写则默认为"中等"\n\n【重要提示】\n• 阅读理解题的子题需要在系统中单独创建\n• 本模板仅提供阅读材料和子题格式参考\n• 导入时，系统会根据子题数量自动创建对应的题目\n• 第一行为表头，请勿修改\n• 第二行为示例数据，导入时会被自动跳过\n• 从第三行开始填写实际题目数据',
 	},
 	[QuestionType.SHORT_ANSWER]: {
 		name: '简答题',
@@ -183,7 +183,7 @@ const questionTypeConfigs: Record<QuestionType, QuestionTypeConfig> = {
 				难度: '中等',
 			},
 		],
-		note: '填写说明：\n1. 题干：题目的主要内容，支持HTML格式\n2. 参考答案：题目的参考答案，支持HTML格式\n3. 解析：题目的解析说明，支持HTML格式\n4. 难度：简单、中等、困难',
+		note: '【填写说明】\n\n1. 题干（必填）：题目的主要内容\n   • 支持HTML格式，可使用 <br> 换行、<strong> 加粗、<p> 段落等标签\n   • 简答题通常是开放性问题，需要学生用自己的话回答\n   • 示例：请简述<strong>马克思主义</strong>的基本原理。\n\n2. 参考答案（必填）：题目的参考答案\n   • 支持HTML格式，可使用 <br> 换行、<p> 段落等标签\n   • 提供完整的参考答案，作为评分依据\n   • 可以包含多个要点，用 <br> 或 <p> 分隔\n   • 示例：<p>1. 第一要点内容</p><p>2. 第二要点内容</p>\n\n3. 解析（选填）：题目的解析说明\n   • 支持HTML格式，用于解释答题思路\n   • 可以说明参考答案的要点和评分标准\n   • 可以为空，但建议填写\n\n4. 难度（选填）：题目的难度等级\n   • 可选值：简单、中等、困难\n   • 不填写则默认为"中等"\n\n【注意事项】\n• 第一行为表头，请勿修改\n• 第二行为示例数据，导入时会被自动跳过\n• 从第三行开始填写实际题目数据\n• 题干和参考答案字段为必填项，其他字段可选\n• 简答题没有固定答案，参考答案应包含主要得分点',
 	},
 };
 
@@ -231,17 +231,19 @@ function createQuestionTypeSheet(workbook: ExcelJS.Workbook, type: QuestionType)
 	// 添加说明行
 	const noteRowIndex = config.exampleData.length + 2;
 	const noteRow = worksheet.addRow([]);
-	noteRow.height = 30;
+	// 根据说明内容长度动态调整行高，确保内容完整显示
+	const noteLines = config.note.split('\n').length;
+	noteRow.height = Math.max(30, noteLines * 15); // 每行至少15像素高度
 	const mergeRange = `A${noteRowIndex}:${String.fromCharCode(64 + config.columns.length)}${noteRowIndex}`;
 	worksheet.mergeCells(mergeRange);
 	const noteCell = worksheet.getCell(`A${noteRowIndex}`);
 	noteCell.value = config.note;
 	noteCell.alignment = { vertical: 'top', horizontal: 'left', wrapText: true };
-	noteCell.font = { size: 10, color: { argb: 'FF666666' } };
+	noteCell.font = { size: 10, color: { argb: 'FF333333' }, name: 'Microsoft YaHei' }; // 使用更深的颜色和中文友好字体
 	noteCell.fill = {
 		type: 'pattern',
 		pattern: 'solid',
-		fgColor: { argb: 'FFFFF9E6' },
+		fgColor: { argb: 'FFFFF9E6' }, // 浅黄色背景，突出说明区域
 	};
 
 	// 设置所有单元格的边框
