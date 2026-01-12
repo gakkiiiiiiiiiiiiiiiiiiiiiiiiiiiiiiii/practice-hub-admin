@@ -35,7 +35,7 @@
 				<template #bodyCell="{ column, record }">
 					<template v-if="column.key === 'is_free'">
 						<a-tag :color="record.is_free === 1 ? 'green' : 'default'">
-							{{ record.is_free === 1 ? '试读' : 'VIP' }}
+							{{ record.is_free === 1 ? '是' : '否' }}
 						</a-tag>
 					</template>
 					<template v-else-if="column.key === 'action'">
@@ -93,9 +93,9 @@ const columns = [
 		width: 100,
 	},
 	{
-		title: '试读/VIP',
+		title: '是否试读',
 		key: 'is_free',
-		width: 120,
+		width: 100,
 	},
 	{
 		title: '操作',

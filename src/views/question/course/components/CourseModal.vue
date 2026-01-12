@@ -49,10 +49,10 @@
 					placeholder="请输入价格"
 				/>
 			</a-form-item>
-			<a-form-item label="VIP免费" name="is_vip_free">
-				<a-radio-group v-model:value="formState.is_vip_free">
-					<a-radio :value="0">否</a-radio>
-					<a-radio :value="1">是</a-radio>
+			<a-form-item label="是否免费" name="is_free">
+				<a-radio-group v-model:value="formState.is_free">
+					<a-radio :value="0">付费</a-radio>
+					<a-radio :value="1">免费</a-radio>
 				</a-radio-group>
 			</a-form-item>
 			<a-form-item label="排序" name="sort">
@@ -103,7 +103,7 @@ const formState = ref({
 	answer_year: '',
 	cover_img: '',
 	price: 0,
-	is_vip_free: 0,
+	is_free: 0,
 	sort: 0,
 	introduction: '',
 });
@@ -129,7 +129,7 @@ watch(
 					answer_year: props.record.answer_year || '',
 					cover_img: props.record.cover_img || props.record.cover || '',
 					price: props.record.price || 0,
-					is_vip_free: props.record.is_vip_free ?? 0,
+					is_free: props.record.is_free ?? 0,
 					sort: props.record.sort || 0,
 					introduction: props.record.introduction || '',
 				};
@@ -155,7 +155,7 @@ watch(
 					answer_year: '',
 					cover_img: '',
 					price: 0,
-					is_vip_free: 0,
+					is_free: 0,
 					sort: 0,
 					introduction: '',
 				};
@@ -250,8 +250,8 @@ const handleSubmit = async () => {
 		if (formState.value.price !== undefined && formState.value.price !== null) {
 			submitData.price = formState.value.price;
 		}
-		if (formState.value.is_vip_free !== undefined) {
-			submitData.is_vip_free = formState.value.is_vip_free;
+		if (formState.value.is_free !== undefined) {
+			submitData.is_free = formState.value.is_free;
 		}
 		if (formState.value.sort !== undefined) {
 			submitData.sort = formState.value.sort;

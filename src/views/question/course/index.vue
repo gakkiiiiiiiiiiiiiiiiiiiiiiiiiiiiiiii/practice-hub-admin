@@ -27,9 +27,9 @@
 							style="object-fit: cover"
 						/>
 					</template>
-					<template v-else-if="column.key === 'vip_free'">
-						<a-tag :color="record.is_vip_free === 1 ? 'green' : 'default'">
-							{{ record.is_vip_free === 1 ? 'VIP免费' : '付费' }}
+					<template v-else-if="column.key === 'is_free'">
+						<a-tag :color="record.is_free === 1 ? 'green' : 'default'">
+							{{ record.is_free === 1 ? '免费' : '付费' }}
 						</a-tag>
 					</template>
 					<template v-else-if="column.key === 'action'">
@@ -120,8 +120,8 @@ const columns = [
 		customRender: ({ text }: any) => `¥${text}`,
 	},
 	{
-		title: 'VIP免费',
-		key: 'vip_free',
+		title: '是否免费',
+		key: 'is_free',
 		width: 100,
 	},
 	{

@@ -24,10 +24,10 @@
           placeholder="数字越小越靠前"
         />
       </a-form-item>
-      <a-form-item label="是否免费（试读）" name="is_free">
+      <a-form-item label="是否试读" name="is_free">
         <a-radio-group v-model:value="formState.is_free">
-          <a-radio :value="0">VIP</a-radio>
-          <a-radio :value="1">试读</a-radio>
+          <a-radio :value="0">否</a-radio>
+          <a-radio :value="1">是</a-radio>
         </a-radio-group>
       </a-form-item>
     </a-form>
@@ -56,7 +56,7 @@ const loading = ref(false)
 const formState = ref({
   name: '',
   sort: 0,
-  is_free: 0, // 0-VIP, 1-试读
+  is_free: 0, // 0-否, 1-是（试读）
 })
 
 const rules = {

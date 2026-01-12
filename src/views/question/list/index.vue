@@ -4,12 +4,7 @@
 			<template #title>试题管理</template>
 			<template #extra>
 				<a-space>
-					<a-button
-						v-if="selectedRowKeys.length > 0"
-						type="primary"
-						danger
-						@click="showBatchDeleteModal"
-					>
+					<a-button v-if="selectedRowKeys.length > 0" type="primary" danger @click="showBatchDeleteModal">
 						<template #icon><delete-outlined /></template>
 						批量删除 ({{ selectedRowKeys.length }})
 					</a-button>
@@ -17,12 +12,10 @@
 						<template #icon><download-outlined /></template>
 						下载模板
 					</a-button>
-					<a-upload :before-upload="handleImport" :show-upload-list="false" accept=".xlsx,.xls,.doc,.docx">
-						<a-button>
-							<template #icon><upload-outlined /></template>
-							批量导入
-						</a-button>
-					</a-upload>
+					<a-button @click="showImportModal">
+						<template #icon><upload-outlined /></template>
+						批量导入
+					</a-button>
 					<a-button type="primary" @click="handleAdd">
 						<template #icon><plus-outlined /></template>
 						新增题目
@@ -88,7 +81,7 @@
 						</a-tag>
 					</template>
 					<template v-else-if="column.key === 'stem'">
-						<span v-html="getStemText(record.stem)"></span>
+						<span>{{ getStemText(record.stem) }}</span>
 					</template>
 					<template v-else-if="column.key === 'action'">
 						<a-space>
@@ -125,22 +118,74 @@
 			<p>确定要删除选中的 {{ selectedRowKeys.length }} 道题目吗？</p>
 			<p style="color: #ff4d4f; font-size: 12px; margin-top: 8px">此操作不可恢复，请谨慎操作！</p>
 		</a-modal>
+
+		<!-- 导入题目弹窗 -->
+		<a-modal
+			v-model:open="importModalVisible"
+			title="批量导入题目"
+			:confirm-loading="importLoading"
+			@ok="confirmImport"
+			@cancel="cancelImport"
+			:width="500"
+			:ok-button-props="{ disabled: !canImport }"
+		>
+			<a-form :model="importForm" :label-col="{ span: 6 }" :wrapper-col="{ span: 18 }">
+				<a-form-item label="课程" :required="true">
+					<a-select
+						v-model:value="importForm.courseId"
+						placeholder="请选择课程"
+						style="width: 100%"
+						@change="handleImportCourseChange"
+					>
+						<a-select-option v-for="course in courseList" :key="course.id" :value="course.id">
+							{{ course.name }}
+						</a-select-option>
+					</a-select>
+				</a-form-item>
+				<a-form-item label="章节" :required="true">
+					<a-select
+						v-model:value="importForm.chapterId"
+						placeholder="请先选择课程"
+						style="width: 100%"
+						:disabled="!importForm.courseId"
+					>
+						<a-select-option v-for="chapter in importChapterList" :key="chapter.id" :value="chapter.id">
+							{{ chapter.name }}
+						</a-select-option>
+					</a-select>
+				</a-form-item>
+				<a-form-item label="文件" :required="true">
+					<a-upload
+						:before-upload="handleFileSelect"
+						:show-upload-list="false"
+						accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+						:disabled="!importForm.courseId || !importForm.chapterId"
+					>
+						<a-button :disabled="!importForm.courseId || !importForm.chapterId">
+							<template #icon><upload-outlined /></template>
+							{{ importFile ? importFile.name : '选择文件' }}
+						</a-button>
+					</a-upload>
+					<div v-if="importFile" style="margin-top: 8px; color: #52c41a; font-size: 12px">
+						已选择：{{ importFile.name }}
+					</div>
+					<div v-else style="margin-top: 8px; color: #999; font-size: 12px">
+						请先选择课程和章节，然后选择要导入的Excel文件（.xlsx 或 .xls 格式）
+					</div>
+				</a-form-item>
+			</a-form>
+		</a-modal>
 	</div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { message } from 'ant-design-vue';
 import { PlusOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined } from '@ant-design/icons-vue';
-import {
-	getQuestionList,
-	deleteQuestion,
-	deleteQuestionsBatch,
-	getChapterList,
-	downloadQuestionTemplate,
-	importQuestions,
-} from '@/api/question';
+import { stripHtmlTags } from '@/utils/sanitize';
+import { getQuestionList, deleteQuestion, deleteQuestionsBatch, getChapterList, importQuestions } from '@/api/question';
+import { generateQuestionTemplate } from '@/utils/excel-template';
 import { getCourseList } from '@/api/course';
 
 const router = useRouter();
@@ -155,11 +200,20 @@ const currentDeleteRecord = ref<any>(null);
 const selectedRowKeys = ref<number[]>([]);
 const batchDeleteModalVisible = ref(false);
 const batchDeleteLoading = ref(false);
+const importModalVisible = ref(false);
+const importLoading = ref(false);
+const importFile = ref<File | null>(null);
+const importChapterList = ref<any[]>([]);
 
 const searchForm = ref({
 	courseId: undefined,
 	chapterId: undefined,
 	type: undefined,
+});
+
+const importForm = ref({
+	courseId: undefined,
+	chapterId: undefined,
 });
 
 const pagination = ref({
@@ -354,41 +408,128 @@ const confirmBatchDelete = async () => {
 
 const handleDownloadTemplate = async () => {
 	try {
-		const res = await downloadQuestionTemplate();
-		// 从响应中获取 blob
-		const blob = res instanceof Blob ? res : new Blob([res.data || res]);
+		// 前端生成模板
+		const blob = await generateQuestionTemplate();
+
 		const url = window.URL.createObjectURL(blob);
 		const link = document.createElement('a');
 		link.href = url;
 		link.download = '题目导入模板.xlsx';
+		document.body.appendChild(link);
 		link.click();
+		document.body.removeChild(link);
 		window.URL.revokeObjectURL(url);
-	} catch (error) {
-		message.error('下载模板失败');
+		message.success('模板下载成功');
+	} catch (error: any) {
+		console.error('下载模板失败:', error);
+		message.error(error?.message || '下载模板失败');
 	}
 };
 
-const handleImport = async (file: File) => {
+// 显示导入弹窗
+const showImportModal = () => {
+	importModalVisible.value = true;
+	importForm.value = {
+		courseId: undefined,
+		chapterId: undefined,
+	};
+	importFile.value = null;
+	importChapterList.value = [];
+};
+
+// 处理文件选择
+const handleFileSelect = (file: File) => {
+	// 验证文件类型
+	const allowedTypes = [
+		'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+		'application/vnd.ms-excel', // .xls
+	];
+	const allowedExtensions = ['.xlsx', '.xls'];
+
+	const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+	const isValidType = allowedTypes.includes(file.type) || allowedExtensions.includes(fileExtension);
+
+	if (!isValidType) {
+		message.error('只能选择 Excel 格式的文件（.xlsx 或 .xls）');
+		return false;
+	}
+
+	importFile.value = file;
+	return false; // 阻止自动上传
+};
+
+// 导入弹窗中课程变化
+const handleImportCourseChange = async (courseId: number) => {
+	importForm.value.chapterId = undefined;
+	if (!courseId) {
+		importChapterList.value = [];
+		return;
+	}
+	try {
+		const res = await getChapterList({ courseId });
+		importChapterList.value = Array.isArray(res.data) ? res.data : res.data.list || [];
+	} catch (error) {
+		console.error('获取章节列表失败:', error);
+		importChapterList.value = [];
+	}
+};
+
+// 计算是否可以导入（必须选择课程、章节和文件）
+const canImport = computed(() => {
+	return !!importForm.value.courseId && !!importForm.value.chapterId && !!importFile.value;
+});
+
+// 确认导入
+const confirmImport = async () => {
+	if (!importForm.value.courseId) {
+		message.warning('请选择课程');
+		return;
+	}
+	if (!importForm.value.chapterId) {
+		message.warning('请选择章节');
+		return;
+	}
+	if (!importFile.value) {
+		message.warning('请选择要导入的文件');
+		return;
+	}
+
+	importLoading.value = true;
 	try {
 		const formData = new FormData();
-		formData.append('file', file);
+		formData.append('file', importFile.value);
+		formData.append('chapterId', String(importForm.value.chapterId));
 		await importQuestions(formData);
 		message.success('导入成功');
+		importModalVisible.value = false;
+		importFile.value = null;
+		importForm.value = {
+			courseId: undefined,
+			chapterId: undefined,
+		};
+		importChapterList.value = [];
 		fetchData();
-	} catch (error) {
-		message.error('导入失败');
+	} catch (error: any) {
+		message.error(error?.message || error?.msg || '导入失败');
+	} finally {
+		importLoading.value = false;
 	}
-	return false;
+};
+
+// 取消导入
+const cancelImport = () => {
+	importModalVisible.value = false;
+	importFile.value = null;
+	importForm.value = {
+		courseId: undefined,
+		chapterId: undefined,
+	};
+	importChapterList.value = [];
 };
 
 // 获取题干纯文本（去除HTML标签）
 const getStemText = (html: string) => {
-	if (!html) return '';
-	const div = document.createElement('div');
-	div.innerHTML = html;
-	const text = div.textContent || div.innerText || '';
-	// 限制显示长度
-	return text.length > 50 ? text.substring(0, 50) + '...' : text;
+	return stripHtmlTags(html);
 };
 
 watch(

@@ -50,8 +50,10 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { message } from 'ant-design-vue'
 import { GiftOutlined, DownloadOutlined } from '@ant-design/icons-vue'
 import { getAgentDashboard } from '@/api/dashboard'
+import { exportActivationCodes } from '@/api/agent'
 
 const router = useRouter()
 
@@ -75,9 +77,29 @@ const handleBuyCodes = () => {
   router.push('/agent/activation-code?action=buy')
 }
 
-const handleExportCodes = () => {
-  // TODO: 实现导出功能
-  console.log('导出未激活码')
+const handleExportCodes = async () => {
+  try {
+    const blob = await exportActivationCodes({ status: 0 })
+    
+    // 确保是 Blob 类型
+    if (!(blob instanceof Blob)) {
+      throw new Error('响应格式错误')
+    }
+    
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `未激活码_${new Date().toISOString().split('T')[0]}.xlsx`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    
+    message.success('导出成功')
+  } catch (error: any) {
+    console.error('导出失败:', error)
+    message.error(error?.message || '导出失败')
+  }
 }
 </script>
 
