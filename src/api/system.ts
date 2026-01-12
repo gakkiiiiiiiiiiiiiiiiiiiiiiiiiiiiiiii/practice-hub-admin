@@ -17,21 +17,21 @@ export function deleteAccount(id: number) {
   return request.delete(`/admin/accounts/${id}`)
 }
 
-// 角色管理（需要根据实际 API 文档调整，可能后端未提供）
+// 角色管理
 export function getRoleList(params?: any) {
   return request.get('/admin/roles', { params })
 }
 
-export function createRole(data: any) {
-  return request.post('/admin/roles', data)
+export function getRoleDetail(value: string) {
+  return request.get(`/admin/roles/${value}`)
 }
 
-export function updateRole(id: number, data: any) {
-  return request.put(`/admin/roles/${id}`, data)
+export function getPermissionGroups() {
+  return request.get('/admin/roles/permissions')
 }
 
-export function deleteRole(id: number) {
-  return request.delete(`/admin/roles/${id}`)
+export function updateRole(value: string, data: { permissions: string[] }) {
+  return request.put(`/admin/roles/${value}/permissions`, data)
 }
 
 // 运营配置
