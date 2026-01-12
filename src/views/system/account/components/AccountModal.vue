@@ -26,19 +26,18 @@
           placeholder="请输入密码"
         />
       </a-form-item>
-      <a-form-item label="昵称" name="nickname">
-        <a-input v-model:value="formState.nickname" placeholder="请输入昵称" />
-      </a-form-item>
-      <a-form-item label="角色" name="roles">
-        <a-select
-          v-model:value="formState.roles"
-          mode="multiple"
-          placeholder="请选择角色"
-        >
+      <a-form-item label="角色" name="role">
+        <a-select v-model:value="formState.role" placeholder="请选择角色">
           <a-select-option value="super_admin">系统管理员</a-select-option>
           <a-select-option value="content_admin">题库管理员</a-select-option>
           <a-select-option value="agent">代理商</a-select-option>
         </a-select>
+      </a-form-item>
+      <a-form-item v-if="record" label="状态" name="status">
+        <a-radio-group v-model:value="formState.status">
+          <a-radio :value="1">启用</a-radio>
+          <a-radio :value="0">禁用</a-radio>
+        </a-radio-group>
       </a-form-item>
     </a-form>
   </a-modal>
@@ -65,17 +64,17 @@ const loading = ref(false)
 const formState = ref({
   username: '',
   password: '',
-  nickname: '',
-  roles: [],
+  role: undefined as string | undefined,
+  status: 1,
 })
 
 const rules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   password: [
     { required: !props.record, message: '请输入密码', trigger: 'blur' },
+    { min: 6, message: '密码长度至少6个字符', trigger: 'blur' },
   ],
-  nickname: [{ required: true, message: '请输入昵称', trigger: 'blur' }],
-  roles: [{ required: true, message: '请选择角色', trigger: 'change' }],
+  role: [{ required: true, message: '请选择角色', trigger: 'change' }],
 }
 
 watch(
@@ -84,15 +83,17 @@ watch(
     if (val) {
       if (props.record) {
         formState.value = {
-          ...props.record,
+          username: props.record.username,
           password: '',
+          role: props.record.role,
+          status: props.record.status,
         }
       } else {
         formState.value = {
           username: '',
           password: '',
-          nickname: '',
-          roles: [],
+          role: undefined,
+          status: 1,
         }
       }
     }
