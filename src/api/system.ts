@@ -22,16 +22,24 @@ export function getRoleList(params?: any) {
   return request.get('/admin/roles', { params })
 }
 
-export function getRoleDetail(value: string) {
-  return request.get(`/admin/roles/${value}`)
+export function getRoleDetail(id: number | string) {
+  return request.get(`/admin/roles/${id}`)
 }
 
 export function getPermissionGroups() {
   return request.get('/admin/roles/permissions')
 }
 
-export function updateRole(value: string, data: { permissions: string[] }) {
-  return request.put(`/admin/roles/${value}/permissions`, data)
+export function createRole(data: { value: string; name: string; description?: string; permissions: string[] }) {
+  return request.post('/admin/roles', data)
+}
+
+export function updateRole(id: number | string, data: { permissions: string[] }) {
+  return request.put(`/admin/roles/${id}/permissions`, data)
+}
+
+export function deleteRole(id: number) {
+  return request.delete(`/admin/roles/${id}`)
 }
 
 // 运营配置

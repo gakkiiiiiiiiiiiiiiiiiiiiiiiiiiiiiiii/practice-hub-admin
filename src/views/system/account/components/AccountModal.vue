@@ -27,10 +27,10 @@
         />
       </a-form-item>
       <a-form-item label="角色" name="role">
-        <a-select v-model:value="formState.role" placeholder="请选择角色">
-          <a-select-option value="super_admin">系统管理员</a-select-option>
-          <a-select-option value="content_admin">题库管理员</a-select-option>
-          <a-select-option value="agent">代理商</a-select-option>
+        <a-select v-model:value="formState.role" placeholder="请选择角色" :loading="roleList.length === 0">
+          <a-select-option v-for="role in roleList" :key="role.value" :value="role.value">
+            {{ role.name }}
+          </a-select-option>
         </a-select>
       </a-form-item>
       <a-form-item v-if="record" label="状态" name="status">
@@ -44,9 +44,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
-import { createAccount, updateAccount } from '@/api/system'
+import { createAccount, updateAccount, getRoleList } from '@/api/system'
 
 const props = defineProps<{
   open: boolean
@@ -60,6 +60,7 @@ const emit = defineEmits<{
 
 const formRef = ref()
 const loading = ref(false)
+const roleList = ref<Array<{ id: number; value: string; name: string }>>([])
 
 const formState = ref({
   username: '',
@@ -75,6 +76,19 @@ const rules = {
     { min: 6, message: '密码长度至少6个字符', trigger: 'blur' },
   ],
   role: [{ required: true, message: '请选择角色', trigger: 'change' }],
+}
+
+const fetchRoleList = async () => {
+  try {
+    const res = await getRoleList({ page: 1, pageSize: 100 })
+    roleList.value = res.data.list.map((role: any) => ({
+      id: role.id,
+      value: role.value,
+      name: role.name,
+    }))
+  } catch (error) {
+    console.error('获取角色列表失败:', error)
+  }
 }
 
 watch(
@@ -99,6 +113,10 @@ watch(
     }
   }
 )
+
+onMounted(() => {
+  fetchRoleList()
+})
 
 const handleCancel = () => {
   emit('update:open', false)

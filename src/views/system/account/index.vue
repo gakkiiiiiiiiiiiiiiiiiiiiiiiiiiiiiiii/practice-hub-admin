@@ -98,7 +98,7 @@ import { ref, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import dayjs from 'dayjs'
-import { getAccountList, deleteAccount, updateAccount } from '@/api/system'
+import { getAccountList, deleteAccount, updateAccount, getRoleList } from '@/api/system'
 import AccountModal from './components/AccountModal.vue'
 
 const loading = ref(false)
@@ -163,13 +163,23 @@ const columns = [
   },
 ]
 
+const roleMap = ref<Record<string, string>>({})
+
 const getRoleName = (role: string) => {
-  const roleMap: Record<string, string> = {
-    super_admin: '系统管理员',
-    content_admin: '题库管理员',
-    agent: '代理商',
+  return roleMap.value[role] || role
+}
+
+const fetchRoleMap = async () => {
+  try {
+    const res = await getRoleList({ page: 1, pageSize: 100 })
+    const map: Record<string, string> = {}
+    res.data.list.forEach((role: any) => {
+      map[role.value] = role.name
+    })
+    roleMap.value = map
+  } catch (error) {
+    console.error('获取角色列表失败:', error)
   }
-  return roleMap[role] || role
 }
 
 const getRoleColor = (role: string) => {
@@ -259,6 +269,7 @@ const handleRefresh = () => {
 
 onMounted(() => {
   fetchData()
+  fetchRoleMap()
 })
 </script>
 

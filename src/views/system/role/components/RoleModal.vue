@@ -8,6 +8,15 @@
 		width="800px"
 	>
 		<a-form ref="formRef" :model="formState" :rules="rules" :label-col="{ span: 4 }" :wrapper-col="{ span: 20 }">
+			<a-form-item v-if="!record" label="角色标识" name="value">
+				<a-input v-model:value="formState.value" placeholder="如：custom_role（只能包含字母、数字、下划线）" />
+			</a-form-item>
+			<a-form-item v-if="!record" label="角色名称" name="name">
+				<a-input v-model:value="formState.name" placeholder="如：自定义角色" />
+			</a-form-item>
+			<a-form-item v-if="!record" label="角色描述" name="description">
+				<a-textarea v-model:value="formState.description" placeholder="请输入角色描述" :rows="2" />
+			</a-form-item>
 			<a-form-item v-if="record" label="角色标识">
 				<a-input :value="record.value" disabled />
 			</a-form-item>
@@ -17,7 +26,7 @@
 			<a-form-item v-if="record?.isSystem" label="提示">
 				<a-alert message="系统角色不能修改权限" type="warning" show-icon />
 			</a-form-item>
-			<a-form-item v-else-if="record" label="权限配置" name="permissions">
+			<a-form-item v-else label="权限配置" name="permissions">
 				<a-checkbox-group v-model:value="formState.permissions" style="width: 100%">
 					<div v-for="group in permissionGroups" :key="group.module" style="margin-bottom: 16px">
 						<div style="font-weight: bold; margin-bottom: 8px; color: #1890ff">
@@ -38,7 +47,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue';
 import { message } from 'ant-design-vue';
-import { updateRole, getPermissionGroups } from '@/api/system';
+import { createRole, updateRole, getPermissionGroups } from '@/api/system';
 
 const props = defineProps<{
 	open: boolean;
@@ -55,10 +64,18 @@ const loading = ref(false);
 const permissionGroups = ref<Array<{ module: string; permissions: string[] }>>([]);
 
 const formState = ref({
+	value: '',
+	name: '',
+	description: '',
 	permissions: [] as string[],
 });
 
 const rules = {
+	value: [
+		{ required: true, message: '请输入角色标识', trigger: 'blur' },
+		{ pattern: /^[a-z][a-z0-9_]*$/, message: '角色标识只能包含小写字母、数字、下划线，且必须以字母开头', trigger: 'blur' },
+	],
+	name: [{ required: true, message: '请输入角色名称', trigger: 'blur' }],
 	permissions: [{ required: true, message: '请至少选择一个权限', trigger: 'change' }],
 };
 
@@ -88,12 +105,21 @@ watch(
 	() => props.open,
 	(val) => {
 		if (val) {
+			// 打开弹窗时获取权限分组（确保数据是最新的）
+			fetchPermissionGroups();
+			
 			if (props.record) {
 				formState.value = {
+					value: props.record.value || '',
+					name: props.record.name || '',
+					description: props.record.description || '',
 					permissions: props.record.permissions || [],
 				};
 			} else {
 				formState.value = {
+					value: '',
+					name: '',
+					description: '',
 					permissions: [],
 				};
 			}
@@ -120,10 +146,22 @@ const handleSubmit = async () => {
 		await formRef.value?.validate();
 		loading.value = true;
 
-		await updateRole(props.record.value, {
-			permissions: formState.value.permissions,
-		});
-		message.success('更新成功');
+		if (props.record) {
+			// 编辑角色权限
+			await updateRole(props.record.id, {
+				permissions: formState.value.permissions,
+			});
+			message.success('更新成功');
+		} else {
+			// 创建新角色
+			await createRole({
+				value: formState.value.value,
+				name: formState.value.name,
+				description: formState.value.description,
+				permissions: formState.value.permissions,
+			});
+			message.success('创建成功');
+		}
 
 		emit('success');
 		emit('update:open', false);

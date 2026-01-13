@@ -3,13 +3,19 @@
     <a-card>
       <template #title>角色管理</template>
       <template #extra>
-        <a-alert
-          message="提示"
-          description="系统默认提供三个角色：代理商、题库管理员、系统管理员。系统管理员角色不能修改权限。"
-          type="info"
-          show-icon
-          style="margin-bottom: 16px"
-        />
+        <a-space>
+          <a-alert
+            message="提示"
+            description="系统默认提供三个角色：代理商、题库管理员、系统管理员。系统角色不能修改权限或删除。"
+            type="info"
+            show-icon
+            style="margin-bottom: 16px"
+          />
+          <a-button type="primary" @click="handleAdd">
+            <template #icon><plus-outlined /></template>
+            新增角色
+          </a-button>
+        </a-space>
       </template>
 
       <a-table
@@ -49,14 +55,13 @@
               <a-button type="link" size="small" @click="handleEdit(record)">
                 编辑权限
               </a-button>
-              <a-button
+              <a-popconfirm
                 v-if="!record.isSystem"
-                type="link"
-                size="small"
-                @click="handleViewDetail(record)"
+                title="确定要删除这个角色吗？"
+                @confirm="handleDelete(record)"
               >
-                查看详情
-              </a-button>
+                <a-button type="link" danger size="small">删除</a-button>
+              </a-popconfirm>
             </a-space>
           </template>
         </template>
@@ -74,7 +79,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
-import { getRoleList, updateRole } from '@/api/system'
+import { PlusOutlined } from '@ant-design/icons-vue'
+import { getRoleList, deleteRole } from '@/api/system'
 import RoleModal from './components/RoleModal.vue'
 
 const loading = ref(false)
@@ -148,6 +154,11 @@ const handleTableChange = (pag: any) => {
   fetchData()
 }
 
+const handleAdd = () => {
+  currentRecord.value = null
+  modalVisible.value = true
+}
+
 const handleEdit = (record: any) => {
   if (record.isSystem) {
     message.warning('系统角色不能修改权限')
@@ -157,9 +168,18 @@ const handleEdit = (record: any) => {
   modalVisible.value = true
 }
 
-const handleViewDetail = (record: any) => {
-  currentRecord.value = record
-  modalVisible.value = true
+const handleDelete = async (record: any) => {
+  if (record.isSystem) {
+    message.warning('系统角色不能删除')
+    return
+  }
+  try {
+    await deleteRole(record.id)
+    message.success('删除成功')
+    fetchData()
+  } catch (error: any) {
+    message.error(error?.message || '删除失败')
+  }
 }
 
 const handleRefresh = () => {
