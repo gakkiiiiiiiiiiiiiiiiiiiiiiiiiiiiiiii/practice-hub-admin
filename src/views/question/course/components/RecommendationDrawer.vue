@@ -6,13 +6,14 @@
 		@close="handleClose"
 	>
 		<a-form :model="formState" :label-col="{ span: 6 }" :wrapper-col="{ span: 18 }">
-			<a-form-item label="配置类型">
-				<a-radio-group v-model:value="configType" @change="handleConfigTypeChange">
-					<a-radio value="global">公共配置</a-radio>
-					<a-radio value="course">课程配置</a-radio>
-				</a-radio-group>
-				<div style="margin-top: 8px; color: #999; font-size: 12px">
-					{{ configType === 'global' ? '公共配置将作为所有课程的默认推荐，当课程没有单独配置时使用' : '为当前课程单独配置推荐内容，优先级高于公共配置' }}
+			<a-form-item v-if="isGlobalConfig" label="配置说明">
+				<div style="color: #999; font-size: 12px">
+					公共配置将作为所有课程的默认推荐，当课程没有单独配置时使用
+				</div>
+			</a-form-item>
+			<a-form-item v-else label="配置说明">
+				<div style="color: #999; font-size: 12px">
+					为当前课程单独配置推荐内容，优先级高于公共配置
 				</div>
 			</a-form-item>
 
@@ -70,13 +71,15 @@ const emit = defineEmits<{
 
 const loading = ref(false);
 const courseLoading = ref(false);
-const configType = ref<'global' | 'course'>('global');
 const selectedCourseIds = ref<number[]>([]);
 const allCourses = ref<any[]>([]);
 const courseOptions = ref<Array<{ value: number; label: string }>>([]);
 
+// 判断是否为公共配置
+const isGlobalConfig = computed(() => !props.courseId);
+
 const drawerTitle = computed(() => {
-	if (configType.value === 'global') {
+	if (isGlobalConfig.value) {
 		return '相关推荐 - 公共配置';
 	}
 	return props.courseName ? `相关推荐 - ${props.courseName}` : '相关推荐 - 课程配置';
@@ -89,10 +92,6 @@ const filterOption = (input: string, option: any) => {
 const getCoursePrice = (courseId: number) => {
 	const course = allCourses.value.find(c => c.id === courseId);
 	return course?.price || 0;
-};
-
-const handleConfigTypeChange = () => {
-	loadRecommendations();
 };
 
 const loadCourses = async () => {
@@ -112,7 +111,7 @@ const loadCourses = async () => {
 };
 
 const loadRecommendations = async () => {
-	if (configType.value === 'global') {
+	if (isGlobalConfig.value) {
 		// 加载公共配置
 		try {
 			const res = await getRecommendations(null);
@@ -145,7 +144,7 @@ const handleSubmit = async () => {
 
 	loading.value = true;
 	try {
-		const courseId = configType.value === 'global' ? null : props.courseId;
+		const courseId = isGlobalConfig.value ? null : props.courseId;
 		await updateRecommendations({
 			courseId,
 			recommendedCourseIds: selectedCourseIds.value,
@@ -169,15 +168,19 @@ watch(
 	(newVal) => {
 		if (newVal) {
 			loadCourses();
-			// 默认加载课程配置（如果有courseId），否则加载公共配置
-			if (props.courseId) {
-				configType.value = 'course';
-			} else {
-				configType.value = 'global';
-			}
 			loadRecommendations();
 		} else {
 			selectedCourseIds.value = [];
+		}
+	}
+);
+
+// 监听 courseId 变化，重新加载推荐配置
+watch(
+	() => props.courseId,
+	() => {
+		if (props.open) {
+			loadRecommendations();
 		}
 	}
 );
