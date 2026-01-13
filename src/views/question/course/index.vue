@@ -3,10 +3,13 @@
 		<a-card>
 			<template #title>课程管理</template>
 			<template #extra>
-				<a-button type="primary" @click="handleAdd">
-					<template #icon><plus-outlined /></template>
-					新增课程
-				</a-button>
+				<a-space>
+					<a-button @click="handleGlobalRecommend">公共推荐配置</a-button>
+					<a-button type="primary" @click="handleAdd">
+						<template #icon><plus-outlined /></template>
+						新增课程
+					</a-button>
+				</a-space>
 			</template>
 
 			<a-table
@@ -36,6 +39,7 @@
 						<a-space>
 							<a-button type="link" size="small" @click="handleEdit(record)"> 编辑 </a-button>
 							<a-button type="link" size="small" @click="handleExamConfig(record)"> 考试配置 </a-button>
+							<a-button type="link" size="small" @click="handleRecommendConfig(record)"> 相关推荐 </a-button>
 							<a-popconfirm title="确定要删除这个课程吗？" @confirm="handleDelete(record)">
 								<a-button type="link" danger size="small">删除</a-button>
 							</a-popconfirm>
@@ -52,6 +56,13 @@
 			:course-name="currentCourseName"
 			@close="examDrawerVisible = false"
 		/>
+		<recommendation-drawer
+			:open="recommendDrawerVisible"
+			:course-id="currentCourseId"
+			:course-name="currentCourseName"
+			@close="recommendDrawerVisible = false"
+			@success="handleRefresh"
+		/>
 	</div>
 </template>
 
@@ -62,12 +73,14 @@ import { PlusOutlined } from '@ant-design/icons-vue';
 import { getCourseList, deleteCourse } from '@/api/course';
 import CourseModal from './components/CourseModal.vue';
 import ExamConfigDrawer from './components/ExamConfigDrawer.vue';
+import RecommendationDrawer from './components/RecommendationDrawer.vue';
 
 const loading = ref(false);
 const dataSource = ref([]);
 const modalVisible = ref(false);
 const currentRecord = ref(null);
 const examDrawerVisible = ref(false);
+const recommendDrawerVisible = ref(false);
 const currentCourseId = ref<number | null>(null);
 const currentCourseName = ref<string>('');
 
@@ -191,6 +204,18 @@ const handleExamConfig = (record: any) => {
 	currentCourseId.value = record.id;
 	currentCourseName.value = record.name;
 	examDrawerVisible.value = true;
+};
+
+const handleRecommendConfig = (record: any) => {
+	currentCourseId.value = record.id;
+	currentCourseName.value = record.name;
+	recommendDrawerVisible.value = true;
+};
+
+const handleGlobalRecommend = () => {
+	currentCourseId.value = null;
+	currentCourseName.value = '';
+	recommendDrawerVisible.value = true;
 };
 
 onMounted(() => {
