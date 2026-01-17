@@ -63,3 +63,12 @@ export function updateSystemConfig(data: any) {
   return request.put('/admin/settings', data)
 }
 
+// 获取广播消息列表
+export function getDailyQuotes() {
+  return request.get('/admin/settings/daily-quotes')
+}
+
+// 设置广播消息列表
+export function setDailyQuotes(data: { quotes: string[] }) {
+  return request.put('/admin/settings/daily-quotes', data)
+}

@@ -49,6 +49,15 @@
 					placeholder="请输入价格"
 				/>
 			</a-form-item>
+			<a-form-item label="代理商售价" name="agent_price">
+				<a-input-number
+					v-model:value="formState.agent_price"
+					:min="0"
+					:precision="2"
+					style="width: 100%"
+					placeholder="请输入代理商售价"
+				/>
+			</a-form-item>
 			<a-form-item label="是否免费" name="is_free">
 				<a-radio-group v-model:value="formState.is_free">
 					<a-radio :value="0">付费</a-radio>
@@ -103,6 +112,7 @@ const formState = ref({
 	answer_year: '',
 	cover_img: '',
 	price: 0,
+	agent_price: 0,
 	is_free: 0,
 	sort: 0,
 	introduction: '',
@@ -129,6 +139,7 @@ watch(
 					answer_year: props.record.answer_year || '',
 					cover_img: props.record.cover_img || props.record.cover || '',
 					price: props.record.price || 0,
+					agent_price: props.record.agent_price || 0,
 					is_free: props.record.is_free ?? 0,
 					sort: props.record.sort || 0,
 					introduction: props.record.introduction || '',
@@ -155,6 +166,8 @@ watch(
 					answer_year: '',
 					cover_img: '',
 					price: 0,
+					agent_price: 0,
+					agent_price: 0,
 					is_free: 0,
 					sort: 0,
 					introduction: '',
@@ -249,6 +262,9 @@ const handleSubmit = async () => {
 		}
 		if (formState.value.price !== undefined && formState.value.price !== null) {
 			submitData.price = formState.value.price;
+		}
+		if (formState.value.agent_price !== undefined && formState.value.agent_price !== null) {
+			submitData.agent_price = formState.value.agent_price;
 		}
 		if (formState.value.is_free !== undefined) {
 			submitData.is_free = formState.value.is_free;

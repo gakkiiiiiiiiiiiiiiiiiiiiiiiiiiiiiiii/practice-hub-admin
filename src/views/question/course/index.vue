@@ -133,6 +133,12 @@ const columns = [
 		customRender: ({ text }: any) => `¥${text}`,
 	},
 	{
+		title: '代理商售价',
+		dataIndex: 'agent_price',
+		key: 'agent_price',
+		customRender: ({ text }: any) => `¥${text || 0}`,
+	},
+	{
 		title: '是否免费',
 		key: 'is_free',
 		width: 100,

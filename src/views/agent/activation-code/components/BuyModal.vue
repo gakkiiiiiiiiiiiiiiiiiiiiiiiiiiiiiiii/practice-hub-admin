@@ -11,15 +11,17 @@
 			<a-form-item label="题库套餐" name="courseId">
 				<a-select v-model:value="formState.courseId" placeholder="请选择题库" @change="handleCourseChange">
 					<a-select-option v-for="course in courseList" :key="course.id" :value="course.id">
-						{{ course.name }} - ¥{{ course.price }}
+						{{ course.name }} - ¥{{ course.agent_price ?? course.price ?? 0 }}
 					</a-select-option>
 				</a-select>
 			</a-form-item>
 			<a-form-item label="购买数量" name="count">
 				<a-input-number v-model:value="formState.count" :min="1" style="width: 100%" placeholder="请输入数量" />
 			</a-form-item>
-			<a-form-item label="单价">
-				<span style="font-size: 16px; color: #ff4d4f"> ¥{{ selectedCourse?.price || 0 }} </span>
+			<a-form-item label="代理商单价">
+				<span style="font-size: 16px; color: #ff4d4f">
+					¥{{ selectedCourse?.agent_price ?? selectedCourse?.price ?? 0 }}
+				</span>
 			</a-form-item>
 			<a-form-item label="总价">
 				<span style="font-size: 18px; color: #ff4d4f; font-weight: bold"> ¥{{ totalPrice }} </span>
@@ -68,7 +70,8 @@ const selectedCourse = computed(() => {
 
 const totalPrice = computed(() => {
 	if (!selectedCourse.value || !formState.value.count) return 0;
-	return (selectedCourse.value.price * formState.value.count).toFixed(2);
+	const unitPrice = selectedCourse.value.agent_price ?? selectedCourse.value.price ?? 0;
+	return (unitPrice * formState.value.count).toFixed(2);
 });
 
 const fetchCourses = async () => {
