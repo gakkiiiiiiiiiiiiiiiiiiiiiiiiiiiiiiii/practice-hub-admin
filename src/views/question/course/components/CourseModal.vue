@@ -64,6 +64,18 @@
 					<a-radio :value="1">免费</a-radio>
 				</a-radio-group>
 			</a-form-item>
+			<a-form-item v-if="formState.is_free === 0" label="有效期设置" name="validity_days">
+				<a-radio-group v-model:value="formState.validity_days">
+					<a-radio :value="30">30天</a-radio>
+					<a-radio :value="90">90天</a-radio>
+					<a-radio :value="180">180天</a-radio>
+					<a-radio :value="365">365天</a-radio>
+					<a-radio :value="null">永久有效</a-radio>
+				</a-radio-group>
+				<div style="margin-top: 8px; color: #999; font-size: 12px">
+					设置用户购买此课程后的有效期，选择"永久有效"则购买后永久可用
+				</div>
+			</a-form-item>
 			<a-form-item label="排序" name="sort">
 				<a-input-number
 					v-model:value="formState.sort"
@@ -114,6 +126,7 @@ const formState = ref({
 	price: 0,
 	agent_price: 0,
 	is_free: 0,
+	validity_days: null as number | null,
 	sort: 0,
 	introduction: '',
 });
@@ -141,6 +154,7 @@ watch(
 					price: props.record.price || 0,
 					agent_price: props.record.agent_price || 0,
 					is_free: props.record.is_free ?? 0,
+					validity_days: props.record.validity_days ?? null,
 					sort: props.record.sort || 0,
 					introduction: props.record.introduction || '',
 				};
@@ -167,8 +181,8 @@ watch(
 					cover_img: '',
 					price: 0,
 					agent_price: 0,
-					agent_price: 0,
 					is_free: 0,
+					validity_days: null,
 					sort: 0,
 					introduction: '',
 				};
@@ -268,6 +282,15 @@ const handleSubmit = async () => {
 		}
 		if (formState.value.is_free !== undefined) {
 			submitData.is_free = formState.value.is_free;
+		}
+		// 只有付费课程才设置有效期
+		if (formState.value.is_free === 0) {
+			if (formState.value.validity_days !== undefined) {
+				submitData.validity_days = formState.value.validity_days;
+			}
+		} else {
+			// 免费课程不设置有效期
+			submitData.validity_days = null;
 		}
 		if (formState.value.sort !== undefined) {
 			submitData.sort = formState.value.sort;

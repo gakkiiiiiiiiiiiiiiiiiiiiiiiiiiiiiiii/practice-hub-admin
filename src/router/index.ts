@@ -180,6 +180,14 @@ const routes: RouteRecordRaw[] = [
 				},
 			},
 			{
+				path: 'after-sale',
+				name: 'SystemAfterSale',
+				component: () => import('@/views/after-sale/index.vue'),
+				meta: {
+					title: '售后申请管理',
+				},
+			},
+			{
 				path: 'recommend',
 				name: 'SystemRecommend',
 				component: () => import('@/views/recommend/index.vue'),
