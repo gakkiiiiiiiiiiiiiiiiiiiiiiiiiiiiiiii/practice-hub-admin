@@ -62,6 +62,14 @@ const routes: RouteRecordRaw[] = [
 		},
 		children: [
 			{
+				path: 'category',
+				name: 'QuestionCategory',
+				component: () => import('@/views/question/category/index.vue'),
+				meta: {
+					title: '分类管理',
+				},
+			},
+			{
 				path: 'course',
 				name: 'QuestionCourse',
 				component: () => import('@/views/question/course/index.vue'),

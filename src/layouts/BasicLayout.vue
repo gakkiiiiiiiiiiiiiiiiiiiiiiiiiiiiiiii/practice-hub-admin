@@ -112,6 +112,7 @@ const menuItems = computed(() => {
 			icon: h(BookOutlined),
 			label: '题库管理',
 			children: [
+				{ key: '/question/category', label: '分类管理' },
 				{ key: '/question/course', label: '课程管理' },
 				{ key: '/question/chapter', label: '章节管理' },
 				{ key: '/question/list', label: '试题管理' },

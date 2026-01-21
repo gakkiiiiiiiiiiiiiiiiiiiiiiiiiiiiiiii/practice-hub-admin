@@ -82,7 +82,7 @@ const currentRecord = ref(null);
 const examDrawerVisible = ref(false);
 const recommendDrawerVisible = ref(false);
 const currentCourseId = ref<number | null>(null);
-const currentCourseName = ref<string>('');
+constcurrentCourseName = ref<string>('');
 
 const pagination = ref({
 	current: 1,
@@ -105,6 +105,16 @@ const columns = [
 		title: '课程',
 		dataIndex: 'subject',
 		key: 'subject',
+	},
+	{
+		title: '一级分类',
+		dataIndex: 'category',
+		key: 'category',
+	},
+	{
+		title: '二级分类',
+		dataIndex: 'sub_category',
+		key: 'sub_category',
 	},
 	{
 		title: '学校',

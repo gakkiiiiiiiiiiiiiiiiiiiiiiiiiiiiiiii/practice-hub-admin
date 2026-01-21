@@ -14,6 +14,17 @@
 			<a-form-item label="课程" name="subject">
 				<a-input v-model:value="formState.subject" placeholder="请输入课程（如：数学、英语等）" />
 			</a-form-item>
+			<a-form-item label="课程分类" name="category">
+				<a-cascader
+					v-model:value="categoryCascaderValue"
+					:options="cascaderOptions"
+					:field-names="{ label: 'label', value: 'value', children: 'children' }"
+					placeholder="请选择课程分类"
+					allow-clear
+					:show-search="{ filter: cascaderFilter }"
+					style="width: 100%"
+				/>
+			</a-form-item>
 			<a-form-item label="学校" name="school">
 				<a-input v-model:value="formState.school" placeholder="请输入学校（如：北京大学等）" />
 			</a-form-item>
@@ -92,10 +103,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { message } from 'ant-design-vue';
 import { PlusOutlined } from '@ant-design/icons-vue';
 import { createCourse, updateCourse } from '@/api/course';
+import { getCourseCategoryTree } from '@/api/course-category';
 import { uploadImage } from '@/api/upload';
 import type { UploadProps } from 'ant-design-vue';
 import WangEditor from '@/components/WangEditor/index.vue';
@@ -114,10 +126,38 @@ const formRef = ref();
 const loading = ref(false);
 const uploadLoading = ref(false);
 const fileList = ref<any[]>([]);
+const categoryTree = ref<any[]>([]);
+const categoryCascaderValue = ref<string[]>([]);
+
+// 转换为级联选择器需要的格式
+const cascaderOptions = computed(() => {
+	return categoryTree.value
+		.filter((item) => item.status === 1 || item.name === formState.value.category)
+		.map((parent) => ({
+			label: parent.name,
+			value: parent.name,
+			children: Array.isArray(parent.children)
+				? parent.children
+						.filter((child) => child.status === 1 || child.name === formState.value.sub_category)
+						.map((child) => ({
+							label: child.name,
+							value: child.name,
+						}))
+				: [],
+		}))
+		.filter((item) => item.children.length > 0 || item.value === formState.value.category);
+});
+
+// 级联选择器搜索过滤函数
+const cascaderFilter = (inputValue: string, path: any[]) => {
+	return path.some((option) => option.label.toLowerCase().indexOf(inputValue.toLowerCase()) > -1);
+};
 
 const formState = ref({
 	name: '',
 	subject: '',
+	category: '',
+	sub_category: '',
 	school: '',
 	major: '',
 	exam_year: '',
@@ -146,6 +186,8 @@ watch(
 				formState.value = {
 					name: props.record.name || '',
 					subject: props.record.subject || '',
+					category: props.record.category || '',
+					sub_category: props.record.sub_category || '',
 					school: props.record.school || '',
 					major: props.record.major || '',
 					exam_year: props.record.exam_year || '',
@@ -174,6 +216,8 @@ watch(
 				formState.value = {
 					name: '',
 					subject: '',
+					category: '',
+					sub_category: '',
 					school: '',
 					major: '',
 					exam_year: '',
@@ -188,9 +232,61 @@ watch(
 				};
 				fileList.value = [];
 			}
+			fetchCategoryTree();
 		}
 	}
 );
+
+// 监听级联选择器的值变化，同步到 formState
+watch(
+	() => categoryCascaderValue.value,
+	(newValue) => {
+		if (Array.isArray(newValue) && newValue.length > 0) {
+			formState.value.category = newValue[0] || '';
+			formState.value.sub_category = newValue[1] || '';
+		} else {
+			formState.value.category = '';
+			formState.value.sub_category = '';
+		}
+	},
+);
+
+// 监听 formState 的 category 和 sub_category 变化，同步到级联选择器
+// 注意：只在 categoryTree 加载完成后才同步，避免数据未加载时的错误
+watch(
+	[() => formState.value.category, () => formState.value.sub_category, () => categoryTree.value.length],
+	([category, subCategory, treeLength]) => {
+		// 等待分类树加载完成
+		if (treeLength === 0) {
+			return;
+		}
+		if (category && subCategory) {
+			categoryCascaderValue.value = [category, subCategory];
+		} else if (category) {
+			categoryCascaderValue.value = [category];
+		} else {
+			categoryCascaderValue.value = [];
+		}
+	},
+	{ immediate: true },
+);
+
+const fetchCategoryTree = async () => {
+	try {
+		const res = await getCourseCategoryTree();
+		categoryTree.value = Array.isArray(res.data) ? res.data : [];
+		// 数据加载完成后，同步级联选择器的值
+		if (formState.value.category && formState.value.sub_category) {
+			categoryCascaderValue.value = [formState.value.category, formState.value.sub_category];
+		} else if (formState.value.category) {
+			categoryCascaderValue.value = [formState.value.category];
+		} else {
+			categoryCascaderValue.value = [];
+		}
+	} catch (error) {
+		message.error('获取分类列表失败');
+	}
+};
 
 const beforeUpload: UploadProps['beforeUpload'] = (file) => {
 	const isImage = file.type.startsWith('image/');
@@ -243,6 +339,7 @@ const handleUpload = async (options: any) => {
 const handleCancel = () => {
 	emit('update:open', false);
 	formRef.value?.resetFields();
+	categoryCascaderValue.value = [];
 };
 
 const handleSubmit = async () => {
@@ -258,6 +355,12 @@ const handleSubmit = async () => {
 		// 只添加有值的字段
 		if (formState.value.subject) {
 			submitData.subject = formState.value.subject;
+		}
+		if (formState.value.category) {
+			submitData.category = formState.value.category;
+		}
+		if (formState.value.sub_category) {
+			submitData.sub_category = formState.value.sub_category;
 		}
 		if (formState.value.school) {
 			submitData.school = formState.value.school;
