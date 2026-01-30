@@ -82,7 +82,7 @@ const currentRecord = ref(null);
 const examDrawerVisible = ref(false);
 const recommendDrawerVisible = ref(false);
 const currentCourseId = ref<number | null>(null);
-constcurrentCourseName = ref<string>('');
+const currentCourseName = ref<string>('');
 
 const pagination = ref({
 	current: 1,

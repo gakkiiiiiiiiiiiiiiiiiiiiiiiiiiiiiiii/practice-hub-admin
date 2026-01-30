@@ -211,6 +211,14 @@ const routes: RouteRecordRaw[] = [
 					title: '分销管理',
 				},
 			},
+			{
+				path: 'log',
+				name: 'SystemLog',
+				component: () => import('@/views/system/log/index.vue'),
+				meta: {
+					title: '系统操作日志',
+				},
+			},
 		],
 	},
 	{
