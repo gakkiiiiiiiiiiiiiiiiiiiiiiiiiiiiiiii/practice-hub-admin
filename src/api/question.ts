@@ -85,6 +85,22 @@ export function downloadQuestionTemplate() {
 	});
 }
 
+// JSON 导入题目
+export function importQuestionsFromJson(data: { chapterId: number; questions: any[] }) {
+	return request.post('/admin/questions/import-json', data);
+}
+
+// PDF 提取题目
+export function extractQuestionsFromPdf(file: File) {
+	const formData = new FormData();
+	formData.append('pdf', file);
+	return request.post('/admin/process-pdf/extract', formData, {
+		headers: {
+			'Content-Type': 'multipart/form-data',
+		},
+	});
+}
+
 // 上传图片（已迁移到 @/api/upload，保留此函数以保持向后兼容）
 // 建议使用 @/api/upload 中的 uploadImage 函数
 export function uploadImage(data: FormData) {

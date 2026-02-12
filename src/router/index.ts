@@ -253,7 +253,9 @@ router.beforeEach(async (to, from, next) => {
 	const userStore = useUserStore();
 
 	// 错误页面和登录页不需要权限检查
-	if (to.path === '/403' || to.path === '/login' || to.path.startsWith('/404')) {
+	// 注意：404 路由使用 pathMatch，所以需要检查 name 或 path
+	if (to.path === '/403' || to.path === '/login' || to.name === 'NotFound' || to.path.startsWith('/404')) {
+		// 如果是在404页面且token已过期，仍然允许跳转到登录页
 		next();
 		return;
 	}
@@ -271,9 +273,19 @@ router.beforeEach(async (to, from, next) => {
 		if (!userStore.userInfo) {
 			try {
 				await userStore.getUserInfo();
-			} catch (error) {
+			} catch (error: any) {
 				console.error('获取用户信息失败:', error);
-				next({ path: '/login' });
+				// 如果是401错误，清除认证信息
+				if (error?.response?.status === 401 || error?.code === 401) {
+					const { clearAuth } = await import('@/utils/auth');
+					clearAuth();
+					userStore.logout();
+				}
+				// 跳转到登录页
+				next({
+					path: '/login',
+					query: { redirect: to.fullPath },
+				});
 				return;
 			}
 		}

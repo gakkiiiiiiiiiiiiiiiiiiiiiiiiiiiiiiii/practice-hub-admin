@@ -1,7 +1,8 @@
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
+import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import { message } from 'ant-design-vue';
 import { getToken, clearAuth } from './auth';
 import router from '@/router';
+import { useUserStore } from '@/store/user';
 
 // 使用 Vite 的环境变量
 // Vite 会将 VITE_ 开头的环境变量注入到 import.meta.env 中
@@ -29,7 +30,7 @@ service.interceptors.request.use(
 	(error) => {
 		console.error('请求错误:', error);
 		return Promise.reject(error);
-	}
+	},
 );
 
 // 响应拦截器
@@ -49,8 +50,7 @@ service.interceptors.response.use(
 
 			// 401: 未授权，清除token并跳转到登录页
 			if (res.code === 401) {
-				clearAuth();
-				router.push('/login');
+				handleUnauthorized();
 			}
 
 			return Promise.reject(new Error(res.msg || res.message || '请求失败'));
@@ -65,9 +65,7 @@ service.interceptors.response.use(
 			const { status } = error.response;
 
 			if (status === 401) {
-				clearAuth();
-				router.push('/login');
-				message.error('登录已过期，请重新登录');
+				handleUnauthorized();
 			} else if (status === 403) {
 				message.error('没有权限访问');
 			} else if (status === 500) {
@@ -81,7 +79,25 @@ service.interceptors.response.use(
 		}
 
 		return Promise.reject(error);
-	}
+	},
 );
+
+// 处理未授权错误：清除认证信息并跳转到登录页
+function handleUnauthorized() {
+	const userStore = useUserStore();
+	// 清除认证信息
+	clearAuth();
+	// 清除用户 store 状态
+	userStore.logout();
+	// 显示提示信息
+	message.error('登录已过期，请重新登录');
+	// 强制跳转到登录页，即使当前在404页面
+	if (router.currentRoute.value.path !== '/login') {
+		router.replace({
+			path: '/login',
+			query: { redirect: router.currentRoute.value.fullPath },
+		});
+	}
+}
 
 export default service;

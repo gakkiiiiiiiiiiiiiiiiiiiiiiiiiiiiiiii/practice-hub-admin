@@ -16,6 +16,10 @@
 						<template #icon><upload-outlined /></template>
 						批量导入
 					</a-button>
+					<a-button @click="showJsonImportModal">
+						<template #icon><file-text-outlined /></template>
+						JSON 导入
+					</a-button>
 					<a-button type="primary" @click="handleAdd">
 						<template #icon><plus-outlined /></template>
 						新增题目
@@ -69,14 +73,14 @@
 								record.type === 1
 									? '单选题'
 									: record.type === 2
-									? '多选题'
-									: record.type === 3
-									? '判断题'
-									: record.type === 4
-									? '填空题'
-									: record.type === 5
-									? '阅读理解'
-									: '未知'
+										? '多选题'
+										: record.type === 3
+											? '判断题'
+											: record.type === 4
+												? '填空题'
+												: record.type === 5
+													? '阅读理解'
+													: '未知'
 							}}
 						</a-tag>
 					</template>
@@ -175,6 +179,9 @@
 				</a-form-item>
 			</a-form>
 		</a-modal>
+
+		<!-- JSON 导入弹窗 -->
+		<json-import-modal v-model:open="jsonImportModalVisible" @success="handleJsonImportSuccess" />
 	</div>
 </template>
 
@@ -182,11 +189,18 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { message } from 'ant-design-vue';
-import { PlusOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined } from '@ant-design/icons-vue';
+import {
+	PlusOutlined,
+	DownloadOutlined,
+	UploadOutlined,
+	DeleteOutlined,
+	FileTextOutlined,
+} from '@ant-design/icons-vue';
 import { stripHtmlTags } from '@/utils/sanitize';
 import { getQuestionList, deleteQuestion, deleteQuestionsBatch, getChapterList, importQuestions } from '@/api/question';
 import { generateQuestionTemplate } from '@/utils/excel-template';
 import { getCourseList } from '@/api/course';
+import JsonImportModal from './components/JsonImportModal.vue';
 
 const router = useRouter();
 
@@ -204,6 +218,7 @@ const importModalVisible = ref(false);
 const importLoading = ref(false);
 const importFile = ref<File | null>(null);
 const importChapterList = ref<any[]>([]);
+const jsonImportModalVisible = ref(false);
 
 const searchForm = ref({
 	courseId: undefined,
@@ -527,6 +542,16 @@ const cancelImport = () => {
 	importChapterList.value = [];
 };
 
+// 显示 JSON 导入弹窗
+const showJsonImportModal = () => {
+	jsonImportModalVisible.value = true;
+};
+
+// JSON 导入成功
+const handleJsonImportSuccess = () => {
+	fetchData();
+};
+
 // 获取题干纯文本（去除HTML标签）
 const getStemText = (html: string) => {
 	return stripHtmlTags(html);
@@ -537,7 +562,7 @@ watch(
 	() => {
 		searchForm.value.chapterId = undefined;
 		fetchChapters();
-	}
+	},
 );
 
 onMounted(() => {
