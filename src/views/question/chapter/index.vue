@@ -17,6 +17,18 @@
 					<a-button @click="fetchCourses" title="刷新课程列表">
 						<template #icon><reload-outlined /></template>
 					</a-button>
+					<a-button v-if="selectedRowKeys.length > 0" type="primary" danger @click="showBatchDeleteModal">
+						<template #icon><delete-outlined /></template>
+						批量删除 ({{ selectedRowKeys.length }})
+					</a-button>
+					<a-button v-if="selectedRowKeys.length > 0" @click="handleBatchEnable">
+						<template #icon><check-outlined /></template>
+						批量启用 ({{ selectedRowKeys.length }})
+					</a-button>
+					<a-button v-if="selectedRowKeys.length > 0" @click="handleBatchDisable">
+						<template #icon><close-outlined /></template>
+						批量禁用 ({{ selectedRowKeys.length }})
+					</a-button>
 					<a-button type="primary" :disabled="!selectedCourseId" @click="handleAdd">
 						<template #icon><plus-outlined /></template>
 						新增章节
@@ -29,6 +41,7 @@
 				:data-source="dataSource"
 				:loading="loading"
 				:pagination="pagination"
+				:row-selection="{ selectedRowKeys, onChange: onSelectChange }"
 				@change="handleTableChange"
 				row-key="id"
 			>
@@ -36,6 +49,11 @@
 					<template v-if="column.key === 'is_free'">
 						<a-tag :color="record.is_free === 1 ? 'green' : 'default'">
 							{{ record.is_free === 1 ? '是' : '否' }}
+						</a-tag>
+					</template>
+					<template v-else-if="column.key === 'status'">
+						<a-tag :color="record.status === 1 ? 'green' : 'red'">
+							{{ record.status === 1 ? '启用' : '禁用' }}
 						</a-tag>
 					</template>
 					<template v-else-if="column.key === 'action'">
@@ -56,14 +74,26 @@
 			:course-id="selectedCourseId"
 			@success="handleRefresh"
 		/>
+
+		<!-- 批量删除确认弹窗 -->
+		<a-modal
+			v-model:open="batchDeleteModalVisible"
+			title="批量删除确认"
+			:confirm-loading="batchDeleteLoading"
+			@ok="confirmBatchDelete"
+			@cancel="cancelBatchDelete"
+		>
+			<p>确定要删除选中的 {{ selectedRowKeys.length }} 个章节吗？</p>
+			<p style="color: #ff4d4f; font-size: 12px; margin-top: 8px">此操作不可恢复，请谨慎操作！</p>
+		</a-modal>
 	</div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onActivated } from 'vue';
 import { message } from 'ant-design-vue';
-import { PlusOutlined, ReloadOutlined } from '@ant-design/icons-vue';
-import { getChapterList, deleteChapter } from '@/api/question';
+import { PlusOutlined, ReloadOutlined, DeleteOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons-vue';
+import { getChapterList, deleteChapter, batchDeleteChapters, batchUpdateChapterStatus } from '@/api/question';
 import { getCourseList } from '@/api/course';
 import ChapterModal from './components/ChapterModal.vue';
 
@@ -73,6 +103,9 @@ const courseList = ref([]);
 const selectedCourseId = ref<number | null>(null);
 const modalVisible = ref(false);
 const currentRecord = ref(null);
+const selectedRowKeys = ref<number[]>([]);
+const batchDeleteModalVisible = ref(false);
+const batchDeleteLoading = ref(false);
 
 const pagination = ref({
 	current: 1,
@@ -96,6 +129,11 @@ const columns = [
 		title: '是否试读',
 		key: 'is_free',
 		width: 100,
+	},
+	{
+		title: '状态',
+		key: 'status',
+		width: 80,
 	},
 	{
 		title: '操作',
@@ -169,6 +207,77 @@ const handleDelete = async (record: any) => {
 
 const handleRefresh = () => {
 	fetchData();
+};
+
+// 选择变化
+const onSelectChange = (keys: number[]) => {
+	selectedRowKeys.value = keys;
+};
+
+// 显示批量删除确认弹窗
+const showBatchDeleteModal = () => {
+	if (selectedRowKeys.value.length === 0) {
+		message.warning('请先选择要删除的章节');
+		return;
+	}
+	batchDeleteModalVisible.value = true;
+};
+
+// 取消批量删除
+const cancelBatchDelete = () => {
+	batchDeleteModalVisible.value = false;
+};
+
+// 确认批量删除
+const confirmBatchDelete = async () => {
+	if (selectedRowKeys.value.length === 0) return;
+
+	batchDeleteLoading.value = true;
+	try {
+		await batchDeleteChapters(selectedRowKeys.value);
+		message.success(`成功删除 ${selectedRowKeys.value.length} 个章节`);
+		batchDeleteModalVisible.value = false;
+		selectedRowKeys.value = [];
+		fetchData();
+	} catch (error: any) {
+		message.error(error?.msg || error?.message || '批量删除失败');
+	} finally {
+		batchDeleteLoading.value = false;
+	}
+};
+
+// 批量启用
+const handleBatchEnable = async () => {
+	if (selectedRowKeys.value.length === 0) {
+		message.warning('请先选择要启用的章节');
+		return;
+	}
+
+	try {
+		await batchUpdateChapterStatus(selectedRowKeys.value, 1);
+		message.success(`成功启用 ${selectedRowKeys.value.length} 个章节`);
+		selectedRowKeys.value = [];
+		fetchData();
+	} catch (error: any) {
+		message.error(error?.msg || error?.message || '批量启用失败');
+	}
+};
+
+// 批量禁用
+const handleBatchDisable = async () => {
+	if (selectedRowKeys.value.length === 0) {
+		message.warning('请先选择要禁用的章节');
+		return;
+	}
+
+	try {
+		await batchUpdateChapterStatus(selectedRowKeys.value, 0);
+		message.success(`成功禁用 ${selectedRowKeys.value.length} 个章节`);
+		selectedRowKeys.value = [];
+		fetchData();
+	} catch (error: any) {
+		message.error(error?.msg || error?.message || '批量禁用失败');
+	}
 };
 
 onMounted(() => {

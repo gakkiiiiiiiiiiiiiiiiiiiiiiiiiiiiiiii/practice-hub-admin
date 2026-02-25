@@ -30,3 +30,13 @@ export function getRecommendations(courseId?: number | null) {
 export function updateRecommendations(data: { courseId?: number | null; recommendedCourseIds: number[] }) {
   return request.put('/admin/courses/recommendations', data)
 }
+
+// 批量删除课程
+export function batchDeleteCourses(ids: number[]) {
+  return request.post('/admin/courses/batch-delete', { ids })
+}
+
+// 批量更新课程状态
+export function batchUpdateCourseStatus(ids: number[], status: number) {
+  return request.post('/admin/courses/batch-update-status', { ids, status })
+}

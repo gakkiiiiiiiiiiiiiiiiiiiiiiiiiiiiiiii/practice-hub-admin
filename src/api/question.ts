@@ -45,6 +45,16 @@ export function deleteChapter(id: number) {
 	return request.delete(`/admin/chapters/${id}`);
 }
 
+// 批量删除章节
+export function batchDeleteChapters(ids: number[]) {
+	return request.post('/admin/chapters/batch-delete', { ids });
+}
+
+// 批量更新章节状态
+export function batchUpdateChapterStatus(ids: number[], status: number) {
+	return request.post('/admin/chapters/batch-update-status', { ids, status });
+}
+
 // 试题管理
 export function getQuestionList(params?: any) {
 	return request.get('/admin/questions', { params });
