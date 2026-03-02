@@ -72,3 +72,13 @@ export function getDailyQuotes() {
 export function setDailyQuotes(data: { quotes: string[] }) {
   return request.put('/admin/settings/daily-quotes', data)
 }
+
+// 获取打卡时间配置
+export function getCheckinMinutes() {
+  return request.get('/admin/settings/checkin-minutes')
+}
+
+// 设置打卡时间配置
+export function setCheckinMinutes(data: { minutes: number }) {
+  return request.put('/admin/settings/checkin-minutes', data)
+}

@@ -13,6 +13,9 @@
         <a-tab-pane key="ai" tab="首页广播消息">
           <ai-prompt-config />
         </a-tab-pane>
+        <a-tab-pane key="checkin" tab="刷题打卡配置">
+          <checkin-config />
+        </a-tab-pane>
       </a-tabs>
     </a-card>
   </div>
@@ -22,6 +25,7 @@
 import { ref } from 'vue'
 import BannerConfig from './components/BannerConfig.vue'
 import AiPromptConfig from './components/AiPromptConfig.vue'
+import CheckinConfig from './components/CheckinConfig.vue'
 
 const activeTab = ref('banner')
 </script>
