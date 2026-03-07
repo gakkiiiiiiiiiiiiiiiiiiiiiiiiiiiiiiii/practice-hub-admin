@@ -97,7 +97,20 @@
 				<a-form-item label="题干" name="stem">
 					<div class="editor-wrapper">
 						<WangEditor v-model="formState.stem" placeholder="请输入题干内容" />
-						<div class="editor-tip">支持富文本编辑，可插入图片、公式等</div>
+						<div class="editor-tip-row">
+							<div class="editor-tip">支持富文本编辑，可插入图片、公式等；插入图片后可点击「识别题干图片」将图中文字识别并追加到题干</div>
+							<a-button
+								type="primary"
+								ghost
+								:loading="stemOcrLoading"
+								:disabled="!hasStemImages"
+								@click="handleStemImageOcr"
+								class="stem-ocr-btn"
+							>
+								<template #icon><scan-outlined /></template>
+								识别题干图片
+							</a-button>
+						</div>
 					</div>
 				</a-form-item>
 
@@ -322,12 +335,13 @@
 import { ref, onMounted, computed, watch, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { message } from 'ant-design-vue';
-import { PlusOutlined, CheckOutlined, ArrowLeftOutlined, DeleteOutlined } from '@ant-design/icons-vue';
+import { PlusOutlined, CheckOutlined, ArrowLeftOutlined, DeleteOutlined, ScanOutlined } from '@ant-design/icons-vue';
 import WangEditor from '@/components/WangEditor/index.vue';
 import OptionEditor from '@/components/OptionEditor/index.vue';
 import { getQuestionDetail, createQuestion, updateQuestion, getChapterList } from '@/api/question';
 import { getCourseList } from '@/api/course';
 import { uploadImage } from '@/api/upload';
+import { ocrImage } from '@/api/process-pdf';
 
 const router = useRouter();
 const route = useRoute();
@@ -419,8 +433,16 @@ const fillBlankAnswers = ref<string[]>(['']);
 const shortAnswerText = ref('');
 // 简答题图片答案列表
 const shortAnswerImageList = ref<any[]>([]);
+// 题干图片 OCR 识别中
+const stemOcrLoading = ref(false);
 // 保存待回显的答案数据
 const pendingAnswerData = ref<string[]>([]);
+
+/** 题干 HTML 中是否包含图片（用于控制「识别题干图片」按钮可用） */
+const hasStemImages = computed(() => {
+	const html = formState.value.stem || '';
+	return /<img[^>]+src=/i.test(html);
+});
 
 // 课程和章节ID（用于前端选择，提交时需要转换为 chapter_id）
 const selectedCourseId = ref<number | undefined>(undefined);
@@ -840,6 +862,70 @@ const handlePreview = (file: any) => {
  */
 const handleRemove = () => {
 	clearShortAnswer();
+};
+
+/** 从题干 HTML 中解析出所有 img 标签（完整标签与 src） */
+function parseStemImages(html: string): { fullTag: string; src: string }[] {
+	const list: { fullTag: string; src: string }[] = [];
+	const regex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+	let m: RegExpExecArray | null;
+	while ((m = regex.exec(html)) !== null) {
+		list.push({ fullTag: m[0], src: m[1] });
+	}
+	return list;
+}
+
+/** 将 URL 转为可下载的 File（同源或支持 CORS 的图片） */
+async function fetchImageAsFile(url: string, index: number): Promise<File | null> {
+	try {
+		const res = await fetch(url, { mode: 'cors' });
+		if (!res.ok) return null;
+		const blob = await res.blob();
+		const ext = blob.type?.split('/')[1] || 'png';
+		return new File([blob], `stem-img-${index}.${ext}`, { type: blob.type });
+	} catch {
+		return null;
+	}
+}
+
+/** 转义 HTML 防止 XSS，用于插入 OCR 文本 */
+function escapeHtml(s: string): string {
+	const div = document.createElement('div');
+	div.textContent = s;
+	return div.innerHTML;
+}
+
+/** 识别题干中所有图片并追加识别文字到题干 */
+const handleStemImageOcr = async () => {
+	const html = formState.value.stem || '';
+	const images = parseStemImages(html);
+	if (images.length === 0) {
+		message.warning('题干中暂无图片，请先插入图片后再识别');
+		return;
+	}
+
+	stemOcrLoading.value = true;
+	try {
+		let newHtml = html;
+		for (let i = 0; i < images.length; i++) {
+			const { fullTag, src } = images[i];
+			const file = await fetchImageAsFile(src, i);
+			if (!file) {
+				message.warning(`第 ${i + 1} 张图片无法获取（可能为外链，请先上传到本系统）`);
+				continue;
+			}
+			const { text } = await ocrImage(file);
+			if (!text.trim()) continue;
+			const insertBlock = `<p class="ocr-result">识别的文字：${escapeHtml(text.trim())}</p>`;
+			newHtml = newHtml.replace(fullTag, fullTag + insertBlock);
+		}
+		formState.value.stem = newHtml;
+		message.success('题干图片识别完成，已追加到题干中');
+	} catch (err: any) {
+		message.error(err?.message || '题干图片识别失败');
+	} finally {
+		stemOcrLoading.value = false;
+	}
 };
 
 const getTypeName = (type: number): string => {
@@ -1347,8 +1433,18 @@ onMounted(async () => {
 	.editor-wrapper {
 		width: 100%;
 
-		.editor-tip {
+		.editor-tip-row {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 12px;
 			margin-top: 8px;
+			flex-wrap: wrap;
+		}
+
+		.editor-tip {
+			flex: 1;
+			min-width: 0;
 			font-size: 12px;
 			color: #8c8c8c;
 			display: flex;
@@ -1359,6 +1455,10 @@ onMounted(async () => {
 				content: '💡';
 				font-size: 14px;
 			}
+		}
+
+		.stem-ocr-btn {
+			flex-shrink: 0;
 		}
 	}
 

@@ -54,7 +54,7 @@
 						<span>JSON 数据输入</span>
 						<div class="header-actions">
 							<a-upload
-								:before-upload="handlePdfUpload"
+								:before-upload="(file) => handlePdfUpload(file)"
 								:show-upload-list="false"
 								accept=".pdf"
 								:max-count="1"
@@ -63,6 +63,24 @@
 									<a-button type="link" size="small" :loading="pdfExtracting">
 										<template #icon><UploadOutlined /></template>
 										{{ pdfExtracting ? '提取中...' : '上传PDF提取' }}
+									</a-button>
+								</template>
+							</a-upload>
+							<a-tooltip title="适用于文本无法正确提取的 PDF，将每页转为图片后识别">
+								<a-checkbox v-model:checked="forceOcrPdf" style="margin-left: 4px">
+									强制 OCR
+								</a-checkbox>
+							</a-tooltip>
+							<a-upload
+								:before-upload="handleWordUpload"
+								:show-upload-list="false"
+								accept=".doc,.docx"
+								:max-count="1"
+							>
+								<template #default>
+									<a-button type="link" size="small" :loading="wordExtracting">
+										<template #icon><UploadOutlined /></template>
+										{{ wordExtracting ? '提取中...' : '上传Word提取' }}
 									</a-button>
 								</template>
 							</a-upload>
@@ -291,7 +309,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { message } from 'ant-design-vue';
 import { UploadOutlined } from '@ant-design/icons-vue';
 import { getCourseList } from '@/api/course';
-import { getChapterList, extractQuestionsFromPdf } from '@/api/question';
+import { getChapterList, extractQuestionsFromPdf, extractQuestionsFromWord } from '@/api/question';
 import { importQuestionsFromJson } from '@/api/question';
 
 interface JsonQuestion {
@@ -330,6 +348,8 @@ const jsonError = ref('');
 const parsedQuestions = ref<ParsedQuestion[]>([]);
 const importLoading = ref(false);
 const pdfExtracting = ref(false);
+const wordExtracting = ref(false);
+const forceOcrPdf = ref(false); // 强制转为图片后 OCR，适用于文本无法正确提取的 PDF
 const courseList = ref<any[]>([]);
 const chapterList = ref<any[]>([]);
 const currentPage = ref(1);
@@ -733,7 +753,7 @@ const fetchCourses = async () => {
 	}
 };
 
-// PDF 上传处理
+// PDF 上传处理（支持文本 PDF；图片型 PDF 自动走 OCR）
 const handlePdfUpload = async (file: File): Promise<boolean> => {
 	if (!file.name.toLowerCase().endsWith('.pdf')) {
 		message.error('请上传 PDF 文件');
@@ -742,7 +762,7 @@ const handlePdfUpload = async (file: File): Promise<boolean> => {
 
 	pdfExtracting.value = true;
 	try {
-		const res = await extractQuestionsFromPdf(file);
+		const res = await extractQuestionsFromPdf(file, { forceOcr: forceOcrPdf.value });
 		const questions = res.data?.data || res.data || [];
 		
 		if (!Array.isArray(questions) || questions.length === 0) {
@@ -750,13 +770,9 @@ const handlePdfUpload = async (file: File): Promise<boolean> => {
 			return false;
 		}
 
-		// 将提取的题目转换为 JSON 格式
 		const jsonData = JSON.stringify(questions, null, 2);
 		jsonInput.value = jsonData;
-		
-		// 自动触发解析
 		handleJsonInput();
-		
 		message.success(`成功提取 ${questions.length} 道题目`);
 	} catch (error: any) {
 		console.error('PDF 提取失败:', error);
@@ -765,7 +781,39 @@ const handlePdfUpload = async (file: File): Promise<boolean> => {
 		pdfExtracting.value = false;
 	}
 
-	return false; // 阻止自动上传
+	return false;
+};
+
+// Word 上传处理（.docx/.doc）
+const handleWordUpload = async (file: File): Promise<boolean> => {
+	const name = file.name.toLowerCase();
+	if (!name.endsWith('.docx') && !name.endsWith('.doc')) {
+		message.error('请上传 Word 文件（.doc 或 .docx）');
+		return false;
+	}
+
+	wordExtracting.value = true;
+	try {
+		const res = await extractQuestionsFromWord(file);
+		const questions = res.data?.data || res.data || [];
+		
+		if (!Array.isArray(questions) || questions.length === 0) {
+			message.warning('Word 文件中未提取到题目');
+			return false;
+		}
+
+		const jsonData = JSON.stringify(questions, null, 2);
+		jsonInput.value = jsonData;
+		handleJsonInput();
+		message.success(`成功提取 ${questions.length} 道题目`);
+	} catch (error: any) {
+		console.error('Word 提取失败:', error);
+		message.error(error?.message || error?.msg || 'Word 提取失败，请检查文件格式');
+	} finally {
+		wordExtracting.value = false;
+	}
+
+	return false;
 };
 
 watch(

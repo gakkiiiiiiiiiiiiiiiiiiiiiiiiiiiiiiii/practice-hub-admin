@@ -100,14 +100,70 @@ export function importQuestionsFromJson(data: { chapterId: number; questions: an
 	return request.post('/admin/questions/import-json', data);
 }
 
-// PDF 提取题目
-export function extractQuestionsFromPdf(file: File) {
+// PDF 提取题目（异步任务队列）：提交后立即返回，后台处理，前端轮询结果
+// forceOcr: true 时强制转为图片后 OCR
+export function submitPdfExtractTask(file: File, options?: { forceOcr?: boolean }) {
 	const formData = new FormData();
 	formData.append('pdf', file);
-	return request.post('/admin/process-pdf/extract', formData, {
+	if (options?.forceOcr) {
+		formData.append('forceOcr', '1');
+	}
+	return request.post<{ taskId: string }>('/admin/process-pdf/extract', formData, {
 		headers: {
 			'Content-Type': 'multipart/form-data',
 		},
+		timeout: 180000, // 大文件上传可能较慢，3 分钟
+	});
+}
+
+// 查询 PDF 提取任务状态与结果
+export function getPdfExtractTask(taskId: string) {
+	return request.get<{
+		taskId: string;
+		status: 'pending' | 'processing' | 'completed' | 'failed';
+		result?: { count: number; data: any[] };
+		error?: string;
+		createdAt: number;
+	}>(`/admin/process-pdf/extract/task/${taskId}`);
+}
+
+// 提交 PDF 提取任务并轮询直到完成，返回题目列表（供弹窗内使用，避免长时间挂起请求）
+export async function extractQuestionsFromPdf(file: File, options?: { forceOcr?: boolean }): Promise<{ data: { data: any[] } }> {
+	const submitRes = await submitPdfExtractTask(file, options);
+	const body = submitRes.data as { data?: { taskId: string }; taskId?: string };
+	const taskId = body?.data?.taskId ?? body?.taskId;
+	if (!taskId) {
+		throw new Error('提交任务失败，未返回 taskId');
+	}
+	const pollInterval = 2000;
+	const maxWait = 15 * 60 * 1000; // 最多等 15 分钟
+	const start = Date.now();
+	while (Date.now() - start < maxWait) {
+		const taskRes = await getPdfExtractTask(taskId);
+		const resBody = taskRes.data as { data?: { status: string; result?: { data: any[] }; error?: string } };
+		const task = resBody?.data ?? resBody;
+		const status = task?.status;
+		if (status === 'completed') {
+			const data = task?.result?.data ?? [];
+			return { data: { data } };
+		}
+		if (status === 'failed') {
+			throw new Error(task?.error || 'PDF 提取失败');
+		}
+		await new Promise((r) => setTimeout(r, pollInterval));
+	}
+	throw new Error('PDF 提取超时，请稍后在历史任务中查看');
+}
+
+// Word 提取题目（.docx/.doc），超时 2 分钟
+export function extractQuestionsFromWord(file: File) {
+	const formData = new FormData();
+	formData.append('doc', file);
+	return request.post('/admin/process-pdf/extract-doc', formData, {
+		headers: {
+			'Content-Type': 'multipart/form-data',
+		},
+		timeout: 120000, // 2 分钟
 	});
 }
 

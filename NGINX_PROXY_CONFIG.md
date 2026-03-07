@@ -28,20 +28,24 @@ Nginx 代理: https://dayysptc.express-aug7.3150qyq2.q1w701n5.com/api/users
 
 ```nginx
 location /api {
-    # 后端 API 地址（不包含 /api 路径）
     proxy_pass https://dayysptc.express-aug7.3150qyq2.q1w701n5.com;
-    
-    # 代理请求头
+
+    # 大文件上传必须设置，否则超过 1MB 会返回 413 Request Entity Too Large（如 JSON 导入-上传 PDF）
+    client_max_body_size 100m;
+
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Forwarded-Host $host;
-    
-    # 超时设置
+
+    # 大文件上传与长任务需更长超时
     proxy_connect_timeout 60s;
-    proxy_send_timeout 60s;
-    proxy_read_timeout 60s;
+    proxy_send_timeout 300s;
+    proxy_read_timeout 300s;
+
+    proxy_buffering off;
+    proxy_request_buffering off;
 }
 ```
 
@@ -72,19 +76,28 @@ proxy_pass https://new-backend-domain.com;
 
 ## 验证方法
 
+**说明**：Nginx 运行在**部署环境**（如 Docker 容器或服务器），不在本机。下面的命令需在**运行 Nginx 的那台机器/容器内**执行，本机没有安装 nginx 时会报 `command not found`，属正常。
+
 1. **检查 Nginx 配置**：
    ```bash
-   # 在容器中检查配置
+   # 在容器内或服务器上执行
    nginx -t
    ```
 
-2. **测试代理**：
+2. **重载 Nginx**（修改配置后）：
    ```bash
-   # 在容器中测试
+   # 在容器内：docker exec <容器名> nginx -s reload
+   # 或直接重启容器：docker restart <容器名>
+   nginx -s reload
+   ```
+
+3. **测试代理**：
+   ```bash
+   # 在容器内测试
    curl http://localhost/api
    ```
 
-3. **浏览器验证**：
+4. **浏览器验证**：
    - 打开浏览器开发者工具
    - 查看 Network 标签
    - 确认请求路径为 `/api/xxx`
@@ -130,4 +143,13 @@ proxy_pass https://new-backend-domain.com;
 **解决方法**：
 1. 增加超时时间
 2. 优化后端性能
+
+### 问题：上传大文件返回 413 Request Entity Too Large
+
+**原因**：Nginx 默认 `client_max_body_size` 为 **1MB**，请求体超过即直接返回 413，请求不会到达后端。
+
+**解决方法**：
+1. 在 `location /api` 内增加：`client_max_body_size 100m;`（与上面示例一致）
+2. 重载 Nginx：`nginx -s reload` 或重启容器
+3. 若使用微信云托管等云网关，413 可能来自**接入层限制**（约 20MB），需在控制台查找「请求体/上传大小」配置或参考后端 `WECHAT_CLOUDBASE_BODY_SIZE.md`
 
