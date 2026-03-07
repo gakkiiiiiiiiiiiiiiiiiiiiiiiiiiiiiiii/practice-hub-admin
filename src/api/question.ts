@@ -100,15 +100,14 @@ export function importQuestionsFromJson(data: { chapterId: number; questions: an
 	return request.post('/admin/questions/import-json', data);
 }
 
-// PDF 提取题目（异步任务队列）：提交后立即返回，后台处理，前端轮询结果
-// forceOcr: true 时强制转为图片后 OCR
+// PDF 提取题目（先上传到对象存储，再提交异步任务）：提交后立即返回 taskId、fileName
 export function submitPdfExtractTask(file: File, options?: { forceOcr?: boolean }) {
 	const formData = new FormData();
 	formData.append('pdf', file);
 	if (options?.forceOcr) {
 		formData.append('forceOcr', '1');
 	}
-	return request.post<{ taskId: string }>('/admin/process-pdf/extract', formData, {
+	return request.post<{ taskId: string; fileName: string }>('/admin/process-pdf/extract', formData, {
 		headers: {
 			'Content-Type': 'multipart/form-data',
 		},
@@ -116,11 +115,26 @@ export function submitPdfExtractTask(file: File, options?: { forceOcr?: boolean 
 	});
 }
 
+// 获取近期 PDF 提取任务列表（用于弹窗表格）
+export function getPdfExtractTasks(limit?: number) {
+	return request.get<{
+		taskId: string;
+		status: 'pending' | 'processing' | 'completed' | 'failed';
+		fileName?: string;
+		progress?: string;
+		result?: { count: number; data: any[] };
+		error?: string;
+		createdAt: number;
+	}[]>('/admin/process-pdf/extract/tasks', { params: limit != null ? { limit } : undefined });
+}
+
 // 查询 PDF 提取任务状态与结果
 export function getPdfExtractTask(taskId: string) {
 	return request.get<{
 		taskId: string;
 		status: 'pending' | 'processing' | 'completed' | 'failed';
+		fileName?: string;
+		progress?: string;
 		result?: { count: number; data: any[] };
 		error?: string;
 		createdAt: number;

@@ -53,24 +53,10 @@
 					<div class="section-header">
 						<span>JSON 数据输入</span>
 						<div class="header-actions">
-							<a-upload
-								:before-upload="(file) => handlePdfUpload(file)"
-								:show-upload-list="false"
-								accept=".pdf"
-								:max-count="1"
-							>
-								<template #default>
-									<a-button type="link" size="small" :loading="pdfExtracting">
-										<template #icon><UploadOutlined /></template>
-										{{ pdfExtracting ? '提取中...' : '上传PDF提取' }}
-									</a-button>
-								</template>
-							</a-upload>
-							<a-tooltip title="适用于文本无法正确提取的 PDF，将每页转为图片后识别">
-								<a-checkbox v-model:checked="forceOcrPdf" style="margin-left: 4px">
-									强制 OCR
-								</a-checkbox>
-							</a-tooltip>
+							<a-button type="link" size="small" @click="openPdfExtractModal">
+								<template #icon><UploadOutlined /></template>
+								上传PDF提取
+							</a-button>
 							<a-upload
 								:before-upload="handleWordUpload"
 								:show-upload-list="false"
@@ -301,6 +287,7 @@
 				</div>
 			</a-col>
 		</a-row>
+		<PdfExtractTaskModal v-model:open="pdfExtractModalOpen" @import="onPdfExtractImport" />
 	</a-modal>
 </template>
 
@@ -309,7 +296,8 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { message } from 'ant-design-vue';
 import { UploadOutlined } from '@ant-design/icons-vue';
 import { getCourseList } from '@/api/course';
-import { getChapterList, extractQuestionsFromPdf, extractQuestionsFromWord } from '@/api/question';
+import { getChapterList, extractQuestionsFromWord } from '@/api/question';
+import PdfExtractTaskModal from './PdfExtractTaskModal.vue';
 import { importQuestionsFromJson } from '@/api/question';
 
 interface JsonQuestion {
@@ -347,9 +335,8 @@ const jsonInput = ref('');
 const jsonError = ref('');
 const parsedQuestions = ref<ParsedQuestion[]>([]);
 const importLoading = ref(false);
-const pdfExtracting = ref(false);
 const wordExtracting = ref(false);
-const forceOcrPdf = ref(false); // 强制转为图片后 OCR，适用于文本无法正确提取的 PDF
+const pdfExtractModalOpen = ref(false);
 const courseList = ref<any[]>([]);
 const chapterList = ref<any[]>([]);
 const currentPage = ref(1);
@@ -753,35 +740,17 @@ const fetchCourses = async () => {
 	}
 };
 
-// PDF 上传处理（支持文本 PDF；图片型 PDF 自动走 OCR）
-const handlePdfUpload = async (file: File): Promise<boolean> => {
-	if (!file.name.toLowerCase().endsWith('.pdf')) {
-		message.error('请上传 PDF 文件');
-		return false;
-	}
+// 打开 PDF 提取任务弹窗（先上传到对象存储，再在弹窗表格中查看进度与结果）
+const openPdfExtractModal = () => {
+	pdfExtractModalOpen.value = true;
+};
 
-	pdfExtracting.value = true;
-	try {
-		const res = await extractQuestionsFromPdf(file, { forceOcr: forceOcrPdf.value });
-		const questions = res.data?.data || res.data || [];
-		
-		if (!Array.isArray(questions) || questions.length === 0) {
-			message.warning('PDF 文件中未提取到题目');
-			return false;
-		}
-
-		const jsonData = JSON.stringify(questions, null, 2);
-		jsonInput.value = jsonData;
-		handleJsonInput();
-		message.success(`成功提取 ${questions.length} 道题目`);
-	} catch (error: any) {
-		console.error('PDF 提取失败:', error);
-		message.error(error?.message || error?.msg || 'PDF 提取失败，请检查文件格式');
-	} finally {
-		pdfExtracting.value = false;
-	}
-
-	return false;
+// 从 PDF 提取任务弹窗导入题目到 JSON 输入
+const onPdfExtractImport = (questions: any[]) => {
+	if (!Array.isArray(questions) || questions.length === 0) return;
+	const jsonData = JSON.stringify(questions, null, 2);
+	jsonInput.value = jsonData;
+	handleJsonInput();
 };
 
 // Word 上传处理（.docx/.doc）
