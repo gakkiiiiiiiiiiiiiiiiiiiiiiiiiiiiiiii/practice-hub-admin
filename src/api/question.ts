@@ -80,6 +80,11 @@ export function deleteQuestionsBatch(ids: number[]) {
 	return request.post('/admin/questions/batch-delete', { ids });
 }
 
+/** 批量更新题目序号（拖拽排序） */
+export function batchUpdateQuestionOrder(orders: { id: number; sort_order: number }[]) {
+	return request.post('/admin/questions/batch-update-order', { orders });
+}
+
 // 批量导入
 export function importQuestions(data: FormData) {
 	return request.post('/admin/questions/import', data, {
@@ -100,12 +105,16 @@ export function importQuestionsFromJson(data: { chapterId: number; questions: an
 	return request.post('/admin/questions/import-json', data);
 }
 
-// PDF 提取题目（先上传到对象存储，再提交异步任务）：提交后立即返回 taskId、fileName
-export function submitPdfExtractTask(file: File, options?: { forceOcr?: boolean }) {
+// PDF 提取题目：提交后立即返回 taskId、fileName
+// direct=true 时直接上传 PDF 解析（不先写入对象存储）；否则先上传到存储再解析
+export function submitPdfExtractTask(file: File, options?: { forceOcr?: boolean; direct?: boolean }) {
 	const formData = new FormData();
 	formData.append('pdf', file);
 	if (options?.forceOcr) {
 		formData.append('forceOcr', '1');
+	}
+	if (options?.direct) {
+		formData.append('direct', '1');
 	}
 	return request.post<{ taskId: string; fileName: string }>('/admin/process-pdf/extract', formData, {
 		headers: {

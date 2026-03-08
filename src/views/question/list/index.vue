@@ -4,9 +4,14 @@
 			<template #title>试题管理</template>
 			<template #extra>
 				<a-space>
-					<a-button v-if="selectedRowKeys.length > 0" type="primary" danger @click="showBatchDeleteModal">
+					<a-button
+						type="primary"
+						danger
+						:disabled="selectedRowKeys.length === 0"
+						@click="showBatchDeleteModal"
+					>
 						<template #icon><delete-outlined /></template>
-						批量删除 ({{ selectedRowKeys.length }})
+						批量删除 ({{ selectedRowKeys.length || 0 }})
 					</a-button>
 					<a-button @click="handleDownloadTemplate">
 						<template #icon><download-outlined /></template>
@@ -63,11 +68,46 @@
 				:loading="loading"
 				:pagination="pagination"
 				:row-selection="{ selectedRowKeys, onChange: onSelectChange }"
+				:custom-row="customRow"
 				@change="handleTableChange"
 				row-key="id"
 			>
-				<template #bodyCell="{ column, record }">
-					<template v-if="column.key === 'type'">
+				<template #bodyCell="{ column, record, index }">
+					<template v-if="column.key === 'sortOrder'">
+						<span
+							class="sort-order-cell"
+							@dragover="(e: DragEvent) => { e.preventDefault(); e.dataTransfer!.dropEffect = 'move'; }"
+							@drop="(e: DragEvent) => { e.preventDefault(); handleSortDrop(record); }"
+						>
+							<holder-outlined
+								class="drag-handle"
+								title="拖拽排序"
+								draggable="true"
+								@dragstart="handleSortDragStart($event, record)"
+							/>
+							<template v-if="editingSortOrderId === record.id">
+								<a-input-number
+									v-model:value="editingSortOrderValue"
+									:min="0"
+									:max="Math.max((pagination.total || 0) - 1, 0)"
+									size="small"
+									class="sort-order-input"
+									@blur="applySortOrderEdit(record)"
+									@keyup.enter="applySortOrderEdit(record)"
+								/>
+							</template>
+							<template v-else>
+								<span
+									class="sort-order-text"
+									title="点击修改序号"
+									@click="startEditSortOrder(record, index)"
+								>
+									{{ record.sort_order != null ? record.sort_order : index + 1 }}
+								</span>
+							</template>
+						</span>
+					</template>
+					<template v-else-if="column.key === 'type'">
 						<a-tag>
 							{{
 								record.type === 1
@@ -195,9 +235,17 @@ import {
 	UploadOutlined,
 	DeleteOutlined,
 	FileTextOutlined,
+	HolderOutlined,
 } from '@ant-design/icons-vue';
 import { stripHtmlTags } from '@/utils/sanitize';
-import { getQuestionList, deleteQuestion, deleteQuestionsBatch, getChapterList, importQuestions } from '@/api/question';
+import {
+	getQuestionList,
+	deleteQuestion,
+	deleteQuestionsBatch,
+	getChapterList,
+	importQuestions,
+	batchUpdateQuestionOrder,
+} from '@/api/question';
 import { generateQuestionTemplate } from '@/utils/excel-template';
 import { getCourseList } from '@/api/course';
 import JsonImportModal from './components/JsonImportModal.vue';
@@ -238,6 +286,11 @@ const pagination = ref({
 });
 
 const columns = [
+	{
+		title: '序号',
+		key: 'sortOrder',
+		width: 80,
+	},
 	{
 		title: 'ID',
 		dataIndex: 'id',
@@ -388,6 +441,80 @@ const confirmDelete = async () => {
 const onSelectChange = (keys: number[]) => {
 	selectedRowKeys.value = keys;
 };
+
+// 序号列：表格内直接修改
+const editingSortOrderId = ref<number | null>(null);
+const editingSortOrderValue = ref<number>(0);
+const startEditSortOrder = (record: any, index: number) => {
+	editingSortOrderId.value = record.id;
+	const page = pagination.value.current;
+	const pageSize = pagination.value.pageSize;
+	const baseOrder = (page - 1) * pageSize;
+	editingSortOrderValue.value = record.sort_order != null ? record.sort_order : baseOrder + index;
+};
+const applySortOrderEdit = async (record: any) => {
+	if (editingSortOrderId.value !== record.id) return;
+	const raw = editingSortOrderValue.value;
+	if (Number.isNaN(raw) || raw < 0) {
+		editingSortOrderId.value = null;
+		return;
+	}
+	editingSortOrderId.value = null;
+	const page = pagination.value.current;
+	const pageSize = pagination.value.pageSize;
+	const baseOrder = (page - 1) * pageSize;
+	// 用户输入为序号（与表格展示一致），换算为当前页内目标下标
+	const targetPos = Math.min(Math.max(raw - baseOrder, 0), dataSource.value.length - 1);
+	const list = [...dataSource.value];
+	const fromIndex = list.findIndex((r) => r.id === record.id);
+	if (fromIndex === -1) return;
+	const [moved] = list.splice(fromIndex, 1);
+	list.splice(targetPos, 0, moved);
+	const orders = list.map((row, i) => ({ id: row.id, sort_order: baseOrder + i }));
+	try {
+		await batchUpdateQuestionOrder(orders);
+		dataSource.value = list.map((row, i) => ({ ...row, sort_order: baseOrder + i }));
+		message.success('序号已更新');
+	} catch (err: any) {
+		message.error(err?.message || '序号更新失败');
+	}
+};
+
+// 拖拽排序：仅在手柄上拖拽，在序号单元格上放置
+const dragRowId = ref<number | null>(null);
+const handleSortDragStart = (e: DragEvent, record: any) => {
+	dragRowId.value = record.id;
+	e.dataTransfer!.effectAllowed = 'move';
+	e.dataTransfer!.setData('text/plain', String(record.id));
+};
+const handleSortDrop = async (targetRecord: any) => {
+	const fromId = dragRowId.value;
+	if (fromId == null) return;
+	const toId = targetRecord.id;
+	if (fromId === toId) {
+		dragRowId.value = null;
+		return;
+	}
+	dragRowId.value = null;
+	const list = [...dataSource.value];
+	const fromIndex = list.findIndex((r) => r.id === fromId);
+	const toIndex = list.findIndex((r) => r.id === toId);
+	if (fromIndex === -1 || toIndex === -1) return;
+	const [moved] = list.splice(fromIndex, 1);
+	list.splice(toIndex, 0, moved);
+	const page = pagination.value.current;
+	const pageSize = pagination.value.pageSize;
+	const baseOrder = (page - 1) * pageSize;
+	const orders = list.map((row, i) => ({ id: row.id, sort_order: baseOrder + i }));
+	try {
+		await batchUpdateQuestionOrder(orders);
+		dataSource.value = list.map((row, i) => ({ ...row, sort_order: baseOrder + i }));
+		message.success('排序已更新');
+	} catch (err: any) {
+		message.error(err?.message || '排序更新失败');
+	}
+};
+const customRow = () => ({});
 
 // 显示批量删除确认弹窗
 const showBatchDeleteModal = () => {
@@ -575,6 +702,28 @@ onMounted(() => {
 .question-list {
 	.search-form {
 		margin-bottom: 16px;
+	}
+	.sort-order-cell {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		.drag-handle {
+			cursor: grab;
+			color: #999;
+			&:active {
+				cursor: grabbing;
+			}
+		}
+		.sort-order-input {
+			width: 56px;
+		}
+		.sort-order-text {
+			cursor: pointer;
+			min-width: 20px;
+			&:hover {
+				color: var(--ant-primary-color);
+			}
+		}
 	}
 }
 </style>

@@ -4,17 +4,28 @@
 			<template #title>课程管理</template>
 			<template #extra>
 				<a-space>
-					<a-button v-if="selectedRowKeys.length > 0" type="primary" danger @click="showBatchDeleteModal">
+					<a-button
+						type="primary"
+						danger
+						:disabled="selectedRowKeys.length === 0"
+						@click="showBatchDeleteModal"
+					>
 						<template #icon><delete-outlined /></template>
-						批量删除 ({{ selectedRowKeys.length }})
+						批量删除 ({{ selectedRowKeys.length || 0 }})
 					</a-button>
-					<a-button v-if="selectedRowKeys.length > 0" @click="handleBatchEnable">
+					<a-button
+						:disabled="selectedRowKeys.length === 0"
+						@click="handleBatchEnable"
+					>
 						<template #icon><check-outlined /></template>
-						批量启用 ({{ selectedRowKeys.length }})
+						批量启用 ({{ selectedRowKeys.length || 0 }})
 					</a-button>
-					<a-button v-if="selectedRowKeys.length > 0" @click="handleBatchDisable">
+					<a-button
+						:disabled="selectedRowKeys.length === 0"
+						@click="handleBatchDisable"
+					>
 						<template #icon><close-outlined /></template>
-						批量禁用 ({{ selectedRowKeys.length }})
+						批量禁用 ({{ selectedRowKeys.length || 0 }})
 					</a-button>
 					<a-button @click="handleGlobalRecommend">公共推荐配置</a-button>
 					<a-button type="primary" @click="handleAdd">

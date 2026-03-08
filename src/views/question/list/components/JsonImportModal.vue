@@ -53,23 +53,10 @@
 					<div class="section-header">
 						<span>JSON 数据输入</span>
 						<div class="header-actions">
-							<a-button type="link" size="small" @click="openPdfExtractModal">
+							<a-button type="link" size="small" @click="openFileExtractModal">
 								<template #icon><UploadOutlined /></template>
-								上传PDF提取
+								上传文件提取
 							</a-button>
-							<a-upload
-								:before-upload="handleWordUpload"
-								:show-upload-list="false"
-								accept=".doc,.docx"
-								:max-count="1"
-							>
-								<template #default>
-									<a-button type="link" size="small" :loading="wordExtracting">
-										<template #icon><UploadOutlined /></template>
-										{{ wordExtracting ? '提取中...' : '上传Word提取' }}
-									</a-button>
-								</template>
-							</a-upload>
 							<a-button type="link" size="small" @click="handleFormatJson">格式化</a-button>
 						</div>
 					</div>
@@ -136,6 +123,12 @@
 											>
 												取消
 											</a-button>
+											<a-popconfirm
+												title="确定删除本题？"
+												@confirm="handleDeleteQuestion(getGlobalQuestionIndex(index))"
+											>
+												<a-button type="link" size="small" danger>删除</a-button>
+											</a-popconfirm>
 										</div>
 									</div>
 									
@@ -287,7 +280,7 @@
 				</div>
 			</a-col>
 		</a-row>
-		<PdfExtractTaskModal v-model:open="pdfExtractModalOpen" @import="onPdfExtractImport" />
+		<PdfExtractTaskModal v-model:open="fileExtractModalOpen" @import="onFileExtractImport" />
 	</a-modal>
 </template>
 
@@ -296,7 +289,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { message } from 'ant-design-vue';
 import { UploadOutlined } from '@ant-design/icons-vue';
 import { getCourseList } from '@/api/course';
-import { getChapterList, extractQuestionsFromWord } from '@/api/question';
+import { getChapterList } from '@/api/question';
 import PdfExtractTaskModal from './PdfExtractTaskModal.vue';
 import { importQuestionsFromJson } from '@/api/question';
 
@@ -335,8 +328,7 @@ const jsonInput = ref('');
 const jsonError = ref('');
 const parsedQuestions = ref<ParsedQuestion[]>([]);
 const importLoading = ref(false);
-const wordExtracting = ref(false);
-const pdfExtractModalOpen = ref(false);
+const fileExtractModalOpen = ref(false);
 const courseList = ref<any[]>([]);
 const chapterList = ref<any[]>([]);
 const currentPage = ref(1);
@@ -489,6 +481,43 @@ const handleCancelEdit = () => {
 	editingQuestionIndex.value = null;
 	editingQuestion.value = null;
 	editingAnswerText.value = '';
+};
+
+// 将解析后的题目转成 JSON 输入框使用的对象格式
+function parsedToJsonRaw(q: ParsedQuestion): Record<string, unknown> {
+	return {
+		type: q.type,
+		question: q.question,
+		options: (q.options || []).reduce(
+			(acc, o) => {
+				acc[o.label] = o.text;
+				return acc;
+			},
+			{} as Record<string, string>,
+		),
+		answer: Array.isArray(q.answer) ? q.answer.join(',') : (q.answer ?? ''),
+		explanation: q.explanation || '',
+	};
+}
+
+// 删除预览中的某道题目
+const handleDeleteQuestion = (globalIndex: number) => {
+	parsedQuestions.value.splice(globalIndex, 1);
+	jsonInput.value = JSON.stringify(parsedQuestions.value.map(parsedToJsonRaw), null, 2);
+	jsonError.value = '';
+	if (editingQuestionIndex.value === globalIndex) {
+		editingQuestionIndex.value = null;
+		editingQuestion.value = null;
+		editingAnswerText.value = '';
+	} else if (editingQuestionIndex.value != null && editingQuestionIndex.value > globalIndex) {
+		editingQuestionIndex.value -= 1;
+	}
+	const total = parsedQuestions.value.length;
+	const maxPage = Math.max(1, Math.ceil(total / pageSize.value));
+	if (currentPage.value > maxPage) {
+		currentPage.value = maxPage;
+	}
+	message.success('已删除该题');
 };
 
 // 题型变化处理
@@ -740,49 +769,17 @@ const fetchCourses = async () => {
 	}
 };
 
-// 打开 PDF 提取任务弹窗（先上传到对象存储，再在弹窗表格中查看进度与结果）
-const openPdfExtractModal = () => {
-	pdfExtractModalOpen.value = true;
+// 打开文件提取弹窗（支持 PDF、Word，识别不到文本时自动 OCR）
+const openFileExtractModal = () => {
+	fileExtractModalOpen.value = true;
 };
 
-// 从 PDF 提取任务弹窗导入题目到 JSON 输入
-const onPdfExtractImport = (questions: any[]) => {
+// 从文件提取弹窗导入题目到 JSON 输入
+const onFileExtractImport = (questions: any[]) => {
 	if (!Array.isArray(questions) || questions.length === 0) return;
 	const jsonData = JSON.stringify(questions, null, 2);
 	jsonInput.value = jsonData;
 	handleJsonInput();
-};
-
-// Word 上传处理（.docx/.doc）
-const handleWordUpload = async (file: File): Promise<boolean> => {
-	const name = file.name.toLowerCase();
-	if (!name.endsWith('.docx') && !name.endsWith('.doc')) {
-		message.error('请上传 Word 文件（.doc 或 .docx）');
-		return false;
-	}
-
-	wordExtracting.value = true;
-	try {
-		const res = await extractQuestionsFromWord(file);
-		const questions = res.data?.data || res.data || [];
-		
-		if (!Array.isArray(questions) || questions.length === 0) {
-			message.warning('Word 文件中未提取到题目');
-			return false;
-		}
-
-		const jsonData = JSON.stringify(questions, null, 2);
-		jsonInput.value = jsonData;
-		handleJsonInput();
-		message.success(`成功提取 ${questions.length} 道题目`);
-	} catch (error: any) {
-		console.error('Word 提取失败:', error);
-		message.error(error?.message || error?.msg || 'Word 提取失败，请检查文件格式');
-	} finally {
-		wordExtracting.value = false;
-	}
-
-	return false;
 };
 
 watch(
