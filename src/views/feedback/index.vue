@@ -139,7 +139,7 @@
 							<a-image
 								v-for="(img, index) in currentRecord.images"
 								:key="index"
-								:src="img"
+								:src="getProxiedImageUrl(img)"
 								:width="150"
 								:preview="true"
 								style="margin-right: 8px; margin-bottom: 8px"
@@ -181,7 +181,7 @@
 		<a-modal v-model:open="imageModalVisible" title="反馈图片" width="800px" :footer="null">
 			<div v-if="currentImages && currentImages.length > 0" class="image-preview">
 				<a-image-preview-group>
-					<a-image v-for="(img, index) in currentImages" :key="index" :src="img" :width="200" style="margin: 8px" />
+					<a-image v-for="(img, index) in currentImages" :key="index" :src="getProxiedImageUrl(img)" :width="200" style="margin: 8px" />
 				</a-image-preview-group>
 			</div>
 		</a-modal>
@@ -274,6 +274,7 @@ import {
 	type CreateFeedbackDto,
 } from '@/api/feedback';
 import { uploadImage } from '@/api/upload';
+import { getProxiedImageUrl } from '@/utils/imageProxy';
 import dayjs from 'dayjs';
 
 const loading = ref(false);

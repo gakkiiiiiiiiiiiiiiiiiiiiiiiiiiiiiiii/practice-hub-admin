@@ -342,6 +342,7 @@ import { getQuestionDetail, createQuestion, updateQuestion, getChapterList } fro
 import { getCourseList } from '@/api/course';
 import { uploadImage } from '@/api/upload';
 import { ocrImage } from '@/api/process-pdf';
+import { proxyImageUrlsInHtml, reverseProxyUrlsInHtml } from '@/utils/imageProxy';
 
 const router = useRouter();
 const route = useRoute();
@@ -568,13 +569,14 @@ const fetchQuestionDetail = async () => {
 		console.log('选项数据:', options);
 
 		// 更新表单状态（使用 Object.assign 确保响应式更新）
+		// 题干/解析中的 TCB 图片替换为代理地址，避免跨域无法加载
 		Object.assign(formState.value, {
 			chapter_id: data.chapter_id,
 			type: data.type,
-			stem: data.stem || '',
+			stem: proxyImageUrlsInHtml(data.stem || ''),
 			options: options,
 			answer: answerData,
-			analysis: data.analysis || '',
+			analysis: proxyImageUrlsInHtml(data.analysis || ''),
 		});
 
 		// 保存待回显的答案数据
@@ -916,7 +918,7 @@ const handleStemImageOcr = async () => {
 			}
 			const { text } = await ocrImage(file);
 			if (!text.trim()) continue;
-			const insertBlock = `<p class="ocr-result">识别的文字：${escapeHtml(text.trim())}</p>`;
+			const insertBlock = `<p class="ocr-result">${escapeHtml(text.trim())}</p>`;
 			newHtml = newHtml.replace(fullTag, fullTag + insertBlock);
 		}
 		formState.value.stem = newHtml;
@@ -1044,11 +1046,11 @@ const handleSubmit = async () => {
 
 		loading.value = true;
 
-		// 构建符合后端 DTO 的数据
+		// 构建符合后端 DTO 的数据（题干/解析中的代理 URL 还原为原始 TCB 地址再保存）
 		const data: any = {
 			chapter_id: formState.value.chapter_id,
 			type: formState.value.type,
-			stem: formState.value.stem,
+			stem: reverseProxyUrlsInHtml(formState.value.stem),
 			answer: formState.value.answer,
 		};
 
@@ -1065,7 +1067,7 @@ const handleSubmit = async () => {
 
 		// 解析（可选）
 		if (formState.value.analysis) {
-			data.analysis = formState.value.analysis;
+			data.analysis = reverseProxyUrlsInHtml(formState.value.analysis);
 		}
 
 		if (isEdit.value) {

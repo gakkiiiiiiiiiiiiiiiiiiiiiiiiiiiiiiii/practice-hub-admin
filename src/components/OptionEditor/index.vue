@@ -30,7 +30,7 @@
 					</div>
 				</a-upload>
 				<div v-if="imageUrl" class="image-preview">
-					<a-image :src="imageUrl" :width="200" :preview="true" />
+					<a-image :src="getProxiedImageUrl(imageUrl)" :width="200" :preview="true" />
 				</div>
 			</div>
 		</a-space>
@@ -43,6 +43,7 @@ import { message } from 'ant-design-vue';
 import { PlusOutlined } from '@ant-design/icons-vue';
 import type { UploadProps, UploadFile } from 'ant-design-vue';
 import { uploadImage } from '@/api/upload';
+import { getProxiedImageUrl } from '@/utils/imageProxy';
 
 const props = defineProps<{
 	modelValue: string;

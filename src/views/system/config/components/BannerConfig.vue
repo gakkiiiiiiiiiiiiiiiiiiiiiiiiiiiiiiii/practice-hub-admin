@@ -9,7 +9,7 @@
 			<template #bodyCell="{ column, record }">
 				<template v-if="column.key === 'image'">
 					<a-image
-						:src="record.image"
+						:src="getProxiedImageUrl(record.image)"
 						:width="120"
 						:height="60"
 						style="object-fit: cover"
@@ -148,6 +148,7 @@ import { message } from 'ant-design-vue';
 import { PlusOutlined } from '@ant-design/icons-vue';
 import { getBannerList, createBanner, updateBanner, deleteBanner } from '@/api/banner';
 import { uploadImage } from '@/api/upload';
+import { getProxiedImageUrl } from '@/utils/imageProxy';
 import { getPageRoutes } from '@/api/page-route';
 
 const loading = ref(false);
