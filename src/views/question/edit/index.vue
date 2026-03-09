@@ -94,23 +94,68 @@
 					<span class="section-title">题目内容</span>
 				</a-divider>
 
+				<!-- 图片转文字（OCR）独立区域：粘贴或上传图片，base64 传输，识别结果可插入题干/选项/解析 -->
+				<a-form-item label="图片转文字" class="ocr-zone-form-item">
+					<div class="ocr-zone">
+						<div class="ocr-zone-tip">粘贴或上传图片，识别后的文字将插入到下方选择的位置</div>
+						<div class="ocr-zone-insert-row">
+							<span class="ocr-zone-insert-label">插入到：</span>
+							<a-radio-group v-model:value="ocrInsertTarget" class="ocr-zone-insert-radio">
+								<a-radio-button value="stem">题干</a-radio-button>
+								<a-radio-button value="analysis">解析</a-radio-button>
+								<a-radio-button
+									value="option"
+									:disabled="formState.type === QuestionType.FILL_BLANK || formState.type === QuestionType.JUDGE || formState.type === QuestionType.SHORT_ANSWER"
+								>
+									选项
+								</a-radio-button>
+							</a-radio-group>
+							<template v-if="ocrInsertTarget === 'option' && formState.options.length">
+								<a-select
+									v-model:value="ocrInsertOptionIndex"
+									class="ocr-zone-option-select"
+									:options="ocrOptionSelectOptions"
+								/>
+							</template>
+						</div>
+						<div class="ocr-zone-actions">
+							<div
+								ref="ocrPasteAreaRef"
+								class="ocr-paste-area"
+								tabindex="0"
+								@paste="handleOcrZonePaste"
+								@click="focusOcrPasteArea"
+							>
+								<span v-if="!ocrZoneDataUrl" class="ocr-paste-placeholder">在此处粘贴图片（Ctrl+V）</span>
+								<img v-else :src="ocrZoneDataUrl" class="ocr-preview-img" alt="预览" />
+							</div>
+							<div class="ocr-upload-area">
+								<a-upload
+									:show-upload-list="false"
+									accept="image/jpeg,image/png,image/gif,image/webp"
+									:before-upload="handleOcrZoneUpload"
+								>
+									<a-button type="default">
+										<template #icon><plus-outlined /></template>
+										选择图片上传
+									</a-button>
+								</a-upload>
+							</div>
+						</div>
+						<div v-if="ocrZoneDataUrl" class="ocr-zone-btns">
+							<a-button type="primary" :loading="ocrZoneLoading" @click="runOcrZoneAndInsert">
+								<template #icon><scan-outlined /></template>
+								{{ ocrZoneSubmitLabel }}
+							</a-button>
+							<a-button @click="clearOcrZone">清空</a-button>
+						</div>
+					</div>
+				</a-form-item>
+
 				<a-form-item label="题干" name="stem">
 					<div class="editor-wrapper">
 						<WangEditor v-model="formState.stem" placeholder="请输入题干内容" />
-						<div class="editor-tip-row">
-							<div class="editor-tip">支持富文本编辑，可插入图片、公式等；插入图片后可点击「识别题干图片」将图中文字识别并追加到题干</div>
-							<a-button
-								type="primary"
-								ghost
-								:loading="stemOcrLoading"
-								:disabled="!hasStemImages"
-								@click="handleStemImageOcr"
-								class="stem-ocr-btn"
-							>
-								<template #icon><scan-outlined /></template>
-								识别题干图片
-							</a-button>
-						</div>
+						<div class="editor-tip">支持富文本编辑，可插入图片、公式等</div>
 					</div>
 				</a-form-item>
 
@@ -341,8 +386,8 @@ import OptionEditor from '@/components/OptionEditor/index.vue';
 import { getQuestionDetail, createQuestion, updateQuestion, getChapterList } from '@/api/question';
 import { getCourseList } from '@/api/course';
 import { uploadImage } from '@/api/upload';
-import { ocrImage } from '@/api/process-pdf';
-import { proxyImageUrlsInHtml, reverseProxyUrlsInHtml, getProxiedImageUrl } from '@/utils/imageProxy';
+import { ocrImageBase64 } from '@/api/process-pdf';
+import { proxyImageUrlsInHtml, reverseProxyUrlsInHtml } from '@/utils/imageProxy';
 
 const router = useRouter();
 const route = useRoute();
@@ -434,16 +479,15 @@ const fillBlankAnswers = ref<string[]>(['']);
 const shortAnswerText = ref('');
 // 简答题图片答案列表
 const shortAnswerImageList = ref<any[]>([]);
-// 题干图片 OCR 识别中
-const stemOcrLoading = ref(false);
+// 独立 OCR 区域：粘贴/上传的图片预览（data URL）与识别中状态
+const ocrZoneDataUrl = ref('');
+const ocrZoneLoading = ref(false);
+// OCR 结果插入位置：题干 / 解析 / 选项；选选项时用 ocrInsertOptionIndex
+const ocrInsertTarget = ref<'stem' | 'analysis' | 'option'>('stem');
+const ocrInsertOptionIndex = ref(0);
 // 保存待回显的答案数据
 const pendingAnswerData = ref<string[]>([]);
 
-/** 题干 HTML 中是否包含图片（用于控制「识别题干图片」按钮可用） */
-const hasStemImages = computed(() => {
-	const html = formState.value.stem || '';
-	return /<img[^>]+src=/i.test(html);
-});
 
 // 课程和章节ID（用于前端选择，提交时需要转换为 chapter_id）
 const selectedCourseId = ref<number | undefined>(undefined);
@@ -866,31 +910,6 @@ const handleRemove = () => {
 	clearShortAnswer();
 };
 
-/** 从题干 HTML 中解析出所有 img 标签（完整标签与 src） */
-function parseStemImages(html: string): { fullTag: string; src: string }[] {
-	const list: { fullTag: string; src: string }[] = [];
-	const regex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
-	let m: RegExpExecArray | null;
-	while ((m = regex.exec(html)) !== null) {
-		list.push({ fullTag: m[0], src: m[1] });
-	}
-	return list;
-}
-
-/** 将 URL 转为可下载的 File（TCB 等跨域地址会先走代理再 fetch） */
-async function fetchImageAsFile(url: string, index: number): Promise<File | null> {
-	try {
-		const fetchUrl = getProxiedImageUrl(url);
-		const res = await fetch(fetchUrl, { mode: 'cors' });
-		if (!res.ok) return null;
-		const blob = await res.blob();
-		const ext = blob.type?.split('/')[1] || 'png';
-		return new File([blob], `stem-img-${index}.${ext}`, { type: blob.type });
-	} catch {
-		return null;
-	}
-}
-
 /** 转义 HTML 防止 XSS，用于插入 OCR 文本 */
 function escapeHtml(s: string): string {
 	const div = document.createElement('div');
@@ -898,38 +917,100 @@ function escapeHtml(s: string): string {
 	return div.innerHTML;
 }
 
-/** 识别题干中所有图片并追加识别文字到题干 */
-const handleStemImageOcr = async () => {
-	const html = formState.value.stem || '';
-	const images = parseStemImages(html);
-	if (images.length === 0) {
-		message.warning('题干中暂无图片，请先插入图片后再识别');
+/** 从 data URL 取出纯 base64 */
+function dataUrlToBase64(dataUrl: string): string {
+	if (!dataUrl || !dataUrl.startsWith('data:')) return dataUrl;
+	const comma = dataUrl.indexOf(',');
+	return comma !== -1 ? dataUrl.slice(comma + 1) : '';
+}
+
+/** OCR 区域：粘贴图片 */
+const ocrPasteAreaRef = ref<HTMLElement | null>(null);
+function focusOcrPasteArea() {
+	ocrPasteAreaRef.value?.focus();
+}
+function handleOcrZonePaste(e: ClipboardEvent) {
+	const items = e.clipboardData?.items;
+	if (!items) return;
+	for (let i = 0; i < items.length; i++) {
+		if (items[i].type.indexOf('image') !== -1) {
+			e.preventDefault();
+			const file = items[i].getAsFile();
+			if (!file) return;
+			const reader = new FileReader();
+			reader.onload = () => {
+				const dataUrl = reader.result as string;
+				ocrZoneDataUrl.value = dataUrl;
+			};
+			reader.readAsDataURL(file);
+			break;
+		}
+	}
+}
+
+/** OCR 区域：选择图片上传（before-upload 中转为 base64 并展示，阻止默认上传） */
+function handleOcrZoneUpload(file: File): boolean {
+	const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+	if (!allowed.includes(file.type)) {
+		message.warning('仅支持 jpg、png、gif、webp');
+		return false;
+	}
+	const reader = new FileReader();
+	reader.onload = () => {
+		ocrZoneDataUrl.value = reader.result as string;
+	};
+	reader.readAsDataURL(file);
+	return false; // 阻止 a-upload 默认上传
+}
+
+/** 开始识别并将结果插入到所选位置（题干/解析/选项） */
+async function runOcrZoneAndInsert() {
+	if (!ocrZoneDataUrl.value) {
+		message.warning('请先粘贴或上传图片');
 		return;
 	}
-
-	stemOcrLoading.value = true;
-	try {
-		let newHtml = html;
-		for (let i = 0; i < images.length; i++) {
-			const { fullTag, src } = images[i];
-			const file = await fetchImageAsFile(src, i);
-			if (!file) {
-				message.warning(`第 ${i + 1} 张图片无法获取（可能为外链，请先上传到本系统）`);
-				continue;
-			}
-			const { text } = await ocrImage(file);
-			if (!text.trim()) continue;
-			const insertBlock = `<p class="ocr-result">${escapeHtml(text.trim())}</p>`;
-			newHtml = newHtml.replace(fullTag, fullTag + insertBlock);
-		}
-		formState.value.stem = newHtml;
-		message.success('题干图片识别完成，已追加到题干中');
-	} catch (err: any) {
-		message.error(err?.message || '题干图片识别失败');
-	} finally {
-		stemOcrLoading.value = false;
+	const base64 = dataUrlToBase64(ocrZoneDataUrl.value);
+	if (!base64) {
+		message.warning('图片数据无效');
+		return;
 	}
-};
+	ocrZoneLoading.value = true;
+	try {
+		const { text } = await ocrImageBase64(base64);
+		const trimmed = text?.trim() || '';
+		if (!trimmed) {
+			message.info('未识别到文字');
+			return;
+		}
+		const target = ocrInsertTarget.value;
+		const insertBlock = `<p class="ocr-result">${escapeHtml(trimmed)}</p>`;
+		if (target === 'stem') {
+			formState.value.stem = (formState.value.stem || '') + insertBlock;
+			message.success('已插入题干');
+		} else if (target === 'analysis') {
+			formState.value.analysis = (formState.value.analysis || '') + insertBlock;
+			message.success('已插入解析');
+		} else {
+			const idx = Math.min(ocrInsertOptionIndex.value, formState.value.options.length - 1);
+			if (idx < 0) {
+				message.warning('当前没有可选选项');
+				return;
+			}
+			const cur = formState.value.options[idx].text || '';
+			formState.value.options[idx].text = cur ? `${cur}\n${trimmed}` : trimmed;
+			message.success(`已插入选项${getOptionLabel(idx)}`);
+		}
+		clearOcrZone();
+	} catch (err: any) {
+		message.error(err?.message || '识别失败');
+	} finally {
+		ocrZoneLoading.value = false;
+	}
+}
+
+function clearOcrZone() {
+	ocrZoneDataUrl.value = '';
+}
 
 const getTypeName = (type: number): string => {
 	const typeMap: Record<number, string> = {
@@ -965,6 +1046,21 @@ const getOptionLabel = (index: number): string => {
 	const labels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
 	return labels[index] || String.fromCharCode(65 + index); // 如果超过J，使用ASCII码继续
 };
+
+// OCR 区域：选项下拉列表与提交按钮文案
+const ocrOptionSelectOptions = computed(() =>
+	formState.value.options.map((_, i) => ({
+		label: `选项${getOptionLabel(i)}`,
+		value: i,
+	})),
+);
+const ocrZoneSubmitLabel = computed(() => {
+	if (ocrInsertTarget.value === 'stem') return '开始识别并插入题干';
+	if (ocrInsertTarget.value === 'analysis') return '开始识别并插入解析';
+	const idx = ocrInsertOptionIndex.value;
+	const label = getOptionLabel(idx);
+	return `开始识别并插入选项${label}`;
+});
 
 // 重新生成所有选项的标签（确保按A、B、C、D顺序）
 const regenerateOptionLabels = () => {
@@ -1431,6 +1527,88 @@ onMounted(async () => {
 
 	.answer-input {
 		width: 100%;
+	}
+
+	.ocr-zone-form-item {
+		margin-bottom: 20px;
+	}
+
+	.ocr-zone {
+		border: 1px dashed #d9d9d9;
+		border-radius: 8px;
+		padding: 16px;
+		background: #fafafa;
+
+		.ocr-zone-tip {
+			font-size: 12px;
+			color: #8c8c8c;
+			margin-bottom: 12px;
+		}
+
+		.ocr-zone-insert-row {
+			display: flex;
+			align-items: center;
+			flex-wrap: wrap;
+			gap: 8px;
+			margin-bottom: 12px;
+
+			.ocr-zone-insert-label {
+				font-size: 13px;
+				color: #333;
+			}
+
+			.ocr-zone-insert-radio {
+				margin-right: 8px;
+			}
+
+			.ocr-zone-option-select {
+				width: 100px;
+			}
+		}
+
+		.ocr-zone-actions {
+			display: flex;
+			gap: 16px;
+			align-items: flex-start;
+			flex-wrap: wrap;
+		}
+
+		.ocr-paste-area {
+			width: 200px;
+			height: 140px;
+			border: 1px dashed #d9d9d9;
+			border-radius: 6px;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			background: #fff;
+			cursor: pointer;
+			overflow: hidden;
+
+			.ocr-paste-placeholder {
+				font-size: 12px;
+				color: #8c8c8c;
+				text-align: center;
+				padding: 8px;
+			}
+
+			.ocr-preview-img {
+				max-width: 100%;
+				max-height: 100%;
+				object-fit: contain;
+			}
+		}
+
+		.ocr-upload-area {
+			display: flex;
+			align-items: center;
+		}
+
+		.ocr-zone-btns {
+			margin-top: 12px;
+			display: flex;
+			gap: 8px;
+		}
 	}
 
 	.editor-wrapper {
