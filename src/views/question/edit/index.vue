@@ -342,7 +342,7 @@ import { getQuestionDetail, createQuestion, updateQuestion, getChapterList } fro
 import { getCourseList } from '@/api/course';
 import { uploadImage } from '@/api/upload';
 import { ocrImage } from '@/api/process-pdf';
-import { proxyImageUrlsInHtml, reverseProxyUrlsInHtml } from '@/utils/imageProxy';
+import { proxyImageUrlsInHtml, reverseProxyUrlsInHtml, getProxiedImageUrl } from '@/utils/imageProxy';
 
 const router = useRouter();
 const route = useRoute();
@@ -877,10 +877,11 @@ function parseStemImages(html: string): { fullTag: string; src: string }[] {
 	return list;
 }
 
-/** 将 URL 转为可下载的 File（同源或支持 CORS 的图片） */
+/** 将 URL 转为可下载的 File（TCB 等跨域地址会先走代理再 fetch） */
 async function fetchImageAsFile(url: string, index: number): Promise<File | null> {
 	try {
-		const res = await fetch(url, { mode: 'cors' });
+		const fetchUrl = getProxiedImageUrl(url);
+		const res = await fetch(fetchUrl, { mode: 'cors' });
 		if (!res.ok) return null;
 		const blob = await res.blob();
 		const ext = blob.type?.split('/')[1] || 'png';
