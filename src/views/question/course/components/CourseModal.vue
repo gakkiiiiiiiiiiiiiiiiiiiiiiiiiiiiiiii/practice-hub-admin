@@ -11,6 +11,27 @@
 			<a-form-item label="课程名称" name="name">
 				<a-input v-model:value="formState.name" placeholder="请输入课程名称" />
 			</a-form-item>
+			<a-form-item label="课程类型" name="content_type">
+				<a-radio-group v-model:value="formState.content_type">
+					<a-radio value="normal">普通题库（章节+题目）</a-radio>
+					<a-radio value="file">文件课程（PDF/Word 直接查看）</a-radio>
+				</a-radio-group>
+			</a-form-item>
+			<a-form-item v-if="formState.content_type === 'file'" label="课程文件" name="file_url">
+				<a-upload
+					v-model:file-list="courseFileList"
+					:before-upload="beforeCourseFileUpload"
+					:custom-request="handleCourseFileUpload"
+					:max-count="1"
+					accept=".pdf,.doc,.docx"
+				>
+					<a-button v-if="courseFileList.length < 1">
+						<upload-outlined />
+						上传 PDF 或 Word
+					</a-button>
+				</a-upload>
+				<div v-if="formState.file_name" class="form-tip">当前文件：{{ formState.file_name }}</div>
+			</a-form-item>
 			<a-form-item label="课程" name="subject">
 				<a-input v-model:value="formState.subject" placeholder="请输入课程（如：数学、英语等）" />
 			</a-form-item>
@@ -105,10 +126,10 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
 import { message } from 'ant-design-vue';
-import { PlusOutlined } from '@ant-design/icons-vue';
+import { PlusOutlined, UploadOutlined } from '@ant-design/icons-vue';
 import { createCourse, updateCourse } from '@/api/course';
 import { getCourseCategoryTree } from '@/api/course-category';
-import { uploadImage } from '@/api/upload';
+import { uploadImage, uploadCourseFile } from '@/api/upload';
 import type { UploadProps } from 'ant-design-vue';
 import WangEditor from '@/components/WangEditor/index.vue';
 
@@ -125,7 +146,9 @@ const emit = defineEmits<{
 const formRef = ref();
 const loading = ref(false);
 const uploadLoading = ref(false);
+const courseFileUploading = ref(false);
 const fileList = ref<any[]>([]);
+const courseFileList = ref<any[]>([]);
 const categoryTree = ref<any[]>([]);
 const categoryCascaderValue = ref<string[]>([]);
 
@@ -169,12 +192,27 @@ const formState = ref({
 	validity_days: null as number | null,
 	sort: 0,
 	introduction: '',
+	content_type: 'normal',
+	file_url: '',
+	file_name: '',
+	file_type: '',
 });
 
 
 const rules = {
 	name: [{ required: true, message: '请输入课程名称', trigger: 'blur' }],
 	price: [{ required: true, message: '请输入价格', trigger: 'blur' }],
+	file_url: [
+		{
+			validator: (_rule: any, value: string) => {
+				if (formState.value.content_type === 'file' && !value) {
+					return Promise.reject(new Error('请上传课程文件（PDF 或 Word）'));
+				}
+				return Promise.resolve();
+			},
+			trigger: 'change',
+		},
+	],
 };
 
 watch(
@@ -199,6 +237,10 @@ watch(
 					validity_days: props.record.validity_days ?? null,
 					sort: props.record.sort || 0,
 					introduction: props.record.introduction || '',
+					content_type: props.record.content_type || 'normal',
+					file_url: props.record.file_url || '',
+					file_name: props.record.file_name || '',
+					file_type: props.record.file_type || '',
 				};
 				if (formState.value.cover_img) {
 					fileList.value = [
@@ -211,6 +253,18 @@ watch(
 					];
 				} else {
 					fileList.value = [];
+				}
+				if (formState.value.content_type === 'file' && formState.value.file_url) {
+					courseFileList.value = [
+						{
+							uid: '-1',
+							name: formState.value.file_name || '课程文件',
+							status: 'done',
+							url: formState.value.file_url,
+						},
+					];
+				} else {
+					courseFileList.value = [];
 				}
 			} else {
 				formState.value = {
@@ -229,8 +283,13 @@ watch(
 					validity_days: null,
 					sort: 0,
 					introduction: '',
+					content_type: 'normal',
+					file_url: '',
+					file_name: '',
+					file_type: '',
 				};
 				fileList.value = [];
+				courseFileList.value = [];
 			}
 			fetchCategoryTree();
 		}
@@ -294,13 +353,39 @@ const beforeUpload: UploadProps['beforeUpload'] = (file) => {
 		message.error('只能上传图片文件!');
 		return false;
 	}
-	const isLt5M = file.size / 1024 / 1024 < 5;
-	if (!isLt5M) {
-		message.error('图片大小不能超过 5MB!');
-		return false;
-	}
 	// 允许 upload 组件继续（返回true触发customRequest调用handleUpload）
 	return true;
+};
+
+const beforeCourseFileUpload: UploadProps['beforeUpload'] = (file) => {
+	const name = (file.name || '').toLowerCase();
+	const ok = name.endsWith('.pdf') || name.endsWith('.doc') || name.endsWith('.docx');
+	if (!ok) {
+		message.error('仅支持 PDF、Word（.doc/.docx）文件');
+		return false;
+	}
+	return true;
+};
+
+const handleCourseFileUpload = async (options: any) => {
+	const { file, onSuccess, onError } = options;
+	try {
+		courseFileUploading.value = true;
+		const res = await uploadCourseFile(file as File);
+		formState.value.file_url = res.url || res.fileUrl;
+		formState.value.file_name = res.fileName;
+		formState.value.file_type = res.fileType;
+		courseFileList.value = [
+			{ uid: file.uid, name: res.fileName, status: 'done', url: res.url || res.fileUrl },
+		];
+		onSuccess?.();
+		message.success('课程文件上传成功');
+	} catch (e: any) {
+		message.error(e?.message || '上传失败');
+		onError?.(e);
+	} finally {
+		courseFileUploading.value = false;
+	}
 };
 
 const handleUpload = async (options: any) => {
@@ -400,6 +485,16 @@ const handleSubmit = async () => {
 		}
 		if (formState.value.introduction !== undefined) {
 			submitData.introduction = formState.value.introduction;
+		}
+		submitData.content_type = formState.value.content_type || 'normal';
+		if (formState.value.content_type === 'file') {
+			submitData.file_url = formState.value.file_url || null;
+			submitData.file_name = formState.value.file_name || null;
+			submitData.file_type = formState.value.file_type || null;
+		} else {
+			submitData.file_url = null;
+			submitData.file_name = null;
+			submitData.file_type = null;
 		}
 
 		if (props.record) {

@@ -224,11 +224,6 @@ const beforeUpload = (file: File) => {
 		message.error('只能上传图片文件!');
 		return false;
 	}
-	const isLt5M = file.size / 1024 / 1024 < 5;
-	if (!isLt5M) {
-		message.error('图片大小不能超过 5MB!');
-		return false;
-	}
 	// 返回 true 允许上传，然后在 customRequest 中处理
 	return true;
 };

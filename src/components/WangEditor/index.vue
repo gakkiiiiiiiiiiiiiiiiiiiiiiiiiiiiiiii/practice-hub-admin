@@ -57,12 +57,6 @@ const editorConfig: Partial<IEditorConfig> = {
 						throw new Error('不支持的图片格式，仅支持 jpg、png、gif、webp');
 					}
 
-					// 验证文件大小（5MB）
-					const maxSize = 5 * 1024 * 1024;
-					if (file.size > maxSize) {
-						throw new Error('图片大小不能超过 5MB');
-					}
-
 					// 上传图片
 					const response = await uploadImage(file);
 					const url = response.url || response.imageUrl;

@@ -118,11 +118,6 @@ const beforeUpload: UploadProps['beforeUpload'] = (file) => {
 		message.error('只能上传图片文件!');
 		return false;
 	}
-	const isLt5M = file.size / 1024 / 1024 < 5;
-	if (!isLt5M) {
-		message.error('图片大小不能超过 5MB!');
-		return false;
-	}
 	return false; // 阻止自动上传，使用自定义上传
 };
 

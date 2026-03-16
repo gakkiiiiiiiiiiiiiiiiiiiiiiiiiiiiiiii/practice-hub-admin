@@ -144,12 +144,16 @@ proxy_pass https://new-backend-domain.com;
 1. 增加超时时间
 2. 优化后端性能
 
-### 问题：上传大文件返回 413 Request Entity Too Large
+### 问题：上传大文件返回 413 Request Entity Too Large（nginx/1.17.8 等）
 
-**原因**：Nginx 默认 `client_max_body_size` 为 **1MB**，请求体超过即直接返回 413，请求不会到达后端。
+**原因**：返回 413 的 Nginx 默认 `client_max_body_size` 为 **1MB**，请求体超过即直接返回，请求不会到达后端。错误页上的 `nginx/1.17.8` 表示是**当前处理请求的那台 Nginx**。
 
 **解决方法**：
-1. 在 `location /api` 内增加：`client_max_body_size 100m;`（与上面示例一致）
-2. 重载 Nginx：`nginx -s reload` 或重启容器
-3. 若使用微信云托管等云网关，413 可能来自**接入层限制**（约 20MB），需在控制台查找「请求体/上传大小」配置或参考后端 `WECHAT_CLOUDBASE_BODY_SIZE.md`
+1. **找到返回 413 的那台 Nginx**（错误页会显示其版本，如 nginx/1.17.8），在其配置的 `http` 或 `server` 或 `location` 中增加：
+   ```nginx
+   client_max_body_size 500m;
+   ```
+2. 本仓库 `admin-web/nginx.conf` 已在 server 块中设置 `client_max_body_size 500m`。若你用的是该配置，重新**构建并部署**管理端镜像后生效；若 413 仍出现，说明请求先经过**另一台** Nginx（如负载均衡、网关），需在那台机器的配置里同样加上上述指令。
+3. 重载 Nginx：`nginx -s reload` 或重启对应容器/服务。
+4. 若使用微信云托管等云网关，413 可能来自**接入层限制**（约 20MB），需在控制台查找「请求体/上传大小」配置或参考后端 `WECHAT_CLOUDBASE_BODY_SIZE.md`。
 

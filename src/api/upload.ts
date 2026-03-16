@@ -43,3 +43,20 @@ export async function uploadImage(file: File): Promise<{ url: string; imageUrl: 
 		throw error;
 	}
 }
+
+/** 上传课程文件（PDF/Word），用于文件类型课程 */
+export async function uploadCourseFile(file: File): Promise<{ url: string; fileUrl: string; fileName: string; fileType: string }> {
+	const formData = new FormData();
+	formData.append('file', file);
+	const res = (await request.post('/admin/upload/course-file', formData)) as { data: { url: string; fileUrl: string; fileName: string; fileType: string } };
+	const data = res?.data ?? res;
+	if (!data?.url && !data?.fileUrl) {
+		throw new Error('上传失败：未返回文件地址');
+	}
+	return {
+		url: data.url || data.fileUrl,
+		fileUrl: data.fileUrl || data.url,
+		fileName: data.fileName || file.name,
+		fileType: data.fileType || (file.name.toLowerCase().endsWith('.pdf') ? 'pdf' : file.name.toLowerCase().endsWith('.docx') ? 'docx' : 'doc'),
+	};
+}
