@@ -31,6 +31,10 @@
 					<span class="header-title">管理系统</span>
 				</div>
 				<div class="header-right">
+					<a-button type="text" class="page-agent-trigger" @click="openPageAgent">
+						<RobotOutlined />
+						<span class="trigger-text">AI 助手</span>
+					</a-button>
 					<a-dropdown>
 						<template #overlay>
 							<a-menu>
@@ -54,9 +58,14 @@
 					</a-dropdown>
 				</div>
 			</a-layout-header>
-			<a-layout-content class="layout-content" :class="{ collapsed: collapsed }">
+			<a-layout-content class="layout-content" :class="{ collapsed: collapsed, 'has-tabs': showTabs }">
+				<TabBar v-if="showTabs" />
 				<div class="content-wrapper">
-					<router-view />
+					<router-view v-slot="{ Component }">
+						<keep-alive :max="20">
+							<component :is="Component" :key="route.fullPath" />
+						</keep-alive>
+					</router-view>
 				</div>
 			</a-layout-content>
 		</a-layout>
@@ -76,13 +85,23 @@ import {
 	GiftOutlined,
 	UserSwitchOutlined,
 	SettingOutlined,
+	RobotOutlined,
 } from '@ant-design/icons-vue';
 import { useUserStore } from '@/store/user';
+import { useTabsStore } from '@/store/tabs';
+import TabBar from '@/components/TabBar/index.vue';
 import type { MenuProps } from 'ant-design-vue';
 
 const router = useRouter();
 const route = useRoute();
 const userStore = useUserStore();
+const tabsStore = useTabsStore();
+
+const showTabs = computed(() => {
+	const r = route;
+	if (!r.meta?.title || r.path === '/login' || r.path === '/403') return false;
+	return true;
+});
 
 // 确保用户信息已加载
 const isUserInfoReady = computed(() => {
@@ -439,6 +458,17 @@ watch(
 	},
 );
 
+// 多标签：路由变化时加入或激活对应标签
+watch(
+	() => ({ path: route.path, fullPath: route.fullPath, meta: route.meta }),
+	() => {
+		if (showTabs.value) {
+			tabsStore.addTab(route);
+		}
+	},
+	{ immediate: true },
+);
+
 // 监听菜单展开状态变化，保存到 localStorage
 watch(
 	() => openKeys.value,
@@ -460,6 +490,56 @@ const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
 		router.push(key);
 	}
 };
+
+/** 打开/切换 PageAgent 面板（CDN 脚本注入的浮动层；关闭后通过点击该浮动层再次打开） */
+const openPageAgent = () => {
+	const w = window as Window & {
+		PageAgent?: { open?: () => void; show?: () => void; toggle?: () => void };
+		pageAgent?: { open?: () => void; toggle?: () => void };
+	};
+	if (typeof w.PageAgent?.toggle === 'function') {
+		w.PageAgent.toggle();
+		return;
+	}
+	if (typeof w.pageAgent?.toggle === 'function') {
+		w.pageAgent.toggle();
+		return;
+	}
+	if (typeof w.PageAgent?.open === 'function') {
+		w.PageAgent.open();
+		return;
+	}
+	if (typeof w.PageAgent?.show === 'function') {
+		w.PageAgent.show();
+		return;
+	}
+	if (typeof w.pageAgent?.open === 'function') {
+		w.pageAgent.open();
+		return;
+	}
+	// CDN demo 脚本会把 Panel 挂到 body，z-index: 2147483642，点击其根元素可展开/收起
+	const findPanelWrapper = (): HTMLElement | null => {
+		for (const el of document.body.children) {
+			if (el instanceof HTMLElement) {
+				const z = window.getComputedStyle(el).zIndex;
+				if (z === '2147483642') return el;
+			}
+		}
+		return null;
+	};
+	const wrapper = findPanelWrapper();
+	if (wrapper) {
+		wrapper.click();
+		return;
+	}
+	// 兼容：通过类名匹配（page-agent ui 的 wrapper 类含 _wrapper_ 与 gtdpc）
+	const byClass = document.querySelector('[class*="_wrapper_"][class*="gtdpc"]');
+	if (byClass instanceof HTMLElement) {
+		byClass.click();
+		return;
+	}
+	window.dispatchEvent(new CustomEvent('page-agent-open'));
+}
 
 const handleLogout = () => {
 	userStore.logout();
@@ -666,18 +746,22 @@ onUnmounted(() => {
 	align-items: center;
 	justify-content: space-between;
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-	margin-left: 200px;
+	margin-left: 20px;
 	position: fixed;
 	top: 0;
-	right: 0;
+	right: 24px;
 	left: 200px;
 	z-index: 100;
-	transition: margin-left 0.2s;
+	transition:
+		margin-left 0.2s,
+		left 0.2s,
+		right 0.2s;
 }
 
 .layout-header.collapsed {
 	margin-left: 80px;
 	left: 80px;
+	right: 24px;
 }
 
 .header-left {
@@ -706,6 +790,22 @@ onUnmounted(() => {
 .header-right {
 	display: flex;
 	align-items: center;
+	gap: 8px;
+}
+
+.page-agent-trigger {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	color: rgba(0, 0, 0, 0.65);
+	&:hover {
+		color: #1890ff;
+	}
+}
+.trigger-text {
+	@media (max-width: 576px) {
+		display: none;
+	}
 }
 
 .user-info {
@@ -724,6 +824,10 @@ onUnmounted(() => {
 
 .layout-content.collapsed {
 	margin-left: 80px;
+}
+
+.layout-content.has-tabs .content-wrapper {
+	margin-top: 8px;
 }
 
 .content-wrapper {

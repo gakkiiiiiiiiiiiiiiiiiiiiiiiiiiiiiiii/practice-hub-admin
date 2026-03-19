@@ -5,6 +5,20 @@
 			<template #extra>
 				<a-space>
 					<a-button
+						:disabled="selectedRowKeys.length === 0"
+						@click="batchUpdateStatus(1)"
+					>
+						<template #icon><check-circle-outlined /></template>
+						批量启用 ({{ selectedRowKeys.length || 0 }})
+					</a-button>
+					<a-button
+						:disabled="selectedRowKeys.length === 0"
+						@click="batchUpdateStatus(0)"
+					>
+						<template #icon><stop-outlined /></template>
+						批量禁用 ({{ selectedRowKeys.length || 0 }})
+					</a-button>
+					<a-button
 						type="primary"
 						danger
 						:disabled="selectedRowKeys.length === 0"
@@ -54,6 +68,12 @@
 						<a-select-option :value="3">判断题</a-select-option>
 						<a-select-option :value="4">填空题</a-select-option>
 						<a-select-option :value="5">阅读理解</a-select-option>
+					</a-select>
+				</a-form-item>
+				<a-form-item label="状态">
+					<a-select v-model:value="searchForm.status" placeholder="全部" style="width: 100px" allow-clear>
+						<a-select-option :value="1">启用</a-select-option>
+						<a-select-option :value="0">禁用</a-select-option>
 					</a-select>
 				</a-form-item>
 				<a-form-item>
@@ -106,6 +126,15 @@
 								</span>
 							</template>
 						</span>
+					</template>
+					<template v-else-if="column.key === 'status'">
+						<a-switch
+							:checked="record.status === 1"
+							:loading="statusUpdatingId === record.id"
+							checked-children="启用"
+							un-checked-children="禁用"
+							@change="(checked: boolean) => toggleStatus(record, checked)"
+						/>
 					</template>
 					<template v-else-if="column.key === 'type'">
 						<a-tag>
@@ -236,12 +265,15 @@ import {
 	DeleteOutlined,
 	FileTextOutlined,
 	HolderOutlined,
+	CheckCircleOutlined,
+	StopOutlined,
 } from '@ant-design/icons-vue';
 import { stripHtmlTags } from '@/utils/sanitize';
 import {
 	getQuestionList,
 	deleteQuestion,
 	deleteQuestionsBatch,
+	batchUpdateQuestionStatus,
 	getChapterList,
 	importQuestions,
 	batchUpdateQuestionOrder,
@@ -272,6 +304,7 @@ const searchForm = ref({
 	courseId: undefined,
 	chapterId: undefined,
 	type: undefined,
+	status: undefined as number | undefined,
 });
 
 const importForm = ref({
@@ -306,6 +339,12 @@ const columns = [
 		title: '章节',
 		dataIndex: 'chapterName',
 		key: 'chapterName',
+	},
+	{
+		title: '状态',
+		dataIndex: 'status',
+		key: 'status',
+		width: 100,
 	},
 	{
 		title: '题型',
@@ -365,6 +404,9 @@ const fetchData = async () => {
 		if (searchForm.value.type) {
 			params.type = searchForm.value.type;
 		}
+		if (searchForm.value.status !== undefined && searchForm.value.status !== null) {
+			params.status = searchForm.value.status;
+		}
 
 		const res = await getQuestionList(params);
 		// 后端返回的是数组，不是分页对象
@@ -394,8 +436,43 @@ const handleReset = () => {
 		courseId: undefined,
 		chapterId: undefined,
 		type: undefined,
+		status: undefined,
 	};
 	handleSearch();
+};
+
+const statusUpdatingId = ref<number | null>(null);
+const toggleStatus = async (record: any, enable: boolean) => {
+	const status = enable ? 1 : 0;
+	statusUpdatingId.value = record.id;
+	try {
+		await batchUpdateQuestionStatus([record.id], status);
+		record.status = status;
+		message.success(enable ? '已启用' : '已禁用');
+	} catch (e) {
+		message.error('操作失败');
+	} finally {
+		statusUpdatingId.value = null;
+	}
+};
+
+const batchStatusLoading = ref(false);
+const batchUpdateStatus = async (status: number) => {
+	if (selectedRowKeys.value.length === 0) {
+		message.warning('请先选择题目');
+		return;
+	}
+	batchStatusLoading.value = true;
+	try {
+		await batchUpdateQuestionStatus(selectedRowKeys.value, status);
+		message.success(status === 1 ? '已批量启用' : '已批量禁用');
+		selectedRowKeys.value = [];
+		fetchData();
+	} catch (e) {
+		message.error('操作失败');
+	} finally {
+		batchStatusLoading.value = false;
+	}
 };
 
 const handleAdd = () => {

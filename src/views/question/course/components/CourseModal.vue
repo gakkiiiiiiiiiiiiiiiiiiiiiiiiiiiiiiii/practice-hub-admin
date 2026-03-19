@@ -58,19 +58,45 @@
 			<a-form-item label="答案年份" name="answer_year">
 				<a-input v-model:value="formState.answer_year" placeholder="请输入答案年份（如：2024）" />
 			</a-form-item>
+			<a-form-item label="封面方式">
+				<a-radio-group v-model:value="coverMode">
+					<a-radio value="manual">手动上传</a-radio>
+					<a-radio value="auto">自动生成</a-radio>
+				</a-radio-group>
+			</a-form-item>
 			<a-form-item label="封面图" name="cover_img">
-				<a-upload
-					v-model:file-list="fileList"
-					:before-upload="beforeUpload"
-					:custom-request="handleUpload"
-					list-type="picture-card"
-					:max-count="1"
-				>
-					<div v-if="fileList.length < 1">
-						<plus-outlined />
-						<div style="margin-top: 8px">上传</div>
+				<template v-if="coverMode === 'manual'">
+					<a-upload
+						v-model:file-list="fileList"
+						:before-upload="beforeUpload"
+						:custom-request="handleUpload"
+						list-type="picture-card"
+						:max-count="1"
+					>
+						<div v-if="fileList.length < 1">
+							<plus-outlined />
+							<div style="margin-top: 8px">上传</div>
+						</div>
+					</a-upload>
+				</template>
+				<template v-else>
+					<div class="cover-generator">
+						<div class="cover-generator__actions">
+							<a-button type="primary" :loading="autoCoverLoading" @click="handleGenerateCover">
+								生成并使用封面
+							</a-button>
+							<a-button @click="handleOpenCoverConfig">
+								配置封面模板
+							</a-button>
+							<span class="cover-generator__hint">
+								将根据学校、专业、科目、真题年份、答案年份自动生成
+							</span>
+						</div>
+						<div v-if="generatedCoverPreview || formState.cover_img" class="cover-generator__preview">
+							<img :src="generatedCoverPreview || formState.cover_img" alt="自动生成封面预览" />
+						</div>
 					</div>
-				</a-upload>
+				</template>
 			</a-form-item>
 			<a-form-item label="价格" name="price">
 				<a-input-number
@@ -121,6 +147,15 @@
 			</a-form-item>
 		</a-form>
 	</a-modal>
+	<a-modal
+		:open="coverConfigOpen"
+		title="课程封面配置"
+		width="1280px"
+		:footer="null"
+		@cancel="coverConfigOpen = false"
+	>
+		<CourseCoverConfig />
+	</a-modal>
 </template>
 
 <script setup lang="ts">
@@ -128,10 +163,13 @@ import { ref, watch, computed } from 'vue';
 import { message } from 'ant-design-vue';
 import { PlusOutlined, UploadOutlined } from '@ant-design/icons-vue';
 import { createCourse, updateCourse } from '@/api/course';
+import { getCourseCoverConfig } from '@/api/system';
 import { getCourseCategoryTree } from '@/api/course-category';
 import { uploadImage, uploadCourseFile } from '@/api/upload';
 import type { UploadProps } from 'ant-design-vue';
 import WangEditor from '@/components/WangEditor/index.vue';
+import CourseCoverConfig from '@/views/system/config/components/CourseCoverConfig.vue';
+import { DEFAULT_COURSE_COVER_CONFIG, normalizeCourseCoverConfig, renderCourseCover } from '@/utils/course-cover';
 
 const props = defineProps<{
 	open: boolean;
@@ -147,10 +185,15 @@ const formRef = ref();
 const loading = ref(false);
 const uploadLoading = ref(false);
 const courseFileUploading = ref(false);
+const autoCoverLoading = ref(false);
 const fileList = ref<any[]>([]);
 const courseFileList = ref<any[]>([]);
 const categoryTree = ref<any[]>([]);
 const categoryCascaderValue = ref<string[]>([]);
+const coverMode = ref<'manual' | 'auto'>('manual');
+const coverConfigOpen = ref(false);
+const generatedCoverPreview = ref('');
+let generatedPreviewObjectUrl = '';
 
 // 转换为级联选择器需要的格式
 const cascaderOptions = computed(() => {
@@ -254,6 +297,8 @@ watch(
 				} else {
 					fileList.value = [];
 				}
+				coverMode.value = 'manual';
+				generatedCoverPreview.value = '';
 				if (formState.value.content_type === 'file' && formState.value.file_url) {
 					courseFileList.value = [
 						{
@@ -290,6 +335,8 @@ watch(
 				};
 				fileList.value = [];
 				courseFileList.value = [];
+				coverMode.value = 'manual';
+				generatedCoverPreview.value = '';
 			}
 			fetchCategoryTree();
 		}
@@ -421,10 +468,81 @@ const handleUpload = async (options: any) => {
 	}
 };
 
+const handleGenerateCover = async () => {
+	try {
+		autoCoverLoading.value = true;
+		const coverFile = await generateCourseCoverFile();
+		if (generatedPreviewObjectUrl) {
+			URL.revokeObjectURL(generatedPreviewObjectUrl);
+		}
+		generatedPreviewObjectUrl = URL.createObjectURL(coverFile);
+		generatedCoverPreview.value = generatedPreviewObjectUrl;
+		const response = await uploadImage(coverFile);
+		const url = response.url || response.imageUrl;
+		if (!url) {
+			throw new Error('自动生成封面上传失败');
+		}
+		formState.value.cover_img = url;
+		fileList.value = [
+			{
+				uid: `auto-${Date.now()}`,
+				name: coverFile.name,
+				status: 'done',
+				url,
+			},
+		];
+		message.success('已生成并使用自动封面');
+	} catch (error: any) {
+		message.error(error?.message || '自动生成封面失败');
+	} finally {
+		autoCoverLoading.value = false;
+	}
+};
+
+const generateCourseCoverFile = async (): Promise<File> => {
+	const school = formState.value.school?.trim();
+	const major = formState.value.major?.trim();
+
+	if (!school || !major) {
+		throw new Error('请先填写学校和专业，再自动生成封面');
+	}
+	let config = DEFAULT_COURSE_COVER_CONFIG;
+	try {
+		const res = await getCourseCoverConfig();
+		config = normalizeCourseCoverConfig(res.data || res);
+	} catch (_) {
+		config = normalizeCourseCoverConfig(DEFAULT_COURSE_COVER_CONFIG);
+	}
+	const canvas = await renderCourseCover(config, {
+		name: formState.value.name?.trim(),
+		subject: formState.value.subject?.trim(),
+		category: formState.value.category?.trim(),
+		sub_category: formState.value.sub_category?.trim(),
+		school,
+		major,
+		exam_year: formState.value.exam_year?.trim() || '待更新',
+		answer_year: formState.value.answer_year?.trim() || '待更新',
+	});
+	const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png', 0.96));
+	if (!blob) {
+		throw new Error('封面生成失败');
+	}
+
+	const fileName = `${sanitizeFileName(school)}-${sanitizeFileName(major)}-cover.png`;
+	return new File([blob], fileName, { type: 'image/png' });
+};
+
+const sanitizeFileName = (value: string) => value.replace(/[\\/:*?"<>|]+/g, '-').slice(0, 40);
+
+const handleOpenCoverConfig = () => {
+	coverConfigOpen.value = true;
+};
+
 const handleCancel = () => {
 	emit('update:open', false);
 	formRef.value?.resetFields();
 	categoryCascaderValue.value = [];
+	coverConfigOpen.value = false;
 };
 
 const handleSubmit = async () => {
@@ -517,3 +635,37 @@ const handleSubmit = async () => {
 	}
 };
 </script>
+
+<style scoped>
+.cover-generator {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.cover-generator__actions {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 12px;
+}
+
+.cover-generator__hint {
+	color: #8c8c8c;
+	font-size: 12px;
+}
+
+.cover-generator__preview {
+	width: 180px;
+	padding: 8px;
+	border: 1px solid #f0f0f0;
+	border-radius: 12px;
+	background: #fafafa;
+}
+
+.cover-generator__preview img {
+	display: block;
+	width: 100%;
+	border-radius: 8px;
+}
+</style>

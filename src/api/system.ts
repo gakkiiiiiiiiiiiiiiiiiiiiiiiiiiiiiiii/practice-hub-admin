@@ -82,3 +82,11 @@ export function getCheckinMinutes() {
 export function setCheckinMinutes(data: { minutes: number }) {
   return request.put('/admin/settings/checkin-minutes', data)
 }
+
+export function getCourseCoverConfig() {
+  return request.get('/admin/settings/course-cover')
+}
+
+export function setCourseCoverConfig(data: any) {
+  return request.put('/admin/settings/course-cover', data)
+}

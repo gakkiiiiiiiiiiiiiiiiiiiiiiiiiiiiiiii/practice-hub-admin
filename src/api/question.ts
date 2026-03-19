@@ -85,6 +85,11 @@ export function batchUpdateQuestionOrder(orders: { id: number; sort_order: numbe
 	return request.post('/admin/questions/batch-update-order', { orders });
 }
 
+/** 批量启用/禁用题目 */
+export function batchUpdateQuestionStatus(ids: number[], status: number) {
+	return request.post('/admin/questions/batch-update-status', { ids, status });
+}
+
 // 批量导入
 export function importQuestions(data: FormData) {
 	return request.post('/admin/questions/import', data, {
