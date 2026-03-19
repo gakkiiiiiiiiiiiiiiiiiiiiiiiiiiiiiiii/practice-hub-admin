@@ -31,10 +31,6 @@
 					<span class="header-title">管理系统</span>
 				</div>
 				<div class="header-right">
-					<a-button type="text" class="page-agent-trigger" @click="openPageAgent">
-						<RobotOutlined />
-						<span class="trigger-text">AI 助手</span>
-					</a-button>
 					<a-dropdown>
 						<template #overlay>
 							<a-menu>
@@ -85,7 +81,6 @@ import {
 	GiftOutlined,
 	UserSwitchOutlined,
 	SettingOutlined,
-	RobotOutlined,
 } from '@ant-design/icons-vue';
 import { useUserStore } from '@/store/user';
 import { useTabsStore } from '@/store/tabs';
@@ -491,53 +486,6 @@ const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
 	}
 };
 
-/** 查找 CDN 注入的 PageAgent 浮动层根元素（z-index: 2147483642 或类名匹配） */
-const findPageAgentWrapper = (): HTMLElement | null => {
-	for (const el of document.body.children) {
-		if (el instanceof HTMLElement) {
-			const z = window.getComputedStyle(el).zIndex;
-			if (z === '2147483642') return el;
-		}
-	}
-	const byClass = document.querySelector('[class*="_wrapper_"][class*="gtdpc"]');
-	return byClass instanceof HTMLElement ? byClass : null;
-};
-
-/** 打开/切换 PageAgent 面板（仅点击「AI 助手」时显示；关闭后再次点击可重新打开） */
-const openPageAgent = () => {
-	const w = window as Window & {
-		PageAgent?: { open?: () => void; show?: () => void; toggle?: () => void };
-		pageAgent?: { open?: () => void; toggle?: () => void };
-	};
-	if (typeof w.PageAgent?.toggle === 'function') {
-		w.PageAgent.toggle();
-		return;
-	}
-	if (typeof w.pageAgent?.toggle === 'function') {
-		w.pageAgent.toggle();
-		return;
-	}
-	if (typeof w.PageAgent?.open === 'function') {
-		w.PageAgent.open();
-		return;
-	}
-	if (typeof w.PageAgent?.show === 'function') {
-		w.PageAgent.show();
-		return;
-	}
-	if (typeof w.pageAgent?.open === 'function') {
-		w.pageAgent.open();
-		return;
-	}
-	const wrapper = findPageAgentWrapper();
-	if (wrapper) {
-		wrapper.style.display = '';
-		wrapper.click();
-		return;
-	}
-	window.dispatchEvent(new CustomEvent('page-agent-open'));
-}
-
 const handleLogout = () => {
 	userStore.logout();
 };
@@ -562,13 +510,6 @@ onMounted(async () => {
 	window.addEventListener('resize', handleResize);
 	// 初始化时检查一次
 	handleResize();
-
-	// PageAgent 仅在用户点击「AI 助手」时显示：CDN 注入后面板会先被隐藏
-	const hidePageAgentUntilClick = () => {
-		const wrapper = findPageAgentWrapper();
-		if (wrapper) wrapper.style.display = 'none';
-	};
-	[0, 400, 1200, 2500].forEach((ms) => setTimeout(hidePageAgentUntilClick, ms));
 
 	// 如果用户信息未加载，尝试加载（路由守卫应该已经加载了，但这里作为备用）
 	if (!userStore.userInfo && userStore.token) {
@@ -795,21 +736,6 @@ onUnmounted(() => {
 	display: flex;
 	align-items: center;
 	gap: 8px;
-}
-
-.page-agent-trigger {
-	display: inline-flex;
-	align-items: center;
-	gap: 6px;
-	color: rgba(0, 0, 0, 0.65);
-	&:hover {
-		color: #1890ff;
-	}
-}
-.trigger-text {
-	@media (max-width: 576px) {
-		display: none;
-	}
 }
 
 .user-info {
