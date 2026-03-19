@@ -491,7 +491,19 @@ const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
 	}
 };
 
-/** 打开/切换 PageAgent 面板（CDN 脚本注入的浮动层；关闭后通过点击该浮动层再次打开） */
+/** 查找 CDN 注入的 PageAgent 浮动层根元素（z-index: 2147483642 或类名匹配） */
+const findPageAgentWrapper = (): HTMLElement | null => {
+	for (const el of document.body.children) {
+		if (el instanceof HTMLElement) {
+			const z = window.getComputedStyle(el).zIndex;
+			if (z === '2147483642') return el;
+		}
+	}
+	const byClass = document.querySelector('[class*="_wrapper_"][class*="gtdpc"]');
+	return byClass instanceof HTMLElement ? byClass : null;
+};
+
+/** 打开/切换 PageAgent 面板（仅点击「AI 助手」时显示；关闭后再次点击可重新打开） */
 const openPageAgent = () => {
 	const w = window as Window & {
 		PageAgent?: { open?: () => void; show?: () => void; toggle?: () => void };
@@ -517,25 +529,10 @@ const openPageAgent = () => {
 		w.pageAgent.open();
 		return;
 	}
-	// CDN demo 脚本会把 Panel 挂到 body，z-index: 2147483642，点击其根元素可展开/收起
-	const findPanelWrapper = (): HTMLElement | null => {
-		for (const el of document.body.children) {
-			if (el instanceof HTMLElement) {
-				const z = window.getComputedStyle(el).zIndex;
-				if (z === '2147483642') return el;
-			}
-		}
-		return null;
-	};
-	const wrapper = findPanelWrapper();
+	const wrapper = findPageAgentWrapper();
 	if (wrapper) {
+		wrapper.style.display = '';
 		wrapper.click();
-		return;
-	}
-	// 兼容：通过类名匹配（page-agent ui 的 wrapper 类含 _wrapper_ 与 gtdpc）
-	const byClass = document.querySelector('[class*="_wrapper_"][class*="gtdpc"]');
-	if (byClass instanceof HTMLElement) {
-		byClass.click();
 		return;
 	}
 	window.dispatchEvent(new CustomEvent('page-agent-open'));
@@ -565,6 +562,13 @@ onMounted(async () => {
 	window.addEventListener('resize', handleResize);
 	// 初始化时检查一次
 	handleResize();
+
+	// PageAgent 仅在用户点击「AI 助手」时显示：CDN 注入后面板会先被隐藏
+	const hidePageAgentUntilClick = () => {
+		const wrapper = findPageAgentWrapper();
+		if (wrapper) wrapper.style.display = 'none';
+	};
+	[0, 400, 1200, 2500].forEach((ms) => setTimeout(hidePageAgentUntilClick, ms));
 
 	// 如果用户信息未加载，尝试加载（路由守卫应该已经加载了，但这里作为备用）
 	if (!userStore.userInfo && userStore.token) {
