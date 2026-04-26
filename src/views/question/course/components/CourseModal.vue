@@ -32,6 +32,13 @@
 				</a-upload>
 				<div v-if="formState.file_name" class="form-tip">当前文件：{{ formState.file_name }}</div>
 			</a-form-item>
+			<a-form-item v-if="formState.content_type === 'file'" label="源文件查看">
+				<a-radio-group v-model:value="formState.allow_source_file">
+					<a-radio :value="1">允许用户查看源文件</a-radio>
+					<a-radio :value="0">仅允许小程序内预览</a-radio>
+				</a-radio-group>
+				<div class="form-tip">关闭后，小程序端不展示“查看完整文件/查看文件”入口。</div>
+			</a-form-item>
 			<a-form-item label="课程" name="subject">
 				<a-input v-model:value="formState.subject" placeholder="请输入课程（如：数学、英语等）" />
 			</a-form-item>
@@ -239,6 +246,7 @@ const formState = ref({
 	file_url: '',
 	file_name: '',
 	file_type: '',
+	allow_source_file: 1,
 });
 
 
@@ -284,6 +292,7 @@ watch(
 					file_url: props.record.file_url || '',
 					file_name: props.record.file_name || '',
 					file_type: props.record.file_type || '',
+					allow_source_file: props.record.allow_source_file ?? 1,
 				};
 				if (formState.value.cover_img) {
 					fileList.value = [
@@ -332,6 +341,7 @@ watch(
 					file_url: '',
 					file_name: '',
 					file_type: '',
+					allow_source_file: 1,
 				};
 				fileList.value = [];
 				courseFileList.value = [];
@@ -609,10 +619,12 @@ const handleSubmit = async () => {
 			submitData.file_url = formState.value.file_url || null;
 			submitData.file_name = formState.value.file_name || null;
 			submitData.file_type = formState.value.file_type || null;
+			submitData.allow_source_file = formState.value.allow_source_file ?? 1;
 		} else {
 			submitData.file_url = null;
 			submitData.file_name = null;
 			submitData.file_type = null;
+			submitData.allow_source_file = 1;
 		}
 
 		if (props.record) {
