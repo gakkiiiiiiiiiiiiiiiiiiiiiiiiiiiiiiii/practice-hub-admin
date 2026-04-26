@@ -37,7 +37,7 @@
 					<a-radio :value="1">允许用户查看源文件</a-radio>
 					<a-radio :value="0">关闭</a-radio>
 				</a-radio-group>
-				<div class="form-tip">关闭后，小程序端不展示“查看完整文件/查看文件”入口。</div>
+				<div class="form-tip">关闭后，小程序端不展示“查看完整文件/查看文件”入口，但仍可小程序内在线预览。</div>
 			</a-form-item>
 			<a-form-item label="课程" name="subject">
 				<a-input v-model:value="formState.subject" placeholder="请输入课程（如：数学、英语等）" />
