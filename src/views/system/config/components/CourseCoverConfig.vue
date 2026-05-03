@@ -19,7 +19,19 @@
 							<a-input-number v-model:value="formState.height" :min="200" :max="4000" style="width: 100%" />
 						</a-form-item>
 						<a-form-item label="背景色">
-							<a-input v-model:value="formState.backgroundColor" placeholder="#5d9ef0" />
+							<div class="color-control">
+								<input
+									class="native-color-picker"
+									type="color"
+									:value="toColorPickerValue(formState.backgroundColor, '#5d9ef0')"
+									@input="handleBackgroundColorPick"
+								/>
+								<a-input
+									v-model:value="formState.backgroundColor"
+									placeholder="#5d9ef0"
+									@blur="formState.backgroundColor = normalizeColorInput(formState.backgroundColor, '#5d9ef0')"
+								/>
+							</div>
 						</a-form-item>
 						<a-form-item label="背景图">
 							<a-upload
@@ -115,7 +127,19 @@
 						<a-row :gutter="12">
 							<a-col :span="8">
 								<a-form-item label="颜色" :label-col="{ span: 8 }" :wrapper-col="{ span: 16 }">
-									<a-input v-model:value="field.color" />
+									<div class="color-control">
+										<input
+											class="native-color-picker"
+											type="color"
+											:value="toColorPickerValue(field.color)"
+											@input="handleFieldColorPick(field, $event)"
+										/>
+										<a-input
+											v-model:value="field.color"
+											placeholder="#FFFFFF"
+											@blur="field.color = normalizeColorInput(field.color)"
+										/>
+									</div>
 								</a-form-item>
 							</a-col>
 							<a-col :span="8">
@@ -248,6 +272,34 @@ const previewBoardStyle = computed(() => ({
 	width: '100%',
 	aspectRatio: `${formState.value.width} / ${formState.value.height}`,
 }));
+
+const normalizeColorInput = (value?: string, fallback = '#FFFFFF') => {
+	const raw = String(value || '').trim();
+	const withoutHash = raw.startsWith('#') ? raw.slice(1) : raw;
+	if (/^[0-9a-fA-F]{6}$/.test(withoutHash)) {
+		return `#${withoutHash.toUpperCase()}`;
+	}
+	if (/^[0-9a-fA-F]{3}$/.test(withoutHash)) {
+		return `#${withoutHash
+			.split('')
+			.map((char) => `${char}${char}`)
+			.join('')
+			.toUpperCase()}`;
+	}
+	return fallback;
+};
+
+const toColorPickerValue = (value?: string, fallback = '#FFFFFF') => normalizeColorInput(value, fallback);
+
+const getEventTargetValue = (event: Event) => (event.target as HTMLInputElement | null)?.value || '';
+
+const handleBackgroundColorPick = (event: Event) => {
+	formState.value.backgroundColor = normalizeColorInput(getEventTargetValue(event), '#5d9ef0');
+};
+
+const handleFieldColorPick = (field: CourseCoverFieldConfig, event: Event) => {
+	field.color = normalizeColorInput(getEventTargetValue(event));
+};
 
 const updateBackgroundFileList = () => {
 	backgroundFileList.value = formState.value.backgroundImage
@@ -515,6 +567,33 @@ onBeforeUnmount(() => {
 
 <style scoped lang="scss">
 .course-cover-config {
+	.color-control {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.native-color-picker {
+		width: 36px;
+		height: 32px;
+		padding: 0;
+		flex: 0 0 36px;
+		border: 1px solid #d9d9d9;
+		border-radius: 6px;
+		background: #fff;
+		cursor: pointer;
+	}
+
+	.native-color-picker::-webkit-color-swatch-wrapper {
+		padding: 3px;
+	}
+
+	.native-color-picker::-webkit-color-swatch,
+	.native-color-picker::-moz-color-swatch {
+		border: none;
+		border-radius: 4px;
+	}
+
 	.field-card {
 		padding: 12px;
 		margin-bottom: 12px;

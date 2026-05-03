@@ -355,23 +355,37 @@ function drawMultilineText(
 	maxLines: number,
 	align: CourseCoverAlign,
 ) {
+	const normalizedMaxLines = Math.max(1, Math.floor(Number(maxLines) || 1));
 	const lines: string[] = [];
 	let currentLine = '';
+	let isTruncated = false;
+
 	for (const char of text) {
 		const nextLine = currentLine + char;
 		if (ctx.measureText(nextLine).width > maxWidth && currentLine) {
 			lines.push(currentLine);
+			if (lines.length >= normalizedMaxLines) {
+				isTruncated = true;
+				break;
+			}
 			currentLine = char;
-			if (lines.length === maxLines - 1) break;
 		} else {
 			currentLine = nextLine;
 		}
 	}
-	if (currentLine && lines.length < maxLines) {
+
+	if (!isTruncated && currentLine && lines.length < normalizedMaxLines) {
 		lines.push(currentLine);
 	}
+
+	if (lines.length > normalizedMaxLines) {
+		lines.length = normalizedMaxLines;
+		isTruncated = true;
+	}
+
 	const renderedLength = lines.join('').length;
-	const hasRemaining = text.length > renderedLength;
+	const hasRemaining = isTruncated || text.length > renderedLength;
+
 	lines.forEach((line, index) => {
 		let output = line;
 		if (index === lines.length - 1 && hasRemaining) {
