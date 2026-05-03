@@ -3,10 +3,29 @@
 		<a-card>
 			<template #title>题库分类管理</template>
 			<template #extra>
-				<a-button type="primary" @click="handleAdd(null)">
-					<template #icon><plus-outlined /></template>
-					新增一级分类
-				</a-button>
+				<a-space>
+					<a-button
+						type="primary"
+						danger
+						:disabled="selectedRowKeys.length === 0"
+						@click="showBatchDeleteModal"
+					>
+						<template #icon><delete-outlined /></template>
+						批量删除 ({{ selectedRowKeys.length || 0 }})
+					</a-button>
+					<a-button :disabled="selectedRowKeys.length === 0" @click="handleBatchEnable">
+						<template #icon><check-outlined /></template>
+						批量启用 ({{ selectedRowKeys.length || 0 }})
+					</a-button>
+					<a-button :disabled="selectedRowKeys.length === 0" @click="handleBatchDisable">
+						<template #icon><close-outlined /></template>
+						批量禁用 ({{ selectedRowKeys.length || 0 }})
+					</a-button>
+					<a-button type="primary" @click="handleAdd(null)">
+						<template #icon><plus-outlined /></template>
+						新增一级分类
+					</a-button>
+				</a-space>
 			</template>
 
 			<a-table
@@ -14,6 +33,7 @@
 				:data-source="tableData"
 				:loading="loading"
 				row-key="id"
+				:row-selection="{ selectedRowKeys, onChange: onSelectChange }"
 				:pagination="false"
 			>
 				<template #bodyCell="{ column, record }">
@@ -58,6 +78,19 @@
 				</template>
 			</a-table>
 		</a-card>
+
+		<a-modal
+			v-model:open="batchDeleteModalVisible"
+			title="批量删除确认"
+			:confirm-loading="batchDeleteLoading"
+			@ok="confirmBatchDelete"
+			@cancel="cancelBatchDelete"
+		>
+			<p>确定要删除选中的 {{ selectedRowKeys.length }} 个分类吗？</p>
+			<p style="color: #ff4d4f; font-size: 12px; margin-top: 8px">
+				如果分类存在子分类或已绑定课程，系统会阻止删除；此操作不可恢复，请谨慎操作。
+			</p>
+		</a-modal>
 
 		<a-modal
 			:open="modalVisible"
@@ -147,12 +180,14 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import { message } from 'ant-design-vue';
-import { PlusOutlined } from '@ant-design/icons-vue';
+import { CheckOutlined, CloseOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons-vue';
 import {
 	getCourseCategoryTree,
 	createCourseCategory,
 	updateCourseCategory,
 	deleteCourseCategory,
+	batchDeleteCourseCategories,
+	batchUpdateCourseCategoryStatus,
 } from '@/api/course-category';
 import { getCourseList, updateCourse } from '@/api/course';
 
@@ -168,6 +203,9 @@ const courseListLoading = ref(false);
 const courseList = ref<any[]>([]);
 const courseSearchKeyword = ref('');
 const selectedCourseIds = ref<number[]>([]);
+const selectedRowKeys = ref<number[]>([]);
+const batchDeleteModalVisible = ref(false);
+const batchDeleteLoading = ref(false);
 const currentCategory = ref<{ category: string; sub_category: string } | null>(null);
 const courseSelectMode = ref<'bind' | 'unbind'>('bind'); // 'bind' 绑定课程, 'unbind' 移除课程
 
@@ -205,6 +243,10 @@ const columns = [
 
 const tableData = computed(() => categoryTree.value);
 
+const onSelectChange = (keys: number[]) => {
+	selectedRowKeys.value = keys;
+};
+
 // 只显示一级分类作为父级选项（二级分类不允许新增子分类）
 const parentOptions = computed(() =>
 	categoryTree.value
@@ -237,12 +279,16 @@ const fetchCategories = async () => {
 			});
 		};
 		categoryTree.value = processTree(tree);
+		selectedRowKeys.value = selectedRowKeys.value.filter((id) => containsCategoryId(categoryTree.value, id));
 	} catch (error) {
 		message.error('获取分类列表失败');
 	} finally {
 		loading.value = false;
 	}
 };
+
+const containsCategoryId = (items: any[], id: number): boolean =>
+	items.some((item) => item.id === id || (Array.isArray(item.children) && containsCategoryId(item.children, id)));
 
 const handleAdd = (record: any | null) => {
 	// 如果传入的record是二级分类（有parent_id），则不允许添加子分类
@@ -305,6 +351,67 @@ const handleDelete = async (record: any) => {
 		fetchCategories();
 	} catch (error: any) {
 		message.error(error?.message || '删除失败');
+	}
+};
+
+const showBatchDeleteModal = () => {
+	if (selectedRowKeys.value.length === 0) {
+		message.warning('请先选择要删除的分类');
+		return;
+	}
+	batchDeleteModalVisible.value = true;
+};
+
+const cancelBatchDelete = () => {
+	batchDeleteModalVisible.value = false;
+};
+
+const confirmBatchDelete = async () => {
+	if (selectedRowKeys.value.length === 0) return;
+
+	batchDeleteLoading.value = true;
+	try {
+		await batchDeleteCourseCategories(selectedRowKeys.value);
+		message.success(`成功删除 ${selectedRowKeys.value.length} 个分类`);
+		batchDeleteModalVisible.value = false;
+		selectedRowKeys.value = [];
+		fetchCategories();
+	} catch (error: any) {
+		message.error(error?.msg || error?.message || '批量删除失败');
+	} finally {
+		batchDeleteLoading.value = false;
+	}
+};
+
+const handleBatchEnable = async () => {
+	if (selectedRowKeys.value.length === 0) {
+		message.warning('请先选择要启用的分类');
+		return;
+	}
+
+	try {
+		await batchUpdateCourseCategoryStatus(selectedRowKeys.value, 1);
+		message.success(`成功启用 ${selectedRowKeys.value.length} 个分类`);
+		selectedRowKeys.value = [];
+		fetchCategories();
+	} catch (error: any) {
+		message.error(error?.msg || error?.message || '批量启用失败');
+	}
+};
+
+const handleBatchDisable = async () => {
+	if (selectedRowKeys.value.length === 0) {
+		message.warning('请先选择要禁用的分类');
+		return;
+	}
+
+	try {
+		await batchUpdateCourseCategoryStatus(selectedRowKeys.value, 0);
+		message.success(`成功禁用 ${selectedRowKeys.value.length} 个分类`);
+		selectedRowKeys.value = [];
+		fetchCategories();
+	} catch (error: any) {
+		message.error(error?.msg || error?.message || '批量禁用失败');
 	}
 };
 

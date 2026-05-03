@@ -15,3 +15,11 @@ export function updateCourseCategory(id: number, data: any) {
 export function deleteCourseCategory(id: number) {
   return request.delete(`/admin/course-categories/${id}`)
 }
+
+export function batchDeleteCourseCategories(ids: number[]) {
+  return request.post('/admin/course-categories/batch-delete', { ids })
+}
+
+export function batchUpdateCourseCategoryStatus(ids: number[], status: number) {
+  return request.post('/admin/course-categories/batch-update-status', { ids, status })
+}

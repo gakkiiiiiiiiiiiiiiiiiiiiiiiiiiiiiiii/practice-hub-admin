@@ -2,6 +2,11 @@ import request from '@/utils/request';
 
 /** 分片大小 5MB，单次请求体小于网关限制，避免 413 */
 const CHUNK_SIZE = 5 * 1024 * 1024;
+const MAX_CHUNK_RETRY = 3;
+
+export interface UploadCourseFileOptions {
+	onProgress?: (percent: number, stage?: string) => void;
+}
 
 function generateUploadId(): string {
 	return `${Date.now()}-${Math.random().toString(36).slice(2, 14)}`;
@@ -21,7 +26,7 @@ async function uploadCourseFileChunk(
 	form.append('chunkIndex', String(chunkIndex));
 	form.append('totalChunks', String(totalChunks));
 	form.append('fileName', fileName);
-	const res = (await request.post('/admin/upload/course-file-chunk', form)) as {
+	const res = (await request.post('/admin/upload/course-file-chunk', form, { timeout: 120000 })) as {
 		data?: { chunkIndex: number; totalChunks: number };
 	};
 	const data = res?.data;
@@ -35,11 +40,15 @@ async function mergeCourseFileChunks(
 	totalChunks: number,
 	fileName: string,
 ): Promise<{ url: string; fileUrl: string; fileName: string; fileType: string }> {
-	const res = (await request.post('/admin/upload/course-file-merge', {
-		uploadId,
-		totalChunks,
-		fileName,
-	})) as { data: { url: string; fileUrl: string; fileName: string; fileType: string } };
+	const res = (await request.post(
+		'/admin/upload/course-file-merge',
+		{
+			uploadId,
+			totalChunks,
+			fileName,
+		},
+		{ timeout: 300000 },
+	)) as { data: { url: string; fileUrl: string; fileName: string; fileType: string } };
 	const data = res?.data ?? res;
 	if (!data?.url && !data?.fileUrl) throw new Error('合并失败：未返回文件地址');
 	return {
@@ -124,6 +133,29 @@ export async function getCourseFileUploadUrl(fileName: string): Promise<{
 	};
 }
 
+const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+async function uploadCourseFileChunkWithRetry(
+	chunk: Blob,
+	uploadId: string,
+	chunkIndex: number,
+	totalChunks: number,
+	fileName: string,
+) {
+	let lastError: any;
+	for (let retry = 1; retry <= MAX_CHUNK_RETRY; retry++) {
+		try {
+			return await uploadCourseFileChunk(chunk, uploadId, chunkIndex, totalChunks, fileName);
+		} catch (error) {
+			lastError = error;
+			if (retry < MAX_CHUNK_RETRY) {
+				await sleep(600 * retry);
+			}
+		}
+	}
+	throw lastError;
+}
+
 /** 直传文件到 COS（浏览器直接 POST 到凭证中的 url，不经过后端，无 413） */
 export async function uploadCourseFileToCos(file: File, credentials: {
 	url: string;
@@ -131,31 +163,62 @@ export async function uploadCourseFileToCos(file: File, credentials: {
 	authorization: string;
 	cos_file_id: string;
 	path: string;
-}): Promise<void> {
+}, options?: UploadCourseFileOptions): Promise<void> {
 	const form = new FormData();
 	form.append('key', credentials.path);
 	form.append('Signature', credentials.authorization);
 	form.append('x-cos-security-token', credentials.token);
 	form.append('x-cos-meta-fileid', credentials.cos_file_id);
 	form.append('file', file, file.name);
-	const response = await fetch(credentials.url, {
-		method: 'POST',
-		body: form,
+	await new Promise<void>((resolve, reject) => {
+		const xhr = new XMLHttpRequest();
+		xhr.open('POST', credentials.url);
+		xhr.timeout = 30 * 60 * 1000;
+		xhr.upload.onprogress = (event) => {
+			if (event.lengthComputable) {
+				options?.onProgress?.(Math.min(99, Math.round((event.loaded / event.total) * 100)), '正在上传到对象存储');
+			}
+		};
+		xhr.onload = () => {
+			if (xhr.status >= 200 && xhr.status < 300) {
+				resolve();
+				return;
+			}
+			reject(new Error(`直传失败: ${xhr.status} ${xhr.responseText || ''}`.trim()));
+		};
+		xhr.onerror = () => reject(new Error('直传失败：网络异常或跨域限制'));
+		xhr.ontimeout = () => reject(new Error('直传失败：上传超时'));
+		xhr.send(form);
 	});
-	if (!response.ok) {
-		const text = await response.text();
-		throw new Error(`直传失败: ${response.status} ${text}`);
-	}
 }
 
-/** 上传课程文件（PDF/Word）：大文件分片上传，小文件直传 COS 或单次 POST */
-export async function uploadCourseFile(file: File): Promise<{ url: string; fileUrl: string; fileName: string; fileType: string }> {
+/** 上传课程文件（PDF/Word）：优先对象存储直传，失败时后端分片兜底 */
+export async function uploadCourseFile(
+	file: File,
+	options?: UploadCourseFileOptions,
+): Promise<{ url: string; fileUrl: string; fileName: string; fileType: string }> {
 	const name = (file.name || '').trim();
 	if (!name || !/\.(pdf|doc|docx)$/i.test(name)) {
 		throw new Error('仅支持 PDF、Word（.doc/.docx）文件');
 	}
 
-	// 大文件：分片上传，避免 413
+	// 首选直传对象存储：不经过后端转发，最适合大文件。
+	try {
+		options?.onProgress?.(1, '正在获取上传凭证');
+		const credentials = await getCourseFileUploadUrl(name);
+		await uploadCourseFileToCos(file, credentials, options);
+		options?.onProgress?.(100, '上传完成');
+		return {
+			url: credentials.finalFileUrl,
+			fileUrl: credentials.finalFileUrl,
+			fileName: credentials.fileName,
+			fileType: credentials.fileType,
+		};
+	} catch (directError: any) {
+		console.warn('课程文件直传失败，尝试后端分片上传:', directError?.message || directError);
+	}
+
+	// 兜底：分片上传，避免单个请求 413；每片失败自动重试。
 	if (file.size > CHUNK_SIZE) {
 		const uploadId = generateUploadId();
 		const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
@@ -163,37 +226,28 @@ export async function uploadCourseFile(file: File): Promise<{ url: string; fileU
 			const start = i * CHUNK_SIZE;
 			const end = Math.min(start + CHUNK_SIZE, file.size);
 			const chunk = file.slice(start, end);
-			await uploadCourseFileChunk(chunk, uploadId, i, totalChunks, name);
+			options?.onProgress?.(Math.max(1, Math.round((i / totalChunks) * 95)), `正在上传分片 ${i + 1}/${totalChunks}`);
+			await uploadCourseFileChunkWithRetry(chunk, uploadId, i, totalChunks, name);
 		}
-		return mergeCourseFileChunks(uploadId, totalChunks, name);
+		options?.onProgress?.(96, '正在合并文件');
+		const result = await mergeCourseFileChunks(uploadId, totalChunks, name);
+		options?.onProgress?.(100, '上传完成');
+		return result;
 	}
 
-	// 小文件：优先直传 COS，失败时回退单次 POST
-	try {
-		const credentials = await getCourseFileUploadUrl(name);
-		await uploadCourseFileToCos(file, credentials);
-		return {
-			url: credentials.finalFileUrl,
-			fileUrl: credentials.finalFileUrl,
-			fileName: credentials.fileName,
-			fileType: credentials.fileType,
-		};
-	} catch (e: any) {
-		if (e?.message?.includes('直传失败') || e?.message?.includes('CORS') || e?.message?.includes('凭证')) {
-			throw e;
-		}
-		const formData = new FormData();
-		formData.append('file', file);
-		const res = (await request.post('/admin/upload/course-file', formData)) as { data: { url: string; fileUrl: string; fileName: string; fileType: string } };
-		const data = res?.data ?? res;
-		if (!data?.url && !data?.fileUrl) {
-			throw new Error('上传失败：未返回文件地址');
-		}
-		return {
-			url: data.url || data.fileUrl,
-			fileUrl: data.fileUrl || data.url,
-			fileName: data.fileName || file.name,
-			fileType: data.fileType || (file.name.toLowerCase().endsWith('.pdf') ? 'pdf' : file.name.toLowerCase().endsWith('.docx') ? 'docx' : 'doc'),
-		};
+	const formData = new FormData();
+	formData.append('file', file);
+	options?.onProgress?.(20, '正在上传文件');
+	const res = (await request.post('/admin/upload/course-file', formData, { timeout: 180000 })) as { data: { url: string; fileUrl: string; fileName: string; fileType: string } };
+	const data = res?.data ?? res;
+	if (!data?.url && !data?.fileUrl) {
+		throw new Error('上传失败：未返回文件地址');
 	}
+	options?.onProgress?.(100, '上传完成');
+	return {
+		url: data.url || data.fileUrl,
+		fileUrl: data.fileUrl || data.url,
+		fileName: data.fileName || file.name,
+		fileType: data.fileType || (file.name.toLowerCase().endsWith('.pdf') ? 'pdf' : file.name.toLowerCase().endsWith('.docx') ? 'docx' : 'doc'),
+	};
 }

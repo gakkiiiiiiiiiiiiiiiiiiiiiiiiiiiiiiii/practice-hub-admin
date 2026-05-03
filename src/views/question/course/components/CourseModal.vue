@@ -31,6 +31,10 @@
 					</a-button>
 				</a-upload>
 				<div v-if="formState.file_name" class="form-tip">当前文件：{{ formState.file_name }}</div>
+				<div v-if="courseFileUploading" class="course-file-upload-progress">
+					<a-progress :percent="courseFileUploadProgress" size="small" />
+					<div class="form-tip">{{ courseFileUploadStage || '正在上传课程文件，请勿关闭窗口' }}</div>
+				</div>
 			</a-form-item>
 			<a-form-item v-if="formState.content_type === 'file'" label="源文件查看">
 				<a-radio-group v-model:value="formState.allow_source_file">
@@ -192,6 +196,8 @@ const formRef = ref();
 const loading = ref(false);
 const uploadLoading = ref(false);
 const courseFileUploading = ref(false);
+const courseFileUploadProgress = ref(0);
+const courseFileUploadStage = ref('');
 const autoCoverLoading = ref(false);
 const fileList = ref<any[]>([]);
 const courseFileList = ref<any[]>([]);
@@ -428,7 +434,14 @@ const handleCourseFileUpload = async (options: any) => {
 	const { file, onSuccess, onError } = options;
 	try {
 		courseFileUploading.value = true;
-		const res = await uploadCourseFile(file as File);
+		courseFileUploadProgress.value = 0;
+		courseFileUploadStage.value = '准备上传课程文件';
+		const res = await uploadCourseFile(file as File, {
+			onProgress: (percent, stage) => {
+				courseFileUploadProgress.value = percent;
+				courseFileUploadStage.value = stage || '';
+			},
+		});
 		formState.value.file_url = res.url || res.fileUrl;
 		formState.value.file_name = res.fileName;
 		formState.value.file_type = res.fileType;
@@ -442,6 +455,8 @@ const handleCourseFileUpload = async (options: any) => {
 		onError?.(e);
 	} finally {
 		courseFileUploading.value = false;
+		courseFileUploadProgress.value = 0;
+		courseFileUploadStage.value = '';
 	}
 };
 
@@ -679,5 +694,9 @@ const handleSubmit = async () => {
 	display: block;
 	width: 100%;
 	border-radius: 8px;
+}
+
+.course-file-upload-progress {
+	margin-top: 8px;
 }
 </style>
