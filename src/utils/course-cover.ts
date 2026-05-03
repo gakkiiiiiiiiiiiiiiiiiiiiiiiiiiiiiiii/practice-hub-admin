@@ -15,6 +15,7 @@ export interface CourseCoverFieldConfig {
 	y: number;
 	fontSize: number;
 	color: string;
+	backgroundColor?: string;
 	fontWeight?: string;
 	fontFamily?: string;
 	maxWidth?: number;
@@ -69,6 +70,7 @@ export const DEFAULT_COURSE_COVER_CONFIG: CourseCoverConfig = {
 			y: 96,
 			fontSize: 56,
 			color: '#F9F4DF',
+			backgroundColor: 'transparent',
 			fontWeight: '700',
 			fontFamily: 'serif',
 			maxWidth: 1140,
@@ -85,6 +87,7 @@ export const DEFAULT_COURSE_COVER_CONFIG: CourseCoverConfig = {
 			y: 325,
 			fontSize: 108,
 			color: '#58A7F7',
+			backgroundColor: 'transparent',
 			fontWeight: '700',
 			fontFamily: 'serif',
 			maxWidth: 940,
@@ -101,6 +104,7 @@ export const DEFAULT_COURSE_COVER_CONFIG: CourseCoverConfig = {
 			y: 515,
 			fontSize: 62,
 			color: '#FDF8ED',
+			backgroundColor: 'transparent',
 			fontWeight: '700',
 			fontFamily: 'serif',
 			maxWidth: 1080,
@@ -117,6 +121,7 @@ export const DEFAULT_COURSE_COVER_CONFIG: CourseCoverConfig = {
 			y: 745,
 			fontSize: 58,
 			color: '#f3ea53',
+			backgroundColor: 'transparent',
 			fontWeight: '700',
 			fontFamily: 'serif',
 			maxWidth: 900,
@@ -133,6 +138,7 @@ export const DEFAULT_COURSE_COVER_CONFIG: CourseCoverConfig = {
 			y: 840,
 			fontSize: 42,
 			color: '#FFFFFF',
+			backgroundColor: 'transparent',
 			fontWeight: '700',
 			fontFamily: 'serif',
 			maxWidth: 460,
@@ -149,6 +155,7 @@ export const DEFAULT_COURSE_COVER_CONFIG: CourseCoverConfig = {
 			y: 915,
 			fontSize: 42,
 			color: '#FFFFFF',
+			backgroundColor: 'transparent',
 			fontWeight: '700',
 			fontFamily: 'serif',
 			maxWidth: 460,
@@ -165,6 +172,7 @@ export const DEFAULT_COURSE_COVER_CONFIG: CourseCoverConfig = {
 			y: 1075,
 			fontSize: 76,
 			color: '#58A7F7',
+			backgroundColor: 'transparent',
 			fontWeight: '700',
 			fontFamily: 'serif',
 			maxWidth: 980,
@@ -181,6 +189,7 @@ export const DEFAULT_COURSE_COVER_CONFIG: CourseCoverConfig = {
 			y: 1180,
 			fontSize: 52,
 			color: '#FDF9EE',
+			backgroundColor: 'transparent',
 			fontWeight: '700',
 			fontFamily: 'serif',
 			maxWidth: 1140,
@@ -215,6 +224,7 @@ export function normalizeCourseCoverConfig(input?: Partial<CourseCoverConfig> | 
 			y: Number(field.y) || 0,
 			fontSize: Number(field.fontSize) || 32,
 			color: field.color || '#FFFFFF',
+			backgroundColor: field.backgroundColor || 'transparent',
 			fontWeight: field.fontWeight || '700',
 			fontFamily: field.fontFamily || 'serif',
 			maxWidth: Number(field.maxWidth) || undefined,
@@ -317,20 +327,16 @@ function drawConfiguredText(ctx: CanvasRenderingContext2D, field: CourseCoverFie
 	const fontWeight = field.fontWeight || '700';
 	const fontFamily = field.fontFamily || 'serif';
 	const lineHeight = field.lineHeight || field.fontSize;
+	const maxWidth = field.maxWidth || ctx.canvas.width - 40;
 	ctx.save();
-	ctx.fillStyle = field.color || '#FFFFFF';
 	ctx.textAlign = align;
 	ctx.font = `${fontWeight} ${field.fontSize}px ${fontFamily}`;
-	drawMultilineText(
-		ctx,
-		text,
-		field.x,
-		field.y,
-		field.maxWidth || ctx.canvas.width - 40,
-		lineHeight,
-		field.maxLines || 1,
-		align,
-	);
+	const lines = buildMultilineTextLines(ctx, text, maxWidth, field.maxLines || 1);
+	drawTextBackground(ctx, field, lines, maxWidth, lineHeight, align);
+	ctx.fillStyle = field.color || '#FFFFFF';
+	lines.forEach((line, index) => {
+		ctx.fillText(line, field.x, field.y + index * lineHeight);
+	});
 	ctx.restore();
 }
 
@@ -345,15 +351,11 @@ function resolveFieldText(field: CourseCoverFieldConfig, payload: CourseCoverPay
 	return String(raw).trim();
 }
 
-function drawMultilineText(
+function buildMultilineTextLines(
 	ctx: CanvasRenderingContext2D,
 	text: string,
-	x: number,
-	startY: number,
 	maxWidth: number,
-	lineHeight: number,
 	maxLines: number,
-	align: CourseCoverAlign,
 ) {
 	const normalizedMaxLines = Math.max(1, Math.floor(Number(maxLines) || 1));
 	const lines: string[] = [];
@@ -386,17 +388,46 @@ function drawMultilineText(
 	const renderedLength = lines.join('').length;
 	const hasRemaining = isTruncated || text.length > renderedLength;
 
-	lines.forEach((line, index) => {
-		let output = line;
-		if (index === lines.length - 1 && hasRemaining) {
-			while (ctx.measureText(`${output}...`).width > maxWidth && output.length > 1) {
-				output = output.slice(0, -1);
-			}
-			output = `${output}...`;
+	return lines.map((line, index) => {
+		if (index !== lines.length - 1 || !hasRemaining) {
+			return line;
 		}
-		const drawX = align === 'left' ? x : align === 'right' ? x : x;
-		ctx.fillText(output, drawX, startY + index * lineHeight);
+		let output = line;
+		while (ctx.measureText(`${output}...`).width > maxWidth && output.length > 1) {
+			output = output.slice(0, -1);
+		}
+		return `${output}...`;
 	});
+}
+
+function drawTextBackground(
+	ctx: CanvasRenderingContext2D,
+	field: CourseCoverFieldConfig,
+	lines: string[],
+	maxWidth: number,
+	lineHeight: number,
+	align: CourseCoverAlign,
+) {
+	if (isTransparentColor(field.backgroundColor) || lines.length === 0) return;
+	const horizontalPadding = Math.max(8, field.fontSize * 0.12);
+	const verticalPadding = Math.max(4, lineHeight * 0.08);
+	ctx.save();
+	ctx.fillStyle = field.backgroundColor || 'transparent';
+	lines.forEach((line, index) => {
+		const textWidth = Math.min(ctx.measureText(line).width, maxWidth);
+		const width = textWidth + horizontalPadding * 2;
+		const height = lineHeight + verticalPadding * 2;
+		const lineY = field.y + index * lineHeight;
+		const rectX = align === 'left' ? field.x - horizontalPadding : align === 'right' ? field.x - width + horizontalPadding : field.x - width / 2;
+		const rectY = lineY - field.fontSize - verticalPadding;
+		ctx.fillRect(rectX, rectY, width, height);
+	});
+	ctx.restore();
+}
+
+function isTransparentColor(color?: string) {
+	const normalized = String(color || '').trim().toLowerCase();
+	return !normalized || normalized === 'transparent';
 }
 
 function roundRect(

@@ -143,10 +143,31 @@
 								</a-form-item>
 							</a-col>
 							<a-col :span="8">
+								<a-form-item label="背景色" :label-col="{ span: 8 }" :wrapper-col="{ span: 16 }">
+									<div class="color-control">
+										<input
+											class="native-color-picker"
+											type="color"
+											:value="toColorPickerValue(field.backgroundColor, '#FFFFFF')"
+											@input="handleFieldBackgroundColorPick(field, $event)"
+										/>
+										<a-input
+											v-model:value="field.backgroundColor"
+											placeholder="transparent"
+											@blur="field.backgroundColor = normalizeOptionalColorInput(field.backgroundColor)"
+										/>
+										<a-button size="small" @click.stop="clearFieldBackgroundColor(field)">透明</a-button>
+									</div>
+								</a-form-item>
+							</a-col>
+							<a-col :span="8">
 								<a-form-item label="粗细" :label-col="{ span: 8 }" :wrapper-col="{ span: 16 }">
 									<a-input v-model:value="field.fontWeight" />
 								</a-form-item>
 							</a-col>
+						</a-row>
+
+						<a-row :gutter="12">
 							<a-col :span="8">
 								<a-form-item label="字体" :label-col="{ span: 8 }" :wrapper-col="{ span: 16 }">
 									<a-input v-model:value="field.fontFamily" />
@@ -289,6 +310,14 @@ const normalizeColorInput = (value?: string, fallback = '#FFFFFF') => {
 	return fallback;
 };
 
+const normalizeOptionalColorInput = (value?: string) => {
+	const raw = String(value || '').trim();
+	if (!raw || raw.toLowerCase() === 'transparent') {
+		return 'transparent';
+	}
+	return normalizeColorInput(raw, 'transparent');
+};
+
 const toColorPickerValue = (value?: string, fallback = '#FFFFFF') => normalizeColorInput(value, fallback);
 
 const getEventTargetValue = (event: Event) => (event.target as HTMLInputElement | null)?.value || '';
@@ -299,6 +328,14 @@ const handleBackgroundColorPick = (event: Event) => {
 
 const handleFieldColorPick = (field: CourseCoverFieldConfig, event: Event) => {
 	field.color = normalizeColorInput(getEventTargetValue(event));
+};
+
+const handleFieldBackgroundColorPick = (field: CourseCoverFieldConfig, event: Event) => {
+	field.backgroundColor = normalizeColorInput(getEventTargetValue(event));
+};
+
+const clearFieldBackgroundColor = (field: CourseCoverFieldConfig) => {
+	field.backgroundColor = 'transparent';
 };
 
 const updateBackgroundFileList = () => {
@@ -385,6 +422,7 @@ const createField = (type: 'courseField' | 'staticText'): CourseCoverFieldConfig
 	y: 600,
 	fontSize: 42,
 	color: '#FFFFFF',
+	backgroundColor: 'transparent',
 	fontWeight: '700',
 	fontFamily: 'serif',
 	maxWidth: 900,
@@ -404,9 +442,11 @@ const getFieldStyle = (field: CourseCoverFieldConfig) => ({
 	left: `${field.x * previewScale.value}px`,
 	top: `${field.y * previewScale.value}px`,
 	color: field.color,
+	backgroundColor: normalizeOptionalColorInput(field.backgroundColor),
 	fontSize: `${field.fontSize * previewScale.value}px`,
 	fontWeight: field.fontWeight || '700',
 	fontFamily: field.fontFamily || 'serif',
+	lineHeight: `${(field.lineHeight || field.fontSize) * previewScale.value}px`,
 	textAlign: field.align || 'center',
 	maxWidth: `${(field.maxWidth || formState.value.width) * previewScale.value}px`,
 	transform:
@@ -516,6 +556,7 @@ const copyFieldStyle = (field: CourseCoverFieldConfig) => {
 	copiedFieldStyle.value = {
 		fontSize: field.fontSize,
 		color: field.color,
+		backgroundColor: field.backgroundColor,
 		fontWeight: field.fontWeight,
 		fontFamily: field.fontFamily,
 		maxWidth: field.maxWidth,
@@ -571,6 +612,14 @@ onBeforeUnmount(() => {
 		display: flex;
 		align-items: center;
 		gap: 8px;
+	}
+
+	.color-control :deep(.ant-input) {
+		min-width: 0;
+	}
+
+	.color-control :deep(.ant-btn) {
+		flex: 0 0 auto;
 	}
 
 	.native-color-picker {
@@ -652,6 +701,8 @@ onBeforeUnmount(() => {
 	.preview-board__field {
 		position: absolute;
 		z-index: 2;
+		padding: 0.08em 0.12em;
+		border-radius: 2px;
 		cursor: grab;
 		white-space: pre-wrap;
 		line-height: 1.1;
