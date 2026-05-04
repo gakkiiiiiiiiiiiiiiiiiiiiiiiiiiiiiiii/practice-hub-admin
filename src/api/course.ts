@@ -13,6 +13,10 @@ export function updateCourse(id: number, data: any) {
   return request.put(`/admin/courses/${id}`, data)
 }
 
+export function updateCourseSort(id: number, sort: number) {
+  return updateCourse(id, { sort })
+}
+
 export function getCourseDetail(id: number) {
   return request.get(`/admin/courses/${id}`)
 }

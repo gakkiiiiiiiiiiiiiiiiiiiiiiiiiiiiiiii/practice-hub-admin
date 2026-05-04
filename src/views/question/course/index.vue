@@ -59,19 +59,40 @@
 							{{ record.is_free === 1 ? '免费' : '付费' }}
 						</a-tag>
 					</template>
-					<template v-else-if="column.key === 'status'">
-						<a-tag :color="record.status === 1 ? 'green' : 'red'">
-							{{ record.status === 1 ? '启用' : '禁用' }}
-						</a-tag>
-					</template>
-					<template v-else-if="column.key === 'action'">
-						<a-space>
-							<a-button type="link" size="small" @click="handleEdit(record)"> 编辑 </a-button>
-							<a-button type="link" size="small" @click="handleExamConfig(record)"> 考试配置 </a-button>
-							<a-button type="link" size="small" @click="handleRecommendConfig(record)"> 相关推荐 </a-button>
-							<a-popconfirm title="确定要删除这个课程吗？" @confirm="handleDelete(record)">
-								<a-button type="link" danger size="small">删除</a-button>
-							</a-popconfirm>
+						<template v-else-if="column.key === 'status'">
+							<a-tag :color="record.status === 1 ? 'green' : 'red'">
+								{{ record.status === 1 ? '启用' : '禁用' }}
+							</a-tag>
+						</template>
+						<template v-else-if="column.key === 'sort'">
+							<a-input-number
+								:value="record.sort ?? 0"
+								:min="0"
+								:precision="0"
+								size="small"
+								class="sort-input"
+								:disabled="sortUpdatingId === record.id"
+								@change="(value) => handleSortChange(record, value)"
+							/>
+						</template>
+						<template v-else-if="column.key === 'action'">
+							<a-space>
+								<a-button type="link" size="small" @click="handleEdit(record)"> 编辑 </a-button>
+								<a-dropdown>
+									<a-button type="link" size="small" @click.prevent>
+										设置
+										<down-outlined />
+									</a-button>
+									<template #overlay>
+										<a-menu>
+											<a-menu-item key="exam" @click="handleExamConfig(record)">考试配置</a-menu-item>
+											<a-menu-item key="recommend" @click="handleRecommendConfig(record)">相关推荐</a-menu-item>
+										</a-menu>
+									</template>
+								</a-dropdown>
+								<a-popconfirm title="确定要删除这个课程吗？" @confirm="handleDelete(record)">
+									<a-button type="link" danger size="small">删除</a-button>
+								</a-popconfirm>
 						</a-space>
 					</template>
 				</template>
@@ -107,11 +128,11 @@
 	</div>
 </template>
 
-<script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { message } from 'ant-design-vue';
-import { PlusOutlined, DeleteOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons-vue';
-import { getCourseList, deleteCourse, batchDeleteCourses, batchUpdateCourseStatus } from '@/api/course';
+	<script setup lang="ts">
+	import { ref, onMounted } from 'vue';
+	import { message } from 'ant-design-vue';
+	import { PlusOutlined, DeleteOutlined, CheckOutlined, CloseOutlined, DownOutlined } from '@ant-design/icons-vue';
+	import { getCourseList, deleteCourse, batchDeleteCourses, batchUpdateCourseStatus, updateCourseSort } from '@/api/course';
 import CourseModal from './components/CourseModal.vue';
 import ExamConfigDrawer from './components/ExamConfigDrawer.vue';
 import RecommendationDrawer from './components/RecommendationDrawer.vue';
@@ -124,9 +145,10 @@ const examDrawerVisible = ref(false);
 const recommendDrawerVisible = ref(false);
 const currentCourseId = ref<number | null>(null);
 const currentCourseName = ref<string>('');
-const selectedRowKeys = ref<number[]>([]);
-const batchDeleteModalVisible = ref(false);
-const batchDeleteLoading = ref(false);
+	const selectedRowKeys = ref<number[]>([]);
+	const batchDeleteModalVisible = ref(false);
+	const batchDeleteLoading = ref(false);
+	const sortUpdatingId = ref<number | null>(null);
 
 const pagination = ref({
 	current: 1,
@@ -202,18 +224,18 @@ const columns = [
 		key: 'status',
 		width: 80,
 	},
-	{
-		title: '排序',
-		dataIndex: 'sort',
-		key: 'sort',
-		width: 80,
-	},
-	{
-		title: '操作',
-		key: 'action',
-		width: 280,
-		fixed: 'right',
-	},
+		{
+			title: '排序',
+			dataIndex: 'sort',
+			key: 'sort',
+			width: 110,
+		},
+		{
+			title: '操作',
+			key: 'action',
+			width: 180,
+			fixed: 'right',
+		},
 ];
 
 const fetchData = async () => {
@@ -261,9 +283,33 @@ const handleDelete = async (record: any) => {
 	}
 };
 
-const handleRefresh = () => {
-	fetchData();
-};
+	const handleRefresh = () => {
+		fetchData();
+	};
+
+	const handleSortChange = async (record: any, value: number | string | null) => {
+		const nextSort = Number(value);
+		if (!Number.isInteger(nextSort) || nextSort < 0) {
+			message.warning('排序号需为非负整数');
+			return;
+		}
+		if (nextSort === Number(record.sort ?? 0)) {
+			return;
+		}
+		const previousSort = record.sort;
+		record.sort = nextSort;
+		sortUpdatingId.value = record.id;
+		try {
+			await updateCourseSort(record.id, nextSort);
+			message.success('排序已更新');
+			fetchData();
+		} catch (error: any) {
+			record.sort = previousSort;
+			message.error(error?.message || '排序更新失败');
+		} finally {
+			sortUpdatingId.value = null;
+		}
+	};
 
 const handleExamConfig = (record: any) => {
 	currentCourseId.value = record.id;
@@ -360,7 +406,11 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
-.course-management {
-	padding: 24px;
-}
-</style>
+	.course-management {
+		padding: 24px;
+	}
+
+	.sort-input {
+		width: 82px;
+	}
+	</style>

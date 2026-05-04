@@ -25,6 +25,11 @@ export function deleteActivationCode(id: number) {
   return request.delete(`/admin/codes/${id}`)
 }
 
+// 禁用已激活激活码，并撤销对应课程权限
+export function invalidateActivationCode(id: number) {
+  return request.patch(`/admin/codes/${id}/invalidate`)
+}
+
 // 购买激活码（代理商）- 如果后端有提供此接口
 export function buyActivationCodes(data: any) {
   return request.post('/admin/codes/buy', data)
@@ -42,4 +47,3 @@ export function exportActivationCodes(params?: any) {
 export function getBalanceLog(params?: any) {
   return request.get('/admin/balance-log', { params })
 }
-

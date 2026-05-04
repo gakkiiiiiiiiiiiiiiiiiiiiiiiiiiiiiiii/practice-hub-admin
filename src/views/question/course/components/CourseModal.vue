@@ -75,7 +75,7 @@
 					<a-radio value="auto">自动生成</a-radio>
 				</a-radio-group>
 			</a-form-item>
-			<a-form-item label="封面图" name="cover_img">
+				<a-form-item label="封面图" name="cover_img">
 				<template v-if="coverMode === 'manual'">
 					<a-upload
 						v-model:file-list="fileList"
@@ -90,25 +90,23 @@
 						</div>
 					</a-upload>
 				</template>
-				<template v-else>
-					<div class="cover-generator">
-						<div class="cover-generator__actions">
-							<a-button type="primary" :loading="autoCoverLoading" @click="handleGenerateCover">
-								生成并使用封面
-							</a-button>
-							<a-button @click="handleOpenCoverConfig">
-								配置封面模板
-							</a-button>
-							<span class="cover-generator__hint">
-								将根据学校、专业、科目、真题年份、答案年份自动生成
-							</span>
+					<template v-else>
+						<div class="cover-generator">
+							<div class="cover-generator__actions">
+								<a-button @click="handleOpenCoverConfig">
+									配置封面模板
+								</a-button>
+								<span class="cover-generator__hint">
+									{{ autoCoverLoading ? '正在同步封面预览...' : '将根据学校、专业、课程、年份等字段实时生成' }}
+								</span>
+							</div>
+							<div v-if="autoCoverPreviewSrc" class="cover-generator__preview">
+								<img :src="autoCoverPreviewSrc" alt="自动生成封面预览" />
+							</div>
+							<div v-else class="cover-generator__empty">填写学校和专业后自动生成预览</div>
 						</div>
-						<div v-if="generatedCoverPreview || formState.cover_img" class="cover-generator__preview">
-							<img :src="generatedCoverPreview || formState.cover_img" alt="自动生成封面预览" />
-						</div>
-					</div>
-				</template>
-			</a-form-item>
+					</template>
+				</a-form-item>
 			<a-form-item label="价格" name="price">
 				<a-input-number
 					v-model:value="formState.price"
@@ -145,15 +143,7 @@
 					设置用户购买此课程后的有效期，选择"永久有效"则购买后永久可用
 				</div>
 			</a-form-item>
-			<a-form-item label="排序" name="sort">
-				<a-input-number
-					v-model:value="formState.sort"
-					:min="0"
-					style="width: 100%"
-					placeholder="请输入排序值（数字越小越靠前）"
-				/>
-			</a-form-item>
-			<a-form-item label="课程介绍" name="introduction">
+				<a-form-item label="课程介绍" name="introduction">
 				<WangEditor v-model="formState.introduction" placeholder="请输入课程介绍（支持富文本）" />
 			</a-form-item>
 		</a-form>
@@ -180,7 +170,12 @@ import { uploadImage, uploadCourseFile } from '@/api/upload';
 import type { UploadProps } from 'ant-design-vue';
 import WangEditor from '@/components/WangEditor/index.vue';
 import CourseCoverConfig from '@/views/system/config/components/CourseCoverConfig.vue';
-import { DEFAULT_COURSE_COVER_CONFIG, normalizeCourseCoverConfig, renderCourseCover } from '@/utils/course-cover';
+import {
+	DEFAULT_COURSE_COVER_CONFIG,
+	normalizeCourseCoverConfig,
+	renderCourseCover,
+} from '@/utils/course-cover';
+import type { CourseCoverConfig as CourseCoverConfigType } from '@/utils/course-cover';
 
 const props = defineProps<{
 	open: boolean;
@@ -207,6 +202,11 @@ const coverMode = ref<'manual' | 'auto'>('manual');
 const coverConfigOpen = ref(false);
 const generatedCoverPreview = ref('');
 let generatedPreviewObjectUrl = '';
+let generatedCoverFile: File | null = null;
+let coverConfigCache: CourseCoverConfigType | null = null;
+let autoCoverTimer: ReturnType<typeof setTimeout> | null = null;
+
+const autoCoverPreviewSrc = computed(() => generatedCoverPreview.value);
 
 // 转换为级联选择器需要的格式
 const cascaderOptions = computed(() => {
@@ -244,10 +244,9 @@ const formState = ref({
 	cover_img: '',
 	price: 0,
 	agent_price: 0,
-	is_free: 0,
-	validity_days: null as number | null,
-	sort: 0,
-	introduction: '',
+		is_free: 0,
+		validity_days: 365 as number | null,
+		introduction: '',
 	content_type: 'normal',
 	file_url: '',
 	file_name: '',
@@ -290,10 +289,9 @@ watch(
 					cover_img: props.record.cover_img || props.record.cover || '',
 					price: props.record.price || 0,
 					agent_price: props.record.agent_price || 0,
-					is_free: props.record.is_free ?? 0,
-					validity_days: props.record.validity_days ?? null,
-					sort: props.record.sort || 0,
-					introduction: props.record.introduction || '',
+						is_free: props.record.is_free ?? 0,
+						validity_days: props.record.validity_days ?? 365,
+						introduction: props.record.introduction || '',
 					content_type: props.record.content_type || 'normal',
 					file_url: props.record.file_url || '',
 					file_name: props.record.file_name || '',
@@ -312,9 +310,10 @@ watch(
 				} else {
 					fileList.value = [];
 				}
-				coverMode.value = 'manual';
-				generatedCoverPreview.value = '';
-				if (formState.value.content_type === 'file' && formState.value.file_url) {
+					coverMode.value = 'manual';
+					generatedCoverPreview.value = '';
+					generatedCoverFile = null;
+					if (formState.value.content_type === 'file' && formState.value.file_url) {
 					courseFileList.value = [
 						{
 							uid: '-1',
@@ -339,10 +338,9 @@ watch(
 					cover_img: '',
 					price: 0,
 					agent_price: 0,
-					is_free: 0,
-					validity_days: null,
-					sort: 0,
-					introduction: '',
+						is_free: 0,
+						validity_days: 365,
+						introduction: '',
 					content_type: 'normal',
 					file_url: '',
 					file_name: '',
@@ -351,13 +349,60 @@ watch(
 				};
 				fileList.value = [];
 				courseFileList.value = [];
-				coverMode.value = 'manual';
-				generatedCoverPreview.value = '';
-			}
+					coverMode.value = 'manual';
+					generatedCoverPreview.value = '';
+					generatedCoverFile = null;
+				}
 			fetchCategoryTree();
 		}
 	}
-);
+	);
+
+	watch(
+		coverMode,
+		(mode) => {
+			if (mode === 'auto') {
+				scheduleAutoCoverPreview();
+			}
+		},
+	);
+
+	watch(
+		[
+			() => formState.value.name,
+			() => formState.value.subject,
+			() => formState.value.category,
+			() => formState.value.sub_category,
+			() => formState.value.school,
+			() => formState.value.major,
+			() => formState.value.exam_year,
+			() => formState.value.answer_year,
+		],
+		() => {
+			if (coverMode.value === 'auto') {
+				scheduleAutoCoverPreview();
+			}
+		},
+	);
+
+	watch(
+		coverConfigOpen,
+		(open) => {
+			if (!open && coverMode.value === 'auto') {
+				coverConfigCache = null;
+				scheduleAutoCoverPreview(0);
+			}
+		},
+	);
+
+	watch(
+		() => formState.value.is_free,
+		(isFree) => {
+			if (isFree === 0 && formState.value.validity_days == null) {
+				formState.value.validity_days = 365;
+			}
+		},
+	);
 
 // 监听级联选择器的值变化，同步到 formState
 watch(
@@ -493,15 +538,52 @@ const handleUpload = async (options: any) => {
 	}
 };
 
-const handleGenerateCover = async () => {
-	try {
-		autoCoverLoading.value = true;
-		const coverFile = await generateCourseCoverFile();
+	const scheduleAutoCoverPreview = (delay = 360) => {
+		if (autoCoverTimer) {
+			clearTimeout(autoCoverTimer);
+		}
+		autoCoverTimer = setTimeout(() => {
+			refreshAutoCoverPreview();
+		}, delay);
+	};
+
+	const refreshAutoCoverPreview = async () => {
+		try {
+			if (coverMode.value !== 'auto') return;
+			if (!formState.value.school?.trim() || !formState.value.major?.trim()) {
+				clearGeneratedCoverPreview();
+				return;
+			}
+			autoCoverLoading.value = true;
+			const coverFile = await generateCourseCoverFile();
+			generatedCoverFile = coverFile;
+			if (generatedPreviewObjectUrl) {
+				URL.revokeObjectURL(generatedPreviewObjectUrl);
+			}
+			generatedPreviewObjectUrl = URL.createObjectURL(coverFile);
+			generatedCoverPreview.value = generatedPreviewObjectUrl;
+		} catch (error: any) {
+			generatedCoverFile = null;
+			generatedCoverPreview.value = '';
+			console.error('自动封面预览生成失败:', error);
+		} finally {
+			autoCoverLoading.value = false;
+		}
+	};
+
+	const clearGeneratedCoverPreview = () => {
+		generatedCoverFile = null;
+		generatedCoverPreview.value = '';
 		if (generatedPreviewObjectUrl) {
 			URL.revokeObjectURL(generatedPreviewObjectUrl);
+			generatedPreviewObjectUrl = '';
 		}
-		generatedPreviewObjectUrl = URL.createObjectURL(coverFile);
-		generatedCoverPreview.value = generatedPreviewObjectUrl;
+	};
+
+	const ensureAutoCoverUploaded = async () => {
+		if (coverMode.value !== 'auto') return;
+		const coverFile = await generateCourseCoverFile();
+		generatedCoverFile = coverFile;
 		const response = await uploadImage(coverFile);
 		const url = response.url || response.imageUrl;
 		if (!url) {
@@ -516,13 +598,7 @@ const handleGenerateCover = async () => {
 				url,
 			},
 		];
-		message.success('已生成并使用自动封面');
-	} catch (error: any) {
-		message.error(error?.message || '自动生成封面失败');
-	} finally {
-		autoCoverLoading.value = false;
-	}
-};
+	};
 
 const generateCourseCoverFile = async (): Promise<File> => {
 	const school = formState.value.school?.trim();
@@ -531,13 +607,16 @@ const generateCourseCoverFile = async (): Promise<File> => {
 	if (!school || !major) {
 		throw new Error('请先填写学校和专业，再自动生成封面');
 	}
-	let config = DEFAULT_COURSE_COVER_CONFIG;
-	try {
-		const res = await getCourseCoverConfig();
-		config = normalizeCourseCoverConfig(res.data || res);
-	} catch (_) {
-		config = normalizeCourseCoverConfig(DEFAULT_COURSE_COVER_CONFIG);
-	}
+		let config = coverConfigCache || DEFAULT_COURSE_COVER_CONFIG;
+		try {
+			if (!coverConfigCache) {
+				const res = await getCourseCoverConfig();
+				coverConfigCache = normalizeCourseCoverConfig(res.data || res);
+			}
+			config = coverConfigCache;
+		} catch (_) {
+			config = normalizeCourseCoverConfig(DEFAULT_COURSE_COVER_CONFIG);
+		}
 	const canvas = await renderCourseCover(config, {
 		name: formState.value.name?.trim(),
 		subject: formState.value.subject?.trim(),
@@ -563,19 +642,28 @@ const handleOpenCoverConfig = () => {
 	coverConfigOpen.value = true;
 };
 
-const handleCancel = () => {
-	emit('update:open', false);
-	formRef.value?.resetFields();
-	categoryCascaderValue.value = [];
-	coverConfigOpen.value = false;
-};
+	const handleCancel = () => {
+		emit('update:open', false);
+		formRef.value?.resetFields();
+		categoryCascaderValue.value = [];
+		coverConfigOpen.value = false;
+		if (autoCoverTimer) {
+			clearTimeout(autoCoverTimer);
+			autoCoverTimer = null;
+		}
+		clearGeneratedCoverPreview();
+	};
 
 const handleSubmit = async () => {
-	try {
-		await formRef.value?.validate();
-		loading.value = true;
+		try {
+			await formRef.value?.validate();
+			loading.value = true;
+			if (coverMode.value === 'auto') {
+				autoCoverLoading.value = true;
+				await ensureAutoCoverUploaded();
+			}
 
-		// 构建符合后端 DTO 的数据
+			// 构建符合后端 DTO 的数据
 		const submitData: any = {
 			name: formState.value.name,
 		};
@@ -623,10 +711,7 @@ const handleSubmit = async () => {
 			// 免费课程不设置有效期
 			submitData.validity_days = null;
 		}
-		if (formState.value.sort !== undefined) {
-			submitData.sort = formState.value.sort;
-		}
-		if (formState.value.introduction !== undefined) {
+			if (formState.value.introduction !== undefined) {
 			submitData.introduction = formState.value.introduction;
 		}
 		submitData.content_type = formState.value.content_type || 'normal';
@@ -657,10 +742,11 @@ const handleSubmit = async () => {
 			return;
 		}
 		message.error(error?.message || '操作失败');
-	} finally {
-		loading.value = false;
-	}
-};
+		} finally {
+			loading.value = false;
+			autoCoverLoading.value = false;
+		}
+	};
 </script>
 
 <style scoped>

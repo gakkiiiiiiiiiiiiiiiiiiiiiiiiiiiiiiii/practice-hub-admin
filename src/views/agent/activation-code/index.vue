@@ -114,6 +114,17 @@
               >
                 导出
               </a-button>
+              <a-popconfirm
+                v-if="record.status === 1"
+                title="禁用后会撤销该用户的课程权限，确定继续吗？"
+                ok-text="确定禁用"
+                cancel-text="取消"
+                @confirm="handleInvalidate(record)"
+              >
+                <a-button type="link" size="small" danger>
+                  禁用
+                </a-button>
+              </a-popconfirm>
               <a-button
                 v-if="record.status === 0"
                 type="link"
@@ -187,6 +198,12 @@
         <a-descriptions-item label="批次号">
           {{ currentDetail.batch_id }}
         </a-descriptions-item>
+        <a-descriptions-item label="批次前缀">
+          {{ currentDetail.batch_prefix || getBatchPrefix(currentDetail.batch_id) }}
+        </a-descriptions-item>
+        <a-descriptions-item label="生成来源">
+          {{ currentDetail.source_text || getSourceText(currentDetail) }}
+        </a-descriptions-item>
         <a-descriptions-item label="关联课程">
           {{ currentDetail.course?.name || '-' }}
         </a-descriptions-item>
@@ -239,11 +256,12 @@ import { useUserStore } from '@/store/user'
 import dayjs from 'dayjs'
 import {
   getActivationCodeList,
-  exportActivationCodes,
-  deleteActivationCode,
-  getActivationCodeStatistics,
-  getActivationCodeDetail,
-} from '@/api/agent'
+	  exportActivationCodes,
+	  deleteActivationCode,
+	  invalidateActivationCode,
+	  getActivationCodeStatistics,
+	  getActivationCodeDetail,
+	} from '@/api/agent'
 import GenerateModal from './components/GenerateModal.vue'
 import BuyModal from './components/BuyModal.vue'
 
@@ -283,11 +301,23 @@ const columns = [
     key: 'code',
     width: 200,
   },
-  {
-    title: '批次号',
-    dataIndex: 'batch_id',
-    key: 'batch_id',
-  },
+	  {
+	    title: '批次号',
+	    dataIndex: 'batch_id',
+	    key: 'batch_id',
+	  },
+	  {
+	    title: '前缀',
+	    dataIndex: 'batch_prefix',
+	    key: 'batch_prefix',
+	    width: 90,
+	  },
+	  {
+	    title: '生成来源',
+	    dataIndex: 'source_text',
+	    key: 'source_text',
+	    width: 130,
+	  },
   {
     title: '关联课程',
     dataIndex: 'courseName',
@@ -310,12 +340,12 @@ const columns = [
     key: 'create_time',
     width: 180,
   },
-  {
-    title: '操作',
-    key: 'action',
-    width: 150,
-  },
-]
+	  {
+	    title: '操作',
+	    key: 'action',
+	    width: 190,
+	  },
+	]
 
 const fetchData = async () => {
   loading.value = true
@@ -386,10 +416,21 @@ const handleViewDetail = async (record: any) => {
   }
 }
 
-const handleDelete = (record: any) => {
-  deletingId.value = record.id
-  deleteModalVisible.value = true
-}
+	const handleDelete = (record: any) => {
+	  deletingId.value = record.id
+	  deleteModalVisible.value = true
+	}
+
+	const handleInvalidate = async (record: any) => {
+	  try {
+	    await invalidateActivationCode(record.id)
+	    message.success('已禁用并撤销课程权限')
+	    fetchData()
+	    fetchStatistics()
+	  } catch (error: any) {
+	    message.error(error?.message || '禁用失败')
+	  }
+	}
 
 const confirmDelete = async () => {
   if (!deletingId.value) return
@@ -443,11 +484,34 @@ const maskCode = (code: string) => {
   return code.substring(0, 4) + '****' + code.substring(code.length - 4)
 }
 
-const maskNickname = (nickname: string) => {
-  if (!nickname) return ''
-  if (nickname.length <= 2) return nickname
-  return nickname[0] + '***' + nickname[nickname.length - 1]
-}
+	const maskNickname = (nickname: string) => {
+	  if (!nickname) return ''
+	  if (nickname.length <= 2) return nickname
+	  return nickname[0] + '***' + nickname[nickname.length - 1]
+	}
+
+	const getBatchPrefix = (batchId?: string) => {
+	  if (!batchId) return '-'
+	  if (batchId.startsWith('DST')) return 'DST'
+	  if (batchId.startsWith('APP')) return 'APP'
+	  if (batchId.startsWith('ADM')) return 'ADM'
+	  if (batchId.startsWith('AGT')) return 'AGT'
+	  if (batchId.startsWith('D')) return 'D'
+	  return 'BATCH'
+	}
+
+	const getSourceText = (record: any) => {
+	  const sourceMap: Record<string, string> = {
+	    admin: '管理端生成',
+	    agent: '代理商生成',
+	    distributor: '分销购买',
+	    app_admin: '小程序管理员生成',
+	  }
+	  if (record?.source_type && sourceMap[record.source_type]) {
+	    return sourceMap[record.source_type]
+	  }
+	  return getBatchPrefix(record?.batch_id) === 'D' || getBatchPrefix(record?.batch_id) === 'DST' ? '分销购买' : '管理端生成'
+	}
 
 onMounted(() => {
   fetchData()
@@ -462,4 +526,3 @@ onMounted(() => {
   }
 }
 </style>
-

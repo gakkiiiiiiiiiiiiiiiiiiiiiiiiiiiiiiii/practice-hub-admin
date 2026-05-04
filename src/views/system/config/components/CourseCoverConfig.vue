@@ -8,16 +8,33 @@
 			description="可设置自动生成课程封面的背景图、画布尺寸，以及任意字段的字号、颜色等样式。字段位置改为在右侧预览区直接拖拽定位。默认字段包含学校、专业、真题年份、答案年份，你也可以继续追加字段或静态文案。"
 		/>
 
-		<a-row :gutter="16">
-			<a-col :span="14">
-				<a-card title="基础配置">
-					<a-form :label-col="{ span: 6 }" :wrapper-col="{ span: 18 }">
-						<a-form-item label="画布宽度">
-							<a-input-number v-model:value="formState.width" :min="200" :max="4000" style="width: 100%" />
-						</a-form-item>
-						<a-form-item label="画布高度">
-							<a-input-number v-model:value="formState.height" :min="200" :max="4000" style="width: 100%" />
-						</a-form-item>
+			<a-row :gutter="16" class="config-layout">
+				<a-col :span="14" class="config-layout__left">
+					<div class="config-scroll-panel">
+					<a-card title="基础配置">
+						<a-form :label-col="{ span: 6 }" :wrapper-col="{ span: 18 }">
+							<a-form-item label="画布宽度">
+								<a-input-number
+									v-model:value="formState.width"
+									:min="200"
+									:max="4000"
+									:precision="0"
+									:step="10"
+									style="width: 100%"
+									@change="normalizeCanvasConfig"
+								/>
+							</a-form-item>
+							<a-form-item label="画布高度">
+								<a-input-number
+									v-model:value="formState.height"
+									:min="200"
+									:max="4000"
+									:precision="0"
+									:step="10"
+									style="width: 100%"
+									@change="normalizeCanvasConfig"
+								/>
+							</a-form-item>
 						<a-form-item label="背景色">
 							<div class="color-control">
 								<input
@@ -34,24 +51,27 @@
 							</div>
 						</a-form-item>
 						<a-form-item label="背景图">
-							<a-upload
-								v-model:file-list="backgroundFileList"
-								:before-upload="beforeBackgroundUpload"
-								:custom-request="handleBackgroundUpload"
-								list-type="picture-card"
-								:max-count="1"
-							>
+								<a-upload
+									v-model:file-list="backgroundFileList"
+									:before-upload="beforeBackgroundUpload"
+									:custom-request="handleBackgroundUpload"
+									@remove="handleBackgroundRemove"
+									list-type="picture-card"
+									:max-count="1"
+								>
 								<div v-if="backgroundFileList.length < 1">
 									<plus-outlined />
 									<div style="margin-top: 8px">上传</div>
 								</div>
-							</a-upload>
-							<div style="margin-top: 8px">
-								<a-button size="small" @click="restoreDefaultBackground">恢复默认背景图</a-button>
-							</div>
-						</a-form-item>
-					</a-form>
-				</a-card>
+								</a-upload>
+								<div style="margin-top: 8px">
+									<a-button size="small" @click="restoreDefaultBackground">恢复默认背景图</a-button>
+									<a-button size="small" style="margin-left: 8px" @click="clearBackgroundImage">无背景图</a-button>
+								</div>
+								<div class="form-tip">选择“无背景图”后，预览和生成封面将使用上方背景色。</div>
+							</a-form-item>
+						</a-form>
+					</a-card>
 
 				<a-card title="字段配置" style="margin-top: 16px">
 					<div
@@ -112,16 +132,30 @@
 						<div class="field-card__position-tip">在右侧预览图中拖拽该字段即可调整位置</div>
 
 						<a-row :gutter="12">
-							<a-col :span="12">
-								<a-form-item label="字号" :label-col="{ span: 8 }" :wrapper-col="{ span: 16 }">
-									<a-input-number v-model:value="field.fontSize" :min="8" :max="240" style="width: 100%" />
-								</a-form-item>
-							</a-col>
-							<a-col :span="12">
-								<a-form-item label="宽度" :label-col="{ span: 8 }" :wrapper-col="{ span: 16 }">
-									<a-input-number v-model:value="field.maxWidth" style="width: 100%" />
-								</a-form-item>
-							</a-col>
+								<a-col :span="12">
+									<a-form-item label="字号" :label-col="{ span: 8 }" :wrapper-col="{ span: 16 }">
+										<a-input-number
+											v-model:value="field.fontSize"
+											:min="8"
+											:max="240"
+											:precision="0"
+											style="width: 100%"
+											@change="normalizeFieldConfig(field)"
+										/>
+									</a-form-item>
+								</a-col>
+								<a-col :span="12">
+									<a-form-item label="宽度" :label-col="{ span: 8 }" :wrapper-col="{ span: 16 }">
+										<a-input-number
+											v-model:value="field.maxWidth"
+											:min="20"
+											:max="4000"
+											:precision="0"
+											style="width: 100%"
+											@change="normalizeFieldConfig(field)"
+										/>
+									</a-form-item>
+								</a-col>
 						</a-row>
 
 						<a-row :gutter="12">
@@ -160,11 +194,11 @@
 									</div>
 								</a-form-item>
 							</a-col>
-							<a-col :span="8">
-								<a-form-item label="粗细" :label-col="{ span: 8 }" :wrapper-col="{ span: 16 }">
-									<a-input v-model:value="field.fontWeight" />
-								</a-form-item>
-							</a-col>
+								<a-col :span="8">
+									<a-form-item label="粗细" :label-col="{ span: 8 }" :wrapper-col="{ span: 16 }">
+										<a-select v-model:value="field.fontWeight" :options="fontWeightOptions" @change="normalizeFieldConfig(field)" />
+									</a-form-item>
+								</a-col>
 						</a-row>
 
 						<a-row :gutter="12">
@@ -176,16 +210,30 @@
 						</a-row>
 
 						<a-row :gutter="12">
-							<a-col :span="12">
-								<a-form-item label="行数" :label-col="{ span: 8 }" :wrapper-col="{ span: 16 }">
-									<a-input-number v-model:value="field.maxLines" :min="1" :max="10" style="width: 100%" />
-								</a-form-item>
-							</a-col>
-							<a-col :span="12">
-								<a-form-item label="行高" :label-col="{ span: 8 }" :wrapper-col="{ span: 16 }">
-									<a-input-number v-model:value="field.lineHeight" :min="10" :max="240" style="width: 100%" />
-								</a-form-item>
-							</a-col>
+								<a-col :span="12">
+									<a-form-item label="行数" :label-col="{ span: 8 }" :wrapper-col="{ span: 16 }">
+										<a-input-number
+											v-model:value="field.maxLines"
+											:min="1"
+											:max="10"
+											:precision="0"
+											style="width: 100%"
+											@change="normalizeFieldConfig(field)"
+										/>
+									</a-form-item>
+								</a-col>
+								<a-col :span="12">
+									<a-form-item label="行高" :label-col="{ span: 8 }" :wrapper-col="{ span: 16 }">
+										<a-input-number
+											v-model:value="field.lineHeight"
+											:min="10"
+											:max="300"
+											:precision="0"
+											style="width: 100%"
+											@change="normalizeFieldConfig(field)"
+										/>
+									</a-form-item>
+								</a-col>
 						</a-row>
 					</div>
 
@@ -193,20 +241,21 @@
 					<a-button type="dashed" block style="margin-top: 8px" @click="addStaticField">+ 添加静态文本</a-button>
 				</a-card>
 
-				<div style="margin-top: 16px">
-					<a-space>
+					<div style="margin-top: 16px">
+						<a-space>
 						<a-button type="primary" :loading="saving" @click="handleSave">保存配置</a-button>
 						<a-button :disabled="!activeFieldId" @click="centerActiveField">一键文字居中</a-button>
 						<a-button @click="handleReset">恢复默认</a-button>
-					</a-space>
-				</div>
-			</a-col>
+						</a-space>
+					</div>
+					</div>
+				</a-col>
 
 			<a-col :span="10">
 				<a-card title="实时预览">
 					<div class="preview-wrap">
-						<div ref="previewBoardRef" class="preview-board" :style="previewBoardStyle">
-							<img v-if="previewUrl" :src="previewUrl" alt="封面预览底图" class="preview-board__image" />
+							<div ref="previewBoardRef" class="preview-board" :style="previewBoardStyle">
+								<img v-if="previewUrl && formState.backgroundImage" :src="previewUrl" alt="封面预览底图" class="preview-board__image" />
 							<div
 								v-for="field in formState.fields"
 								:key="field.id"
@@ -284,6 +333,14 @@ const samplePayload = {
 };
 
 const courseFieldOptions = computed(() => COURSE_COVER_FIELD_OPTIONS);
+const fontWeightOptions = [
+	{ label: '常规 400', value: '400' },
+	{ label: '中等 500', value: '500' },
+	{ label: '半粗 600', value: '600' },
+	{ label: '粗体 700', value: '700' },
+	{ label: '特粗 800', value: '800' },
+	{ label: '黑体 900', value: '900' },
+];
 const previewScale = computed(() => previewBoardWidth.value / Math.max(formState.value.width || 1, 1));
 const draggingField = computed(() => {
 	if (!draggingFieldId.value) return null;
@@ -292,7 +349,54 @@ const draggingField = computed(() => {
 const previewBoardStyle = computed(() => ({
 	width: '100%',
 	aspectRatio: `${formState.value.width} / ${formState.value.height}`,
+	backgroundColor: normalizeColorInput(formState.value.backgroundColor, '#5d9ef0'),
 }));
+
+const clampNumber = (value: unknown, min: number, max: number, fallback: number) => {
+	const num = Number(value);
+	if (!Number.isFinite(num)) return fallback;
+	return Math.round(Math.min(max, Math.max(min, num)));
+};
+
+const normalizeCanvasConfig = () => {
+	formState.value.width = clampNumber(formState.value.width, 200, 4000, DEFAULT_COURSE_COVER_CONFIG.width);
+	formState.value.height = clampNumber(formState.value.height, 200, 4000, DEFAULT_COURSE_COVER_CONFIG.height);
+	formState.value.backgroundColor = normalizeColorInput(formState.value.backgroundColor, '#5d9ef0');
+};
+
+const normalizeFieldConfig = (field: CourseCoverFieldConfig) => {
+	const canvasWidth = clampNumber(formState.value.width, 200, 4000, DEFAULT_COURSE_COVER_CONFIG.width);
+	const canvasHeight = clampNumber(formState.value.height, 200, 4000, DEFAULT_COURSE_COVER_CONFIG.height);
+	field.label = String(field.label || '').slice(0, 30);
+	field.type = field.type === 'staticText' ? 'staticText' : 'courseField';
+	field.sourceKey = field.type === 'courseField' ? field.sourceKey || 'school' : '';
+	field.text = field.type === 'staticText' ? String(field.text || '').slice(0, 80) : '';
+	field.fontSize = clampNumber(field.fontSize, 8, 240, 32);
+	field.lineHeight = clampNumber(field.lineHeight, 10, 300, field.fontSize);
+	field.maxWidth = clampNumber(field.maxWidth, 20, 4000, canvasWidth);
+	field.maxLines = clampNumber(field.maxLines, 1, 10, 1);
+	field.x = clampNumber(field.x, 0, canvasWidth, Math.round(canvasWidth / 2));
+	field.y = clampNumber(field.y, field.fontSize, canvasHeight, field.fontSize);
+	field.color = normalizeColorInput(field.color, '#FFFFFF');
+	field.backgroundColor = normalizeOptionalColorInput(field.backgroundColor);
+	field.fontWeight = fontWeightOptions.some((item) => item.value === String(field.fontWeight)) ? String(field.fontWeight) : '700';
+	field.fontFamily = String(field.fontFamily || 'serif').slice(0, 40);
+	field.align = ['left', 'center', 'right'].includes(field.align || '') ? field.align : 'center';
+};
+
+const normalizeAllConfig = () => {
+	normalizeCanvasConfig();
+	formState.value.fields.forEach(normalizeFieldConfig);
+};
+
+const validateConfig = () => {
+	if (!formState.value.fields.length) return '至少需要保留一个字段';
+	const invalidCourseField = formState.value.fields.find((field) => field.type === 'courseField' && !field.sourceKey);
+	if (invalidCourseField) return `「${invalidCourseField.label || '课程字段'}」缺少字段来源`;
+	const invalidStaticField = formState.value.fields.find((field) => field.type === 'staticText' && !String(field.text || '').trim());
+	if (invalidStaticField) return `「${invalidStaticField.label || '静态文本'}」缺少静态文本内容`;
+	return '';
+};
 
 const normalizeColorInput = (value?: string, fallback = '#FFFFFF') => {
 	const raw = String(value || '').trim();
@@ -410,6 +514,18 @@ const restoreDefaultBackground = () => {
 	formState.value.backgroundImage = defaultCourseCoverBackground;
 	updateBackgroundFileList();
 	message.success('已恢复默认背景图');
+};
+
+const clearBackgroundImage = () => {
+	formState.value.backgroundImage = '';
+	updateBackgroundFileList();
+	message.success('已设为无背景图，将使用背景色预览和生成封面');
+};
+
+const handleBackgroundRemove = () => {
+	formState.value.backgroundImage = '';
+	updateBackgroundFileList();
+	return true;
 };
 
 const createField = (type: 'courseField' | 'staticText'): CourseCoverFieldConfig => ({
@@ -575,6 +691,12 @@ const applyCopiedStyle = (field: CourseCoverFieldConfig) => {
 const handleSave = async () => {
 	saving.value = true;
 	try {
+		normalizeAllConfig();
+		const error = validateConfig();
+		if (error) {
+			message.error(error);
+			return;
+		}
 		await setCourseCoverConfig(normalizeCourseCoverConfig(formState.value));
 		message.success('课程封面配置已保存');
 	} catch (error: any) {
@@ -608,6 +730,39 @@ onBeforeUnmount(() => {
 
 <style scoped lang="scss">
 .course-cover-config {
+	.config-layout {
+		align-items: flex-start;
+	}
+
+	.config-layout__left {
+		position: sticky;
+		top: 0;
+	}
+
+	.config-scroll-panel {
+		max-height: calc(100vh - 190px);
+		overflow-y: auto;
+		overflow-x: hidden;
+		padding-right: 6px;
+		scrollbar-gutter: stable;
+	}
+
+	.config-scroll-panel::-webkit-scrollbar {
+		width: 6px;
+	}
+
+	.config-scroll-panel::-webkit-scrollbar-thumb {
+		background: rgba(0, 0, 0, 0.18);
+		border-radius: 999px;
+	}
+
+	.form-tip {
+		margin-top: 8px;
+		color: #8c8c8c;
+		font-size: 12px;
+		line-height: 1.5;
+	}
+
 	.color-control {
 		display: flex;
 		align-items: center;
@@ -686,6 +841,9 @@ onBeforeUnmount(() => {
 		position: relative;
 		width: 100%;
 		max-width: 420px;
+		overflow: hidden;
+		border-radius: 10px;
+		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
 		user-select: none;
 		touch-action: none;
 	}
@@ -693,9 +851,10 @@ onBeforeUnmount(() => {
 	.preview-wrap img,
 	.preview-board__image {
 		width: 100%;
+		height: 100%;
 		display: block;
 		border-radius: 10px;
-		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+		object-fit: cover;
 	}
 
 	.preview-board__field {
