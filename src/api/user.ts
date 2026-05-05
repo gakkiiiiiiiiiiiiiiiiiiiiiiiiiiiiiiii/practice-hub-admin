@@ -48,3 +48,8 @@ export function getAppUserDetail(id: number) {
 export function updateUserStatus(id: number, data: { status: number }) {
   return request.put(`/admin/users/${id}/status`, data)
 }
+
+// 设置小程序用户角色
+export function updateAppUserRole(id: number, data: { role: 'user' | 'admin' }) {
+  return request.put(`/admin/users/${id}/role`, data)
+}

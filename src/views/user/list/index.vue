@@ -50,6 +50,11 @@
               {{ record.status === 1 ? '正常' : '已封禁' }}
             </a-tag>
           </template>
+          <template v-else-if="column.key === 'role'">
+            <a-tag :color="record.role === 'admin' ? 'purple' : 'default'">
+              {{ record.role === 'admin' ? '小程序超级管理员' : '普通用户' }}
+            </a-tag>
+          </template>
           <template v-else-if="column.key === 'action'">
             <a-space>
               <a-button type="link" size="small" @click="handleViewDetail(record)">
@@ -62,6 +67,14 @@
                 @click="handleToggleStatus(record)"
               >
                 {{ record.status === 1 ? '封号' : '解封' }}
+              </a-button>
+              <a-button
+                type="link"
+                size="small"
+                :danger="record.role === 'admin'"
+                @click="handleToggleAppAdmin(record)"
+              >
+                {{ record.role === 'admin' ? '取消超管' : '设为超管' }}
               </a-button>
             </a-space>
           </template>
@@ -79,7 +92,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { message, Modal } from 'ant-design-vue';
-import { getAppUserList, updateUserStatus } from '@/api/user';
+import { getAppUserList, updateAppUserRole, updateUserStatus } from '@/api/user';
 import UserDetailModal from './components/UserDetailModal.vue';
 import dayjs from 'dayjs';
 
@@ -155,9 +168,14 @@ const columns = [
 		width: 100,
 	},
 	{
+		title: '小程序角色',
+		key: 'role',
+		width: 150,
+	},
+	{
 		title: '操作',
 		key: 'action',
-		width: 180,
+		width: 260,
 		fixed: 'right',
 	},
 ];
@@ -234,6 +252,28 @@ const handleToggleStatus = async (record: any) => {
 	});
 };
 
+const handleToggleAppAdmin = async (record: any) => {
+	const nextRole = record.role === 'admin' ? 'user' : 'admin';
+	const action = nextRole === 'admin' ? '设为小程序超级管理员' : '取消小程序超级管理员';
+
+	Modal.confirm({
+		title: '确认操作',
+		content:
+			nextRole === 'admin'
+				? `确定要将 "${record.nickname}" ${action}吗？该用户可在小程序端无限制生成激活码。`
+				: `确定要${action} "${record.nickname}" 吗？取消后该用户不能再以管理员身份生成激活码。`,
+		onOk: async () => {
+			try {
+				await updateAppUserRole(record.id, { role: nextRole });
+				message.success(`${action}成功`);
+				fetchData();
+			} catch (error: any) {
+				message.error(error?.message || `${action}失败`);
+			}
+		},
+	});
+};
+
 onMounted(() => {
   fetchData()
 })
@@ -244,4 +284,3 @@ onMounted(() => {
   // 样式
 }
 </style>
-

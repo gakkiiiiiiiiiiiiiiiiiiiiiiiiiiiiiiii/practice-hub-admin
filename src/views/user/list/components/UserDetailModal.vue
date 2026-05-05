@@ -29,6 +29,11 @@
 						{{ userInfo.status === 1 ? '正常' : '已封禁' }}
 					</a-tag>
 				</a-descriptions-item>
+				<a-descriptions-item label="小程序角色">
+					<a-tag :color="userInfo.role === 'admin' ? 'purple' : 'default'">
+						{{ userInfo.role === 'admin' ? '小程序超级管理员' : '普通用户' }}
+					</a-tag>
+				</a-descriptions-item>
 				<a-descriptions-item label="注册时间">
 					{{ formatDate(userInfo.createdAt) }}
 				</a-descriptions-item>
