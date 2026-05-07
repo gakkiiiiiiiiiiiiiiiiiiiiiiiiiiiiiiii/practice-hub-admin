@@ -159,7 +159,7 @@
 						</a-row>
 
 						<a-row :gutter="12">
-							<a-col :span="8">
+							<a-col :span="12">
 								<a-form-item label="颜色" :label-col="{ span: 8 }" :wrapper-col="{ span: 16 }">
 									<div class="color-control">
 										<input
@@ -176,7 +176,7 @@
 									</div>
 								</a-form-item>
 							</a-col>
-							<a-col :span="8">
+							<a-col :span="12">
 								<a-form-item label="背景色" :label-col="{ span: 8 }" :wrapper-col="{ span: 16 }">
 									<div class="color-control">
 										<input
@@ -194,17 +194,17 @@
 									</div>
 								</a-form-item>
 							</a-col>
-								<a-col :span="8">
-									<a-form-item label="粗细" :label-col="{ span: 8 }" :wrapper-col="{ span: 16 }">
-										<a-select v-model:value="field.fontWeight" :options="fontWeightOptions" @change="normalizeFieldConfig(field)" />
-									</a-form-item>
-								</a-col>
 						</a-row>
 
 						<a-row :gutter="12">
-							<a-col :span="8">
+							<a-col :span="12">
 								<a-form-item label="字体" :label-col="{ span: 8 }" :wrapper-col="{ span: 16 }">
 									<a-input v-model:value="field.fontFamily" />
+								</a-form-item>
+							</a-col>
+							<a-col :span="12">
+								<a-form-item label="粗细" :label-col="{ span: 8 }" :wrapper-col="{ span: 16 }">
+									<a-select v-model:value="field.fontWeight" :options="fontWeightOptions" @change="normalizeFieldConfig(field)" />
 								</a-form-item>
 							</a-col>
 						</a-row>
@@ -241,15 +241,16 @@
 					<a-button type="dashed" block style="margin-top: 8px" @click="addStaticField">+ 添加静态文本</a-button>
 				</a-card>
 
-					<div style="margin-top: 16px">
-						<a-space>
-						<a-button type="primary" :loading="saving" @click="handleSave">保存配置</a-button>
-						<a-button :disabled="!activeFieldId" @click="centerActiveField">一键文字居中</a-button>
-						<a-button @click="handleReset">恢复默认</a-button>
-						</a-space>
-					</div>
-					</div>
-				</a-col>
+        </div>
+
+        <div class="config-action-bar">
+          <a-space>
+            <a-button type="primary" :loading="saving" @click="handleSave">保存配置</a-button>
+            <a-button :disabled="!activeFieldId" @click="centerActiveField">一键文字居中</a-button>
+            <a-button @click="handleReset">恢复默认</a-button>
+          </a-space>
+        </div>
+        </a-col>
 
 			<a-col :span="10">
 				<a-card title="实时预览">
@@ -739,13 +740,19 @@ onBeforeUnmount(() => {
 		top: 0;
 	}
 
-	.config-scroll-panel {
-		max-height: calc(100vh - 190px);
-		overflow-y: auto;
-		overflow-x: hidden;
-		padding-right: 6px;
-		scrollbar-gutter: stable;
-	}
+  .config-scroll-panel {
+    max-height: calc(100vh - 190px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 6px;
+    scrollbar-gutter: stable;
+  }
+
+  .config-action-bar {
+    margin-top: 16px;
+    padding-top: 12px;
+    background: #fff;
+  }
 
 	.config-scroll-panel::-webkit-scrollbar {
 		width: 6px;
@@ -770,11 +777,13 @@ onBeforeUnmount(() => {
 	}
 
 	.color-control :deep(.ant-input) {
+		flex: 1 1 0;
 		min-width: 0;
 	}
 
 	.color-control :deep(.ant-btn) {
-		flex: 0 0 auto;
+		flex: 0 0 52px;
+		padding-inline: 8px;
 	}
 
 	.native-color-picker {
