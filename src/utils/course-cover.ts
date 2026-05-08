@@ -263,10 +263,6 @@ async function drawCourseCover(
 	},
 ) {
 	await drawBackground(ctx, config);
-	if (!config.backgroundImage) {
-		const { width, height } = ctx.canvas;
-		drawReferenceShapes(ctx, width, height);
-	}
 
 	if (options?.includeFields === false) {
 		return;

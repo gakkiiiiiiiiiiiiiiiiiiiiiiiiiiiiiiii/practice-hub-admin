@@ -7,13 +7,17 @@
 		:confirmLoading="loading"
 		width="600px"
 	>
-		<a-form ref="formRef" :model="formState" :rules="rules" :label-col="{ span: 6 }" :wrapper-col="{ span: 18 }">
+			<a-form ref="formRef" :model="formState" :rules="rules" :label-col="{ span: 6 }" :wrapper-col="{ span: 18 }">
 			<a-form-item label="目标课程" name="course_id">
-				<a-select v-model:value="formState.course_id" placeholder="请选择课程">
-					<a-select-option v-for="course in courseList" :key="course.id" :value="course.id">
-						{{ course.name }}
-					</a-select-option>
-				</a-select>
+				<a-cascader
+					v-model:value="courseCascaderValue"
+					:options="courseCascaderOptions"
+					:field-names="{ label: 'label', value: 'value', children: 'children' }"
+					:show-search="{ filter: cascaderFilter }"
+					placeholder="请从分类中选择课程"
+					allow-clear
+					style="width: 100%"
+				/>
 			</a-form-item>
 			<a-form-item label="生成数量" name="count">
 				<a-input-number
@@ -36,10 +40,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue';
+	import { computed, ref, watch, onMounted } from 'vue';
 import { message } from 'ant-design-vue';
 import { generateActivationCodes } from '@/api/agent';
 import { getCourseList } from '@/api/course';
+import { getCourseCategoryTree } from '@/api/course-category';
 
 const props = defineProps<{
 	open: boolean;
@@ -53,6 +58,8 @@ const emit = defineEmits<{
 const formRef = ref();
 const loading = ref(false);
 const courseList = ref([]);
+const categoryTree = ref<any[]>([]);
+const courseCascaderValue = ref<(string | number)[]>([]);
 
 const formState = ref({
 	course_id: undefined,
@@ -67,14 +74,83 @@ const rules = {
 	expireDays: [{ required: true, message: '请输入有效期', trigger: 'blur' }],
 };
 
+const courseCascaderOptions = computed(() => {
+	const coursesByPath = new Map<string, any[]>();
+	courseList.value.forEach((course: any) => {
+		const category = course.category || '未分类';
+		const subCategory = course.sub_category || '未分组';
+		const key = `${category}__${subCategory}`;
+		if (!coursesByPath.has(key)) coursesByPath.set(key, []);
+		coursesByPath.get(key)!.push(course);
+	});
+
+	const options = categoryTree.value.map((parent: any) => ({
+		label: parent.status === 0 ? `${parent.name}（已禁用）` : parent.name,
+		value: `cat:${parent.name}`,
+		children: (parent.children || [])
+			.map((child: any) => {
+				const courses = coursesByPath.get(`${parent.name}__${child.name}`) || [];
+				return {
+					label: child.status === 0 ? `${child.name}（已禁用）` : child.name,
+					value: `sub:${parent.name}:${child.name}`,
+					children: courses.map((course) => ({
+						label: `${course.name}${course.status === 0 ? '（课程已禁用）' : ''}`,
+						value: course.id,
+					})),
+				};
+			})
+			.filter((child: any) => child.children.length > 0),
+	}));
+
+	const categorizedIds = new Set(
+		options.flatMap((parent: any) =>
+			(parent.children || []).flatMap((child: any) => (child.children || []).map((course: any) => course.value)),
+		),
+	);
+	const uncategorized = courseList.value.filter((course: any) => !categorizedIds.has(course.id));
+	if (uncategorized.length > 0) {
+		options.push({
+			label: '未分类',
+			value: 'cat:uncategorized',
+			children: [
+				{
+					label: '未分组',
+					value: 'sub:uncategorized',
+					children: uncategorized.map((course: any) => ({
+						label: `${course.name}${course.status === 0 ? '（课程已禁用）' : ''}`,
+						value: course.id,
+					})),
+				},
+			],
+		});
+	}
+	return options.filter((parent: any) => parent.children.length > 0);
+});
+
+const cascaderFilter = (inputValue: string, path: any[]) =>
+	path.some((option) => String(option.label || '').toLowerCase().includes(inputValue.toLowerCase()));
+
 const fetchCourses = async () => {
 	try {
-		const res = await getCourseList({ page: 1, pageSize: 1000 });
+		const [courseRes, categoryRes] = await Promise.all([
+			getCourseList({ page: 1, pageSize: 1000 }),
+			getCourseCategoryTree(),
+		]);
+		const res = courseRes;
 		courseList.value = Array.isArray(res.data) ? res.data : res.data.list || [];
+		categoryTree.value = Array.isArray(categoryRes.data) ? categoryRes.data : [];
 	} catch (error) {
 		console.error('获取课程列表失败:', error);
 	}
 };
+
+watch(
+	() => courseCascaderValue.value,
+	(value) => {
+		const lastValue = Array.isArray(value) ? value[value.length - 1] : undefined;
+		formState.value.course_id = typeof lastValue === 'number' ? lastValue : undefined;
+	},
+);
 
 watch(
 	() => props.open,
@@ -86,6 +162,7 @@ watch(
 				expireDays: 365,
 				remark: '',
 			};
+			courseCascaderValue.value = [];
 		}
 	}
 );
@@ -93,6 +170,7 @@ watch(
 const handleCancel = () => {
 	emit('update:open', false);
 	formRef.value?.resetFields();
+	courseCascaderValue.value = [];
 };
 
 const handleSubmit = async () => {

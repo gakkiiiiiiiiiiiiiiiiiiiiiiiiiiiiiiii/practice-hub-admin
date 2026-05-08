@@ -35,6 +35,44 @@
 				</a-space>
 			</template>
 
+			<a-form layout="inline" class="course-filter-form">
+				<a-form-item label="课程名称">
+					<a-input
+						v-model:value="searchForm.name"
+						allow-clear
+						placeholder="请输入课程名称"
+						style="width: 180px"
+						@pressEnter="handleSearch"
+					/>
+				</a-form-item>
+				<a-form-item label="课程">
+					<a-input
+						v-model:value="searchForm.subject"
+						allow-clear
+						placeholder="请输入课程"
+						style="width: 160px"
+						@pressEnter="handleSearch"
+					/>
+				</a-form-item>
+				<a-form-item label="分类">
+					<a-cascader
+						v-model:value="searchCategoryValue"
+						:options="categoryFilterOptions"
+						:field-names="{ label: 'label', value: 'value', children: 'children' }"
+						:show-search="{ filter: cascaderFilter }"
+						allow-clear
+						placeholder="请选择分类"
+						style="width: 220px"
+					/>
+				</a-form-item>
+				<a-form-item>
+					<a-space>
+						<a-button type="primary" @click="handleSearch">搜索</a-button>
+						<a-button @click="handleResetSearch">重置</a-button>
+					</a-space>
+				</a-form-item>
+			</a-form>
+
 			<a-table
 				:columns="columns"
 				:data-source="dataSource"
@@ -129,10 +167,11 @@
 </template>
 
 	<script setup lang="ts">
-	import { ref, onMounted } from 'vue';
+	import { ref, onMounted, watch, computed } from 'vue';
 	import { message } from 'ant-design-vue';
 	import { PlusOutlined, DeleteOutlined, CheckOutlined, CloseOutlined, DownOutlined } from '@ant-design/icons-vue';
 	import { getCourseList, deleteCourse, batchDeleteCourses, batchUpdateCourseStatus, updateCourseSort } from '@/api/course';
+	import { getCourseCategoryTree } from '@/api/course-category';
 import CourseModal from './components/CourseModal.vue';
 import ExamConfigDrawer from './components/ExamConfigDrawer.vue';
 import RecommendationDrawer from './components/RecommendationDrawer.vue';
@@ -149,6 +188,30 @@ const currentCourseName = ref<string>('');
 	const batchDeleteModalVisible = ref(false);
 	const batchDeleteLoading = ref(false);
 	const sortUpdatingId = ref<number | null>(null);
+	const searchForm = ref({
+		name: '',
+		subject: '',
+		category: '',
+		subCategory: '',
+	});
+	const searchCategoryValue = ref<string[]>([]);
+	const categoryTree = ref<any[]>([]);
+
+	const categoryFilterOptions = computed(() =>
+		categoryTree.value.map((parent) => ({
+			label: parent.status === 0 ? `${parent.name}（已禁用）` : parent.name,
+			value: parent.name,
+			children: Array.isArray(parent.children)
+				? parent.children.map((child: any) => ({
+						label: child.status === 0 ? `${child.name}（已禁用）` : child.name,
+						value: child.name,
+					}))
+				: [],
+		})),
+	);
+
+	const cascaderFilter = (inputValue: string, path: any[]) =>
+		path.some((option) => String(option.label || '').toLowerCase().includes(inputValue.toLowerCase()));
 
 const pagination = ref({
 	current: 1,
@@ -241,7 +304,13 @@ const columns = [
 const fetchData = async () => {
 	loading.value = true;
 	try {
-		const res = await getCourseList();
+		const params = {
+			name: searchForm.value.name || undefined,
+			subject: searchForm.value.subject || undefined,
+			category: searchForm.value.category || undefined,
+			subCategory: searchForm.value.subCategory || undefined,
+		};
+		const res = await getCourseList(params);
 		// 后端返回的是数组，不是分页对象
 		dataSource.value = Array.isArray(res.data) ? res.data : res.data.list || [];
 		// 如果没有分页信息，使用数组长度
@@ -255,6 +324,40 @@ const fetchData = async () => {
 	} finally {
 		loading.value = false;
 	}
+};
+
+const fetchCategoryTree = async () => {
+	try {
+		const res = await getCourseCategoryTree();
+		categoryTree.value = Array.isArray(res.data) ? res.data : [];
+	} catch (error) {
+		console.warn('获取课程分类筛选项失败:', error);
+	}
+};
+
+watch(
+	() => searchCategoryValue.value,
+	(value) => {
+		searchForm.value.category = Array.isArray(value) ? value[0] || '' : '';
+		searchForm.value.subCategory = Array.isArray(value) ? value[1] || '' : '';
+	},
+);
+
+const handleSearch = () => {
+	pagination.value.current = 1;
+	fetchData();
+};
+
+const handleResetSearch = () => {
+	searchForm.value = {
+		name: '',
+		subject: '',
+		category: '',
+		subCategory: '',
+	};
+	searchCategoryValue.value = [];
+	pagination.value.current = 1;
+	fetchData();
 };
 
 const handleTableChange = (pag: any) => {
@@ -401,6 +504,7 @@ const handleBatchDisable = async () => {
 };
 
 onMounted(() => {
+	fetchCategoryTree();
 	fetchData();
 });
 </script>
@@ -412,5 +516,9 @@ onMounted(() => {
 
 	.sort-input {
 		width: 82px;
+	}
+
+	.course-filter-form {
+		margin-bottom: 16px;
 	}
 	</style>

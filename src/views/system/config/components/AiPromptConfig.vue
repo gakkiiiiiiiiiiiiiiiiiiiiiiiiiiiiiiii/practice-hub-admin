@@ -7,6 +7,28 @@
       show-icon
       style="margin-bottom: 24px"
     />
+
+    <a-alert
+      type="success"
+      show-icon
+      style="margin-bottom: 24px"
+    >
+      <template #message>倒计时模板说明</template>
+      <template #description>
+        <div class="countdown-help">
+          <div>
+            在广播消息中输入
+            <a-typography-text code>&#123;&#123;YYYYMMDD&#125;&#125;</a-typography-text>
+            ，小程序会自动替换为距离该日期的剩余天数。
+          </div>
+          <div>
+            示例：<a-typography-text code>距离2026年考研初试还有&#123;&#123;20260512&#125;&#125;天</a-typography-text>
+            ，以 2026-05-08 为例，小程序显示为
+            <a-typography-text strong>距离2026年考研初试还有4天</a-typography-text>。
+          </div>
+        </div>
+      </template>
+    </a-alert>
     
     <a-form
       :model="formState"
@@ -25,6 +47,12 @@
               :placeholder="`请输入第 ${index + 1} 条广播消息`"
               style="margin-bottom: 8px"
             />
+            <a-button
+              size="small"
+              @click="insertCountdownExample(index)"
+            >
+              插入倒计时示例
+            </a-button>
             <a-button
               type="link"
               danger
@@ -103,6 +131,10 @@ const removeQuote = (index: number) => {
   }
 }
 
+const insertCountdownExample = (index: number) => {
+  formState.value.quotes[index] = '距离2026年考研初试还有{{20260512}}天'
+}
+
 const handleSubmit = async () => {
   // 过滤空字符串
   const validQuotes = formState.value.quotes.filter(quote => quote.trim().length > 0)
@@ -137,6 +169,13 @@ onMounted(() => {
 
 <style scoped lang="scss">
 .daily-quotes-config {
+  .countdown-help {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    line-height: 1.6;
+  }
+
   .quotes-list {
     .quote-item {
       display: flex;

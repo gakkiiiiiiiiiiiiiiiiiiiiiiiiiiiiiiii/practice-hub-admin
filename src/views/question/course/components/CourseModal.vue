@@ -211,15 +211,13 @@ const autoCoverPreviewSrc = computed(() => generatedCoverPreview.value);
 // 转换为级联选择器需要的格式
 const cascaderOptions = computed(() => {
 	return categoryTree.value
-		.filter((item) => item.status === 1 || item.name === formState.value.category)
 		.map((parent) => ({
-			label: parent.name,
+			label: parent.status === 0 ? `${parent.name}（已禁用）` : parent.name,
 			value: parent.name,
 			children: Array.isArray(parent.children)
 				? parent.children
-						.filter((child) => child.status === 1 || child.name === formState.value.sub_category)
 						.map((child) => ({
-							label: child.name,
+							label: child.status === 0 ? `${child.name}（已禁用）` : child.name,
 							value: child.name,
 						}))
 				: [],
@@ -242,8 +240,8 @@ const formState = ref({
 	exam_year: '',
 	answer_year: '',
 	cover_img: '',
-	price: 0,
-	agent_price: 0,
+	price: 0.5,
+	agent_price: 0.1,
 		is_free: 0,
 		validity_days: 365 as number | null,
 		introduction: '',
@@ -287,8 +285,8 @@ watch(
 					exam_year: props.record.exam_year || '',
 					answer_year: props.record.answer_year || '',
 					cover_img: props.record.cover_img || props.record.cover || '',
-					price: props.record.price || 0,
-					agent_price: props.record.agent_price || 0,
+					price: props.record.price ?? 0.5,
+					agent_price: props.record.agent_price ?? 0.1,
 						is_free: props.record.is_free ?? 0,
 						validity_days: props.record.validity_days ?? 365,
 						introduction: props.record.introduction || '',
@@ -336,8 +334,8 @@ watch(
 					exam_year: '',
 					answer_year: '',
 					cover_img: '',
-					price: 0,
-					agent_price: 0,
+					price: 0.5,
+					agent_price: 0.1,
 						is_free: 0,
 						validity_days: 365,
 						introduction: '',
