@@ -277,10 +277,7 @@ async function drawCourseCover(
 
 async function drawBackground(ctx: CanvasRenderingContext2D, config: CourseCoverConfig) {
 	const { width, height } = ctx.canvas;
-	const bg = ctx.createLinearGradient(0, 0, 0, height);
-	bg.addColorStop(0, config.backgroundColor || '#5d9ef0');
-	bg.addColorStop(1, '#5a98ea');
-	ctx.fillStyle = bg;
+	ctx.fillStyle = config.backgroundColor || '#5d9ef0';
 	ctx.fillRect(0, 0, width, height);
 
 	if (config.backgroundImage) {
