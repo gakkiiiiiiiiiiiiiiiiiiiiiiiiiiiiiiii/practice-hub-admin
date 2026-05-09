@@ -29,6 +29,8 @@ export function getCategoryDetail(id: number) {
  */
 export function createCategory(data: {
   name: string
+  type?: 'course' | 'category'
+  bind_category_id?: number | null
   sort?: number
   status?: number
 }) {
@@ -44,6 +46,8 @@ export function updateCategory(
   id: number,
   data: {
     name?: string
+    type?: 'course' | 'category'
+    bind_category_id?: number | null
     sort?: number
     status?: number
   }
@@ -91,4 +95,3 @@ export function updateItemSort(data: {
 }) {
   return request.put('/admin/recommend/items/sort', data)
 }
-

@@ -3,10 +3,16 @@
 		<a-card>
 			<template #title>首页推荐管理</template>
 			<template #extra>
-				<a-button type="primary" @click="handleAddCategory">
-					<template #icon><plus-outlined /></template>
-					新增版块
-				</a-button>
+				<a-space>
+					<a-button type="primary" @click="handleAddCategory('course')">
+						<template #icon><plus-outlined /></template>
+						新增课程板块
+					</a-button>
+					<a-button @click="handleAddCategory('category')">
+						<template #icon><plus-outlined /></template>
+						新增分类板块
+					</a-button>
+				</a-space>
 			</template>
 
 			<a-table
@@ -22,9 +28,18 @@
 							{{ record.status === 1 ? '显示' : '隐藏' }}
 						</a-tag>
 					</template>
+					<template v-else-if="column.key === 'type'">
+						<a-tag :color="record.type === 'category' ? 'blue' : 'purple'">
+							{{ record.type === 'category' ? '分类板块' : '课程板块' }}
+						</a-tag>
+					</template>
 					<template v-else-if="column.key === 'item_count'">
-						<a-button type="link" @click="handleManageItems(record)">
-							{{ record.item_count || 0 }} 个题库
+						<a-button
+							type="link"
+							:disabled="record.type === 'category'"
+							@click="handleManageItems(record)"
+						>
+							{{ record.item_count || 0 }} 个{{ record.type === 'category' ? '二级分类' : '课程' }}
 						</a-button>
 					</template>
 					<template v-else-if="column.key === 'action'">
@@ -44,7 +59,7 @@
 		<!-- 版块编辑弹窗 -->
 		<a-modal
 			v-model:open="categoryModalVisible"
-			:title="currentCategory ? '编辑版块' : '新增版块'"
+			:title="currentCategory ? '编辑版块' : categoryForm.type === 'category' ? '新增分类板块' : '新增课程板块'"
 			@ok="handleCategorySubmit"
 			@cancel="handleCategoryCancel"
 		>
@@ -57,6 +72,24 @@
 			>
 				<a-form-item label="版块名称" name="name">
 					<a-input v-model:value="categoryForm.name" placeholder="请输入版块名称" />
+				</a-form-item>
+				<a-form-item label="版块类型" name="type">
+					<a-radio-group v-model:value="categoryForm.type" :disabled="!!currentCategory">
+						<a-radio value="course">课程板块</a-radio>
+						<a-radio value="category">分类板块</a-radio>
+					</a-radio-group>
+				</a-form-item>
+				<a-form-item v-if="categoryForm.type === 'category'" label="绑定分类" name="bind_category_id">
+					<a-select
+						v-model:value="categoryForm.bind_category_id"
+						placeholder="请选择一级分类"
+						:options="primaryCategoryOptions"
+						show-search
+						:filter-option="filterSelectOption"
+					/>
+					<div style="color: #999; font-size: 12px; margin-top: 4px">
+						板块内将自动展示该一级分类下所有启用的二级分类
+					</div>
 				</a-form-item>
 				<a-form-item label="排序权重" name="sort">
 					<a-input-number v-model:value="categoryForm.sort" :min="0" style="width: 100%" />
@@ -86,7 +119,7 @@
 				版块名称: {{ currentDeleteRecord.name }}
 			</p>
 			<p v-if="currentDeleteRecord?.item_count > 0" style="color: #ff4d4f; margin-top: 8px">
-				警告：该版块下还有 {{ currentDeleteRecord.item_count }} 个题库，删除后这些题库将从推荐中移除
+				警告：该版块下还有 {{ currentDeleteRecord.item_count }} 个{{ currentDeleteRecord.type === 'category' ? '二级分类' : '课程' }}，请谨慎删除
 			</p>
 		</a-modal>
 
@@ -100,7 +133,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import { message } from 'ant-design-vue';
 import { PlusOutlined } from '@ant-design/icons-vue';
 import type { FormInstance } from 'ant-design-vue';
@@ -110,10 +143,12 @@ import {
 	updateCategory,
 	deleteCategory,
 } from '@/api/recommend';
+import { getCourseCategoryTree } from '@/api/course-category';
 import ItemManagementModal from './components/ItemManagementModal.vue';
 
 const loading = ref(false);
 const dataSource = ref<any[]>([]);
+const courseCategoryTree = ref<any[]>([]);
 const categoryModalVisible = ref(false);
 const deleteModalVisible = ref(false);
 const deleteLoading = ref(false);
@@ -124,12 +159,15 @@ const categoryFormRef = ref<FormInstance>();
 
 const categoryForm = ref({
 	name: '',
+	type: 'course' as 'course' | 'category',
+	bind_category_id: null as number | null,
 	sort: 0,
 	status: 1,
 });
 
 const categoryFormRules = {
 	name: [{ required: true, message: '请输入版块名称', trigger: 'blur' }],
+	bind_category_id: [{ required: true, message: '请选择一级分类', trigger: 'change' }],
 };
 
 const columns = [
@@ -145,6 +183,11 @@ const columns = [
 		key: 'name',
 	},
 	{
+		title: '类型',
+		key: 'type',
+		width: 120,
+	},
+	{
 		title: '排序权重',
 		dataIndex: 'sort',
 		key: 'sort',
@@ -156,9 +199,9 @@ const columns = [
 		width: 100,
 	},
 	{
-		title: '题库数量',
+		title: '内容数量',
 		key: 'item_count',
-		width: 120,
+		width: 140,
 	},
 	{
 		title: '操作',
@@ -166,6 +209,15 @@ const columns = [
 		width: 150,
 	},
 ];
+
+const primaryCategoryOptions = computed(() =>
+	courseCategoryTree.value
+		.filter((item) => !item.parent_id)
+		.map((item) => ({ label: item.name, value: item.id })),
+);
+
+const filterSelectOption = (input: string, option: any) =>
+	String(option?.label || '').toLowerCase().includes(input.toLowerCase());
 
 const fetchData = async () => {
 	loading.value = true;
@@ -179,10 +231,21 @@ const fetchData = async () => {
 	}
 };
 
-const handleAddCategory = () => {
+const fetchCourseCategories = async () => {
+	try {
+		const res = await getCourseCategoryTree();
+		courseCategoryTree.value = Array.isArray(res.data) ? res.data : [];
+	} catch (error) {
+		message.error('获取课程分类失败');
+	}
+};
+
+const handleAddCategory = (type: 'course' | 'category' = 'course') => {
 	currentCategory.value = null;
 	categoryForm.value = {
 		name: '',
+		type,
+		bind_category_id: null,
 		sort: 0,
 		status: 1,
 	};
@@ -193,6 +256,8 @@ const handleEditCategory = (record: any) => {
 	currentCategory.value = record;
 	categoryForm.value = {
 		name: record.name,
+		type: record.type || 'course',
+		bind_category_id: record.bind_category_id || null,
 		sort: record.sort,
 		status: record.status,
 	};
@@ -207,11 +272,15 @@ const handleCategorySubmit = async () => {
 	}
 
 	try {
+		const payload = {
+			...categoryForm.value,
+			bind_category_id: categoryForm.value.type === 'category' ? categoryForm.value.bind_category_id : null,
+		};
 		if (currentCategory.value) {
-			await updateCategory(currentCategory.value.id, categoryForm.value);
+			await updateCategory(currentCategory.value.id, payload);
 			message.success('更新成功');
 		} else {
-			await createCategory(categoryForm.value);
+			await createCategory(payload);
 			message.success('创建成功');
 		}
 		categoryModalVisible.value = false;
@@ -257,6 +326,10 @@ const confirmDelete = async () => {
 };
 
 const handleManageItems = (record: any) => {
+	if (record.type === 'category') {
+		message.info('分类板块会自动展示二级分类，无需手动维护课程');
+		return;
+	}
 	currentCategory.value = record;
 	itemModalVisible.value = true;
 };
@@ -267,6 +340,7 @@ const handleRefresh = () => {
 
 onMounted(() => {
 	fetchData();
+	fetchCourseCategories();
 });
 </script>
 
@@ -279,4 +353,3 @@ onMounted(() => {
 	}
 }
 </style>
-

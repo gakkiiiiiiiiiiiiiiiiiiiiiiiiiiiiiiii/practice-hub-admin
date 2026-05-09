@@ -42,6 +42,16 @@
 							{{ record.status === 1 ? '启用' : '禁用' }}
 						</a-tag>
 					</template>
+					<template v-else-if="column.key === 'cover'">
+						<a-image
+							v-if="record.cover_img"
+							:src="record.cover_img"
+							:width="56"
+							:height="56"
+							style="object-fit: cover; border-radius: 8px"
+						/>
+						<span v-else>-</span>
+					</template>
 					<template v-else-if="column.key === 'action'">
 						<a-space>
 							<a-button
@@ -116,6 +126,26 @@
 						只能选择一级分类作为父级，二级分类不允许新增子分类
 					</div>
 				</a-form-item>
+				<a-form-item v-if="formState.parent_id" label="分类封面" name="cover_img">
+					<a-upload
+						list-type="picture-card"
+						:show-upload-list="false"
+						:before-upload="beforeCoverUpload"
+						:disabled="coverUploading"
+					>
+						<img v-if="formState.cover_img" :src="formState.cover_img" alt="分类封面" class="category-cover-preview" />
+						<div v-else class="category-cover-uploader">
+							<upload-outlined />
+							<div>{{ coverUploading ? '上传中...' : '上传封面' }}</div>
+						</div>
+					</a-upload>
+					<a-button v-if="formState.cover_img" type="link" danger size="small" @click="formState.cover_img = ''">
+						清除封面
+					</a-button>
+					<div style="margin-top: 4px; color: #999; font-size: 12px">
+						该封面用于首页“分类板块”的二级分类卡片展示
+					</div>
+				</a-form-item>
 				<a-form-item label="排序" name="sort">
 					<a-input-number v-model:value="formState.sort" :min="0" style="width: 100%" />
 				</a-form-item>
@@ -180,7 +210,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import { message } from 'ant-design-vue';
-import { CheckOutlined, CloseOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons-vue';
+import { CheckOutlined, CloseOutlined, DeleteOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons-vue';
 import {
 	getCourseCategoryTree,
 	createCourseCategory,
@@ -190,6 +220,7 @@ import {
 	batchUpdateCourseCategoryStatus,
 } from '@/api/course-category';
 import { getCourseList, updateCourse } from '@/api/course';
+import { uploadImage } from '@/api/upload';
 
 const loading = ref(false);
 const modalVisible = ref(false);
@@ -201,6 +232,7 @@ const courseSelectVisible = ref(false);
 const courseSelectLoading = ref(false);
 const courseListLoading = ref(false);
 const courseList = ref<any[]>([]);
+const coverUploading = ref(false);
 const courseSearchKeyword = ref('');
 const selectedCourseIds = ref<number[]>([]);
 const selectedRowKeys = ref<number[]>([]);
@@ -226,6 +258,7 @@ const coursePagination = ref({
 const formState = ref({
 	name: '',
 	parent_id: null as number | null,
+	cover_img: '',
 	sort: 0,
 	status: 1,
 });
@@ -236,6 +269,7 @@ const rules = {
 
 const columns = [
 	{ title: '分类名称', dataIndex: 'name', key: 'name' },
+	{ title: '封面', key: 'cover', width: 100 },
 	{ title: '排序', dataIndex: 'sort', key: 'sort', width: 120 },
 	{ title: '状态', key: 'status', width: 120 },
 	{ title: '操作', key: 'action', width: 360 },
@@ -300,6 +334,7 @@ const handleAdd = (record: any | null) => {
 	formState.value = {
 		name: '',
 		parent_id: record?.id ?? null,
+		cover_img: '',
 		sort: 0,
 		status: 1,
 	};
@@ -311,6 +346,7 @@ const handleEdit = (record: any) => {
 	formState.value = {
 		name: record.name || '',
 		parent_id: record.parent_id ?? null,
+		cover_img: record.cover_img || '',
 		sort: record.sort ?? 0,
 		status: record.status ?? 1,
 	};
@@ -320,6 +356,24 @@ const handleEdit = (record: any) => {
 const handleCancel = () => {
 	modalVisible.value = false;
 	formRef.value?.resetFields();
+};
+
+const beforeCoverUpload = async (file: File) => {
+	if (!file.type.startsWith('image/')) {
+		message.warning('请上传图片文件');
+		return false;
+	}
+	coverUploading.value = true;
+	try {
+		const res = await uploadImage(file);
+		formState.value.cover_img = res.imageUrl || res.url;
+		message.success('封面上传成功');
+	} catch (error: any) {
+		message.error(error?.message || '封面上传失败');
+	} finally {
+		coverUploading.value = false;
+	}
+	return false;
 };
 
 const handleSubmit = async () => {
@@ -640,3 +694,16 @@ onMounted(() => {
 	fetchCategories();
 });
 </script>
+
+<style scoped>
+.category-cover-preview {
+	width: 96px;
+	height: 96px;
+	object-fit: cover;
+	border-radius: 8px;
+}
+
+.category-cover-uploader {
+	color: #999;
+}
+</style>
