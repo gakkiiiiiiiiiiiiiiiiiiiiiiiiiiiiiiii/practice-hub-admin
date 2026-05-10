@@ -126,22 +126,46 @@
 						只能选择一级分类作为父级，二级分类不允许新增子分类
 					</div>
 				</a-form-item>
+				<a-form-item v-if="formState.parent_id" label="封面方式">
+					<a-radio-group v-model:value="coverMode">
+						<a-radio value="auto">自动生成</a-radio>
+						<a-radio value="manual">手动上传</a-radio>
+					</a-radio-group>
+				</a-form-item>
 				<a-form-item v-if="formState.parent_id" label="分类封面" name="cover_img">
-					<a-upload
-						list-type="picture-card"
-						:show-upload-list="false"
-						:before-upload="beforeCoverUpload"
-						:disabled="coverUploading"
-					>
-						<img v-if="formState.cover_img" :src="formState.cover_img" alt="分类封面" class="category-cover-preview" />
-						<div v-else class="category-cover-uploader">
-							<upload-outlined />
-							<div>{{ coverUploading ? '上传中...' : '上传封面' }}</div>
+					<template v-if="coverMode === 'manual'">
+						<a-upload
+							list-type="picture-card"
+							:show-upload-list="false"
+							:before-upload="beforeCoverUpload"
+							:disabled="coverUploading"
+						>
+							<img v-if="formState.cover_img" :src="formState.cover_img" alt="分类封面" class="category-cover-preview" />
+							<div v-else class="category-cover-uploader">
+								<upload-outlined />
+								<div>{{ coverUploading ? '上传中...' : '上传封面' }}</div>
+							</div>
+						</a-upload>
+						<a-button v-if="formState.cover_img" type="link" danger size="small" @click="formState.cover_img = ''">
+							清除封面
+						</a-button>
+					</template>
+					<template v-else>
+						<div class="category-cover-generator">
+							<div class="category-cover-generator__actions">
+								<a-button @click="coverConfigOpen = true">配置封面模板</a-button>
+								<span class="category-cover-generator__hint">
+									{{ autoCoverLoading ? '正在同步封面预览...' : '将根据一级分类、二级分类名称实时生成' }}
+								</span>
+							</div>
+							<div v-if="autoCoverPreviewSrc" class="category-cover-generator__preview">
+								<img :src="autoCoverPreviewSrc" alt="自动生成分类封面预览" />
+							</div>
+							<div v-else class="category-cover-generator__empty">
+								填写分类名称后自动生成预览
+							</div>
 						</div>
-					</a-upload>
-					<a-button v-if="formState.cover_img" type="link" danger size="small" @click="formState.cover_img = ''">
-						清除封面
-					</a-button>
+					</template>
 					<div style="margin-top: 4px; color: #999; font-size: 12px">
 						该封面用于首页“分类板块”的二级分类卡片展示
 					</div>
@@ -156,6 +180,15 @@
 					</a-radio-group>
 				</a-form-item>
 			</a-form>
+		</a-modal>
+		<a-modal
+			:open="coverConfigOpen"
+			title="分类封面配置"
+			width="1280px"
+			:footer="null"
+			@cancel="coverConfigOpen = false"
+		>
+			<CourseCoverConfig />
 		</a-modal>
 
 		<!-- 课程选择弹窗 -->
@@ -208,7 +241,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import { message } from 'ant-design-vue';
 import { CheckOutlined, CloseOutlined, DeleteOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons-vue';
 import {
@@ -220,7 +253,15 @@ import {
 	batchUpdateCourseCategoryStatus,
 } from '@/api/course-category';
 import { getCourseList, updateCourse } from '@/api/course';
+import { getCourseCoverConfig } from '@/api/system';
 import { uploadImage } from '@/api/upload';
+import CourseCoverConfig from '@/views/system/config/components/CourseCoverConfig.vue';
+import {
+	DEFAULT_COURSE_COVER_CONFIG,
+	normalizeCourseCoverConfig,
+	renderCourseCover,
+} from '@/utils/course-cover';
+import type { CourseCoverConfig as CourseCoverConfigType } from '@/utils/course-cover';
 
 const loading = ref(false);
 const modalVisible = ref(false);
@@ -233,6 +274,10 @@ const courseSelectLoading = ref(false);
 const courseListLoading = ref(false);
 const courseList = ref<any[]>([]);
 const coverUploading = ref(false);
+const coverMode = ref<'auto' | 'manual'>('auto');
+const coverConfigOpen = ref(false);
+const autoCoverLoading = ref(false);
+const generatedCoverPreview = ref('');
 const courseSearchKeyword = ref('');
 const selectedCourseIds = ref<number[]>([]);
 const selectedRowKeys = ref<number[]>([]);
@@ -240,6 +285,12 @@ const batchDeleteModalVisible = ref(false);
 const batchDeleteLoading = ref(false);
 const currentCategory = ref<{ category: string; sub_category: string } | null>(null);
 const courseSelectMode = ref<'bind' | 'unbind'>('bind'); // 'bind' 绑定课程, 'unbind' 移除课程
+let generatedPreviewObjectUrl = '';
+let generatedCoverFile: File | null = null;
+let coverConfigCache: CourseCoverConfigType | null = null;
+let autoCoverTimer: ReturnType<typeof setTimeout> | null = null;
+
+const autoCoverPreviewSrc = computed(() => generatedCoverPreview.value);
 
 const courseColumns = [
 	{ title: '课程名称', dataIndex: 'name', key: 'name' },
@@ -287,6 +338,23 @@ const parentOptions = computed(() =>
 		.filter((item) => !item.parent_id) // 只显示一级分类
 		.map((item) => ({ label: item.name, value: item.id })),
 );
+
+const findCategoryById = (items: any[], id?: number | null): any | null => {
+	if (!id) return null;
+	for (const item of items) {
+		if (Number(item.id) === Number(id)) return item;
+		if (Array.isArray(item.children)) {
+			const found = findCategoryById(item.children, id);
+			if (found) return found;
+		}
+	}
+	return null;
+};
+
+const getSelectedParentName = () => {
+	const parent = findCategoryById(categoryTree.value, formState.value.parent_id);
+	return parent?.name || currentRecord.value?.parentCategoryName || '';
+};
 
 const fetchCategories = async () => {
 	loading.value = true;
@@ -338,6 +406,8 @@ const handleAdd = (record: any | null) => {
 		sort: 0,
 		status: 1,
 	};
+	coverMode.value = record?.id ? 'auto' : 'manual';
+	clearGeneratedCoverPreview();
 	modalVisible.value = true;
 };
 
@@ -350,13 +420,109 @@ const handleEdit = (record: any) => {
 		sort: record.sort ?? 0,
 		status: record.status ?? 1,
 	};
+	coverMode.value = record.parent_id ? 'auto' : 'manual';
+	clearGeneratedCoverPreview();
 	modalVisible.value = true;
 };
 
 const handleCancel = () => {
 	modalVisible.value = false;
 	formRef.value?.resetFields();
+	coverConfigOpen.value = false;
+	if (autoCoverTimer) {
+		clearTimeout(autoCoverTimer);
+		autoCoverTimer = null;
+	}
+	clearGeneratedCoverPreview();
 };
+
+const scheduleAutoCoverPreview = (delay = 240) => {
+	if (autoCoverTimer) {
+		clearTimeout(autoCoverTimer);
+	}
+	autoCoverTimer = setTimeout(() => {
+		refreshAutoCoverPreview();
+	}, delay);
+};
+
+const refreshAutoCoverPreview = async () => {
+	try {
+		if (!modalVisible.value || coverMode.value !== 'auto' || !formState.value.parent_id) return;
+		if (!formState.value.name?.trim() || !getSelectedParentName()) {
+			clearGeneratedCoverPreview();
+			return;
+		}
+		autoCoverLoading.value = true;
+		const coverFile = await generateCategoryCoverFile();
+		generatedCoverFile = coverFile;
+		if (generatedPreviewObjectUrl) {
+			URL.revokeObjectURL(generatedPreviewObjectUrl);
+		}
+		generatedPreviewObjectUrl = URL.createObjectURL(coverFile);
+		generatedCoverPreview.value = generatedPreviewObjectUrl;
+	} catch (error) {
+		generatedCoverFile = null;
+		generatedCoverPreview.value = '';
+		console.error('分类封面预览生成失败:', error);
+	} finally {
+		autoCoverLoading.value = false;
+	}
+};
+
+const clearGeneratedCoverPreview = () => {
+	generatedCoverFile = null;
+	generatedCoverPreview.value = '';
+	if (generatedPreviewObjectUrl) {
+		URL.revokeObjectURL(generatedPreviewObjectUrl);
+		generatedPreviewObjectUrl = '';
+	}
+};
+
+const ensureAutoCoverUploaded = async () => {
+	if (coverMode.value !== 'auto' || !formState.value.parent_id) return;
+	const coverFile = await generateCategoryCoverFile();
+	generatedCoverFile = coverFile;
+	const response = await uploadImage(coverFile);
+	const url = response.url || response.imageUrl;
+	if (!url) {
+		throw new Error('自动生成分类封面上传失败');
+	}
+	formState.value.cover_img = url;
+};
+
+const generateCategoryCoverFile = async (): Promise<File> => {
+	const primaryCategory = getSelectedParentName().trim();
+	const secondaryCategory = formState.value.name?.trim();
+	if (!primaryCategory || !secondaryCategory) {
+		throw new Error('请先填写一级分类和二级分类名称');
+	}
+	let config = coverConfigCache || DEFAULT_COURSE_COVER_CONFIG;
+	try {
+		if (!coverConfigCache) {
+			const res = await getCourseCoverConfig();
+			coverConfigCache = normalizeCourseCoverConfig(res.data || res);
+		}
+		config = coverConfigCache;
+	} catch (_) {
+		config = normalizeCourseCoverConfig(DEFAULT_COURSE_COVER_CONFIG);
+	}
+	const canvas = await renderCourseCover(config, {
+		category: primaryCategory,
+		sub_category: secondaryCategory,
+		name: secondaryCategory,
+		subject: primaryCategory,
+		school: primaryCategory,
+		major: secondaryCategory,
+	});
+	const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png', 0.96));
+	if (!blob) {
+		throw new Error('分类封面生成失败');
+	}
+	const fileName = `${sanitizeFileName(primaryCategory)}-${sanitizeFileName(secondaryCategory)}-category-cover.png`;
+	return new File([blob], fileName, { type: 'image/png' });
+};
+
+const sanitizeFileName = (value: string) => value.replace(/[\\/:*?"<>|]+/g, '-').slice(0, 40);
 
 const beforeCoverUpload = async (file: File) => {
 	if (!file.type.startsWith('image/')) {
@@ -376,10 +542,23 @@ const beforeCoverUpload = async (file: File) => {
 	return false;
 };
 
+watch(
+	[() => modalVisible.value, () => coverMode.value, () => formState.value.parent_id, () => formState.value.name],
+	() => {
+		if (coverMode.value === 'auto' && formState.value.parent_id) {
+			scheduleAutoCoverPreview();
+		}
+	},
+);
+
 const handleSubmit = async () => {
 	try {
 		await formRef.value?.validate();
 		modalLoading.value = true;
+		if (coverMode.value === 'auto' && formState.value.parent_id) {
+			autoCoverLoading.value = true;
+			await ensureAutoCoverUploaded();
+		}
 		if (currentRecord.value) {
 			await updateCourseCategory(currentRecord.value.id, formState.value);
 			message.success('更新成功');
@@ -395,6 +574,7 @@ const handleSubmit = async () => {
 		message.error(error?.message || '提交失败');
 	} finally {
 		modalLoading.value = false;
+		autoCoverLoading.value = false;
 	}
 };
 
@@ -705,5 +885,53 @@ onMounted(() => {
 
 .category-cover-uploader {
 	color: #999;
+}
+
+.category-cover-generator {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.category-cover-generator__actions {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	flex-wrap: wrap;
+}
+
+.category-cover-generator__hint {
+	color: #999;
+	font-size: 12px;
+}
+
+.category-cover-generator__preview {
+	width: 160px;
+	height: 160px;
+	padding: 8px;
+	border: 1px solid #f0f0f0;
+	border-radius: 12px;
+	background: #fff;
+}
+
+.category-cover-generator__preview img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	border-radius: 8px;
+	display: block;
+}
+
+.category-cover-generator__empty {
+	width: 160px;
+	height: 160px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border: 1px dashed #d9d9d9;
+	border-radius: 12px;
+	color: #999;
+	font-size: 12px;
+	background: #fafafa;
 }
 </style>
