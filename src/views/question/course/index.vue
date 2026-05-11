@@ -27,6 +27,7 @@
 						<template #icon><close-outlined /></template>
 						批量禁用 ({{ selectedRowKeys.length || 0 }})
 					</a-button>
+					<a-button :loading="exporting" @click="handleExportCourses">批量导出课程</a-button>
 					<a-button @click="handleGlobalRecommend">公共推荐配置</a-button>
 					<a-button type="primary" @click="handleAdd">
 						<template #icon><plus-outlined /></template>
@@ -60,6 +61,7 @@
 						:options="categoryFilterOptions"
 						:field-names="{ label: 'label', value: 'value', children: 'children' }"
 						:show-search="{ filter: cascaderFilter }"
+						change-on-select
 						allow-clear
 						placeholder="请选择分类"
 						style="width: 220px"
@@ -135,6 +137,16 @@
 					</template>
 				</template>
 			</a-table>
+			<div class="pagination-jumper" v-if="pagination.total > 0">
+				<a-space>
+					<a-button size="small" :disabled="pagination.current <= 1" @click="jumpToPage(1)">第一页</a-button>
+					<a-button size="small" :disabled="pagination.current >= lastPage" @click="jumpToPage(lastPage)">最后一页</a-button>
+					<span>跳转到</span>
+					<a-input-number v-model:value="jumpPage" size="small" :min="1" :max="lastPage" :precision="0" style="width: 90px" />
+					<span>页</span>
+					<a-button size="small" type="primary" @click="jumpToPage(jumpPage)">跳转</a-button>
+				</a-space>
+			</div>
 		</a-card>
 
 		<course-modal v-model:open="modalVisible" :record="currentRecord" @success="handleRefresh" />
@@ -188,6 +200,8 @@ const currentCourseName = ref<string>('');
 	const batchDeleteModalVisible = ref(false);
 	const batchDeleteLoading = ref(false);
 	const sortUpdatingId = ref<number | null>(null);
+	const exporting = ref(false);
+	const jumpPage = ref(1);
 	const searchForm = ref({
 		name: '',
 		subject: '',
@@ -217,7 +231,12 @@ const pagination = ref({
 	current: 1,
 	pageSize: 10,
 	total: 0,
+	showQuickJumper: true,
+	showSizeChanger: true,
+	showTotal: (total: number) => `共 ${total} 条`,
 });
+
+const lastPage = computed(() => Math.max(1, Math.ceil((pagination.value.total || 0) / pagination.value.pageSize)));
 
 const columns = [
 	// {
@@ -363,7 +382,75 @@ const handleResetSearch = () => {
 const handleTableChange = (pag: any) => {
 	pagination.value.current = pag.current;
 	pagination.value.pageSize = pag.pageSize;
+	jumpPage.value = pag.current;
 	fetchData();
+};
+
+const jumpToPage = (page: number) => {
+	const target = Math.min(lastPage.value, Math.max(1, Number(page) || 1));
+	pagination.value.current = target;
+	jumpPage.value = target;
+};
+
+const formatFileSize = (record: any) => {
+	const size = Number(record.file_size || record.fileSize || 0);
+	if (!size) return '';
+	if (size >= 1024 * 1024) return `${(size / 1024 / 1024).toFixed(2)} MB`;
+	if (size >= 1024) return `${(size / 1024).toFixed(2)} KB`;
+	return `${size} B`;
+};
+
+const handleExportCourses = async () => {
+	const rows = selectedRowKeys.value.length
+		? dataSource.value.filter((item: any) => selectedRowKeys.value.includes(item.id))
+		: dataSource.value;
+	if (!rows.length) {
+		message.warning('暂无可导出的课程');
+		return;
+	}
+	exporting.value = true;
+	try {
+		const ExcelJS = await import('exceljs');
+		const workbook = new ExcelJS.Workbook();
+		const worksheet = workbook.addWorksheet('课程列表');
+		worksheet.columns = [
+			{ header: '课程名称', key: 'name', width: 28 },
+			{ header: '课程', key: 'subject', width: 18 },
+			{ header: '一级分类', key: 'category', width: 18 },
+			{ header: '二级分类', key: 'sub_category', width: 18 },
+			{ header: '价格', key: 'price', width: 12 },
+			{ header: '文件类型', key: 'file_type', width: 12 },
+			{ header: '文件大小', key: 'file_size', width: 14 },
+		];
+		rows.forEach((record: any) => {
+			worksheet.addRow({
+				name: record.name || '',
+				subject: record.subject || '',
+				category: record.category || '',
+				sub_category: record.sub_category || '',
+				price: Number(record.price || 0),
+				file_type: record.file_type || '',
+				file_size: formatFileSize(record),
+			});
+		});
+		worksheet.getRow(1).font = { bold: true };
+		const buffer = await workbook.xlsx.writeBuffer();
+		const blob = new Blob([buffer], {
+			type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+		});
+		const url = URL.createObjectURL(blob);
+		const link = document.createElement('a');
+		link.href = url;
+		link.download = `课程列表_${new Date().toISOString().slice(0, 10)}.xlsx`;
+		link.click();
+		URL.revokeObjectURL(url);
+		message.success('导出成功');
+	} catch (error) {
+		console.error('导出课程失败:', error);
+		message.error('导出失败');
+	} finally {
+		exporting.value = false;
+	}
 };
 
 const handleAdd = () => {
@@ -520,5 +607,11 @@ onMounted(() => {
 
 	.course-filter-form {
 		margin-bottom: 16px;
+	}
+
+	.pagination-jumper {
+		display: flex;
+		justify-content: flex-end;
+		margin-top: 12px;
 	}
 	</style>

@@ -99,6 +99,16 @@
 					</template>
 				</template>
 			</a-table>
+			<div class="pagination-jumper" v-if="pagination.total > 0">
+				<a-space>
+					<a-button size="small" :disabled="pagination.current <= 1" @click="jumpToPage(1)">第一页</a-button>
+					<a-button size="small" :disabled="pagination.current >= lastPage" @click="jumpToPage(lastPage)">最后一页</a-button>
+					<span>跳转到</span>
+					<a-input-number v-model:value="jumpPage" size="small" :min="1" :max="lastPage" :precision="0" style="width: 90px" />
+					<span>页</span>
+					<a-button size="small" type="primary" @click="jumpToPage(jumpPage)">跳转</a-button>
+				</a-space>
+			</div>
 		</a-card>
 
 		<!-- 详情弹窗 -->
@@ -259,7 +269,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import { message } from 'ant-design-vue';
 import { PlusOutlined } from '@ant-design/icons-vue';
 import type { UploadFile } from 'ant-design-vue';
@@ -308,7 +318,12 @@ const pagination = ref({
 	current: 1,
 	pageSize: 10,
 	total: 0,
+	showQuickJumper: true,
+	showSizeChanger: true,
+	showTotal: (total: number) => `共 ${total} 条`,
 });
+const jumpPage = ref(1);
+const lastPage = computed(() => Math.max(1, Math.ceil((pagination.value.total || 0) / pagination.value.pageSize)));
 
 const replyForm = ref({
 	reply: '',
@@ -432,6 +447,14 @@ const handleReset = () => {
 const handleTableChange = (pag: any) => {
 	pagination.value.current = pag.current;
 	pagination.value.pageSize = pag.pageSize;
+	jumpPage.value = pag.current;
+	fetchData();
+};
+
+const jumpToPage = (page: number) => {
+	const target = Math.min(lastPage.value, Math.max(1, Number(page) || 1));
+	pagination.value.current = target;
+	jumpPage.value = target;
 	fetchData();
 };
 
@@ -677,6 +700,12 @@ onMounted(() => {
 
 	.search-form {
 		margin-bottom: 16px;
+	}
+
+	.pagination-jumper {
+		display: flex;
+		justify-content: flex-end;
+		margin-top: 12px;
 	}
 
 	.feedback-detail {

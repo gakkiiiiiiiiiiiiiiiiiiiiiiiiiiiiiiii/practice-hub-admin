@@ -90,3 +90,19 @@ export function getCourseCoverConfig() {
 export function setCourseCoverConfig(data: any) {
   return request.put('/admin/settings/course-cover', data)
 }
+
+export function getCourseIntroTemplate() {
+  return request.get('/admin/settings/course-intro-template')
+}
+
+export function setCourseIntroTemplate(data: { template: string }) {
+  return request.put('/admin/settings/course-intro-template', data)
+}
+
+export function getFaqConfig() {
+  return request.get('/admin/settings/faqs')
+}
+
+export function setFaqConfig(data: { items: Array<{ question: string; answer: string }> }) {
+  return request.put('/admin/settings/faqs', data)
+}

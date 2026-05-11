@@ -97,6 +97,12 @@
 						数字越小，排序越靠前
 					</div>
 				</a-form-item>
+				<a-form-item label="每行列数" name="columns">
+					<a-input-number v-model:value="categoryForm.columns" :min="1" :max="4" style="width: 100%" />
+					<div style="color: #999; font-size: 12px; margin-top: 4px">
+						控制小程序首页该板块一行展示多少个，默认 3 列
+					</div>
+				</a-form-item>
 				<a-form-item label="状态" name="status">
 					<a-radio-group v-model:value="categoryForm.status">
 						<a-radio :value="1">显示</a-radio>
@@ -162,6 +168,7 @@ const categoryForm = ref({
 	type: 'course' as 'course' | 'category',
 	bind_category_id: null as number | null,
 	sort: 0,
+	columns: 3,
 	status: 1,
 });
 
@@ -192,6 +199,13 @@ const columns = [
 		dataIndex: 'sort',
 		key: 'sort',
 		width: 120,
+	},
+	{
+		title: '每行列数',
+		dataIndex: 'columns',
+		key: 'columns',
+		width: 120,
+		customRender: ({ text }: any) => `${text || 3} 列`,
 	},
 	{
 		title: '状态',
@@ -247,6 +261,7 @@ const handleAddCategory = (type: 'course' | 'category' = 'course') => {
 		type,
 		bind_category_id: null,
 		sort: 0,
+		columns: 3,
 		status: 1,
 	};
 	categoryModalVisible.value = true;
@@ -259,6 +274,7 @@ const handleEditCategory = (record: any) => {
 		type: record.type || 'course',
 		bind_category_id: record.bind_category_id || null,
 		sort: record.sort,
+		columns: record.columns || 3,
 		status: record.status,
 	};
 	categoryModalVisible.value = true;

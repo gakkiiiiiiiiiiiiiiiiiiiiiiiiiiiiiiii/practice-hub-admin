@@ -32,6 +32,7 @@ export function createCategory(data: {
   type?: 'course' | 'category'
   bind_category_id?: number | null
   sort?: number
+  columns?: number
   status?: number
 }) {
   return request.post('/admin/recommend/categories', data)
@@ -49,6 +50,7 @@ export function updateCategory(
     type?: 'course' | 'category'
     bind_category_id?: number | null
     sort?: number
+    columns?: number
     status?: number
   }
 ) {

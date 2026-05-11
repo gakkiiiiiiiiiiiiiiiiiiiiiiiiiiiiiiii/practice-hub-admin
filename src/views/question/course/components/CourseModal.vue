@@ -249,6 +249,7 @@ const formState = ref({
 	file_url: '',
 	file_name: '',
 	file_type: '',
+	file_size: 0,
 	allow_source_file: 0,
 });
 
@@ -294,6 +295,7 @@ watch(
 					file_url: props.record.file_url || '',
 					file_name: props.record.file_name || '',
 					file_type: props.record.file_type || '',
+					file_size: Number(props.record.file_size || 0),
 					allow_source_file: props.record.allow_source_file ?? 0,
 				};
 				if (formState.value.cover_img) {
@@ -343,6 +345,7 @@ watch(
 					file_url: '',
 					file_name: '',
 					file_type: '',
+					file_size: 0,
 					allow_source_file: 0,
 				};
 				fileList.value = [];
@@ -488,6 +491,7 @@ const handleCourseFileUpload = async (options: any) => {
 		formState.value.file_url = res.url || res.fileUrl;
 		formState.value.file_name = res.fileName;
 		formState.value.file_type = res.fileType;
+		formState.value.file_size = (file as File).size || 0;
 		courseFileList.value = [
 			{ uid: file.uid, name: res.fileName, status: 'done', url: res.url || res.fileUrl },
 		];
@@ -717,11 +721,13 @@ const handleSubmit = async () => {
 			submitData.file_url = formState.value.file_url || null;
 			submitData.file_name = formState.value.file_name || null;
 			submitData.file_type = formState.value.file_type || null;
+			submitData.file_size = Number(formState.value.file_size || 0);
 			submitData.allow_source_file = formState.value.allow_source_file ?? 0;
 		} else {
 			submitData.file_url = null;
 			submitData.file_name = null;
 			submitData.file_type = null;
+			submitData.file_size = 0;
 			submitData.allow_source_file = 0;
 		}
 

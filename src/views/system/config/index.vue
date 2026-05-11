@@ -19,6 +19,12 @@
         <a-tab-pane key="course-cover" tab="课程封面配置">
           <course-cover-config />
         </a-tab-pane>
+        <a-tab-pane key="course-intro-template" tab="课程介绍模板">
+          <course-intro-template-config />
+        </a-tab-pane>
+        <a-tab-pane key="faq" tab="常见问题配置">
+          <faq-config />
+        </a-tab-pane>
       </a-tabs>
     </a-card>
   </div>
@@ -31,10 +37,12 @@ import BannerConfig from './components/BannerConfig.vue'
 import AiPromptConfig from './components/AiPromptConfig.vue'
 import CheckinConfig from './components/CheckinConfig.vue'
 import CourseCoverConfig from './components/CourseCoverConfig.vue'
+import CourseIntroTemplateConfig from './components/CourseIntroTemplateConfig.vue'
+import FaqConfig from './components/FaqConfig.vue'
 
 const route = useRoute()
 const router = useRouter()
-const validTabs = new Set(['banner', 'ai', 'checkin', 'course-cover'])
+const validTabs = new Set(['banner', 'ai', 'checkin', 'course-cover', 'course-intro-template', 'faq'])
 const activeTab = ref(getInitialTab())
 
 function getInitialTab() {
