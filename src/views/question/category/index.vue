@@ -21,6 +21,12 @@
 						<template #icon><close-outlined /></template>
 						批量禁用 ({{ selectedRowKeys.length || 0 }})
 					</a-button>
+					<a-button @click="coverConfigOpen = true">
+						分类封面配置
+					</a-button>
+					<a-button :loading="syncCategoryCoversLoading" @click="syncAllCategoryCovers">
+						同步分类封面
+					</a-button>
 					<a-button type="primary" @click="handleAdd(null)">
 						<template #icon><plus-outlined /></template>
 						新增一级分类
@@ -153,7 +159,6 @@
 					<template v-else>
 						<div class="category-cover-generator">
 							<div class="category-cover-generator__actions">
-								<a-button @click="coverConfigOpen = true">配置封面模板</a-button>
 								<span class="category-cover-generator__hint">
 									{{ autoCoverLoading ? '正在同步封面预览...' : '将根据一级分类、二级分类名称实时生成' }}
 								</span>
@@ -188,7 +193,7 @@
 			:footer="null"
 			@cancel="coverConfigOpen = false"
 		>
-			<CourseCoverConfig />
+			<CourseCoverConfig config-type="category" @saved="handleCategoryCoverConfigSaved" />
 		</a-modal>
 
 		<!-- 课程选择弹窗 -->
@@ -253,7 +258,7 @@ import {
 	batchUpdateCourseCategoryStatus,
 } from '@/api/course-category';
 import { getCourseList, updateCourse } from '@/api/course';
-import { getCourseCoverConfig } from '@/api/system';
+import { getCategoryCoverConfig } from '@/api/system';
 import { uploadImage } from '@/api/upload';
 import CourseCoverConfig from '@/views/system/config/components/CourseCoverConfig.vue';
 import {
@@ -277,6 +282,7 @@ const coverUploading = ref(false);
 const coverMode = ref<'auto' | 'manual'>('auto');
 const coverConfigOpen = ref(false);
 const autoCoverLoading = ref(false);
+const syncCategoryCoversLoading = ref(false);
 const generatedCoverPreview = ref('');
 const courseSearchKeyword = ref('');
 const selectedCourseIds = ref<number[]>([]);
@@ -420,7 +426,7 @@ const handleEdit = (record: any) => {
 		sort: record.sort ?? 0,
 		status: record.status ?? 1,
 	};
-	coverMode.value = record.parent_id ? 'auto' : 'manual';
+	coverMode.value = record.parent_id ? (record.cover_img ? 'manual' : 'auto') : 'manual';
 	clearGeneratedCoverPreview();
 	modalVisible.value = true;
 };
@@ -490,16 +496,19 @@ const ensureAutoCoverUploaded = async () => {
 	formState.value.cover_img = url;
 };
 
-const generateCategoryCoverFile = async (): Promise<File> => {
-	const primaryCategory = getSelectedParentName().trim();
-	const secondaryCategory = formState.value.name?.trim();
+const generateCategoryCoverFile = async (
+	primaryCategoryInput = getSelectedParentName(),
+	secondaryCategoryInput = formState.value.name,
+): Promise<File> => {
+	const primaryCategory = String(primaryCategoryInput || '').trim();
+	const secondaryCategory = String(secondaryCategoryInput || '').trim();
 	if (!primaryCategory || !secondaryCategory) {
 		throw new Error('请先填写一级分类和二级分类名称');
 	}
 	let config = coverConfigCache || DEFAULT_COURSE_COVER_CONFIG;
 	try {
 		if (!coverConfigCache) {
-			const res = await getCourseCoverConfig();
+			const res = await getCategoryCoverConfig();
 			coverConfigCache = normalizeCourseCoverConfig(res.data || res);
 		}
 		config = coverConfigCache;
@@ -520,6 +529,68 @@ const generateCategoryCoverFile = async (): Promise<File> => {
 	}
 	const fileName = `${sanitizeFileName(primaryCategory)}-${sanitizeFileName(secondaryCategory)}-category-cover.png`;
 	return new File([blob], fileName, { type: 'image/png' });
+};
+
+const flattenSecondLevelCategories = () => {
+	const categories: Array<{ id: number; name: string; parentName: string }> = [];
+	categoryTree.value.forEach((parent) => {
+		if (!Array.isArray(parent.children)) return;
+		parent.children.forEach((child: any) => {
+			if (!child?.id || !child?.name) return;
+			categories.push({
+				id: Number(child.id),
+				name: child.name,
+				parentName: parent.name || child.parentCategoryName || '',
+			});
+		});
+	});
+	return categories;
+};
+
+const syncAllCategoryCovers = async () => {
+	const categories = flattenSecondLevelCategories();
+	if (!categories.length) {
+		message.info('暂无二级分类需要同步封面');
+		return;
+	}
+	syncCategoryCoversLoading.value = true;
+	coverConfigCache = null;
+	const progressMessageKey = 'sync-category-covers';
+	message.loading({ content: `正在同步分类封面 0/${categories.length}...`, key: progressMessageKey, duration: 0 });
+	let successCount = 0;
+	try {
+		for (const [index, category] of categories.entries()) {
+			const coverFile = await generateCategoryCoverFile(category.parentName, category.name);
+			const response = await uploadImage(coverFile);
+			const url = response.url || response.imageUrl;
+			if (!url) {
+				throw new Error(`${category.parentName}/${category.name} 封面上传失败`);
+			}
+			await updateCourseCategory(category.id, { cover_img: url });
+			successCount += 1;
+			message.loading({
+				content: `正在同步分类封面 ${index + 1}/${categories.length}...`,
+				key: progressMessageKey,
+				duration: 0,
+			});
+		}
+		message.success({ content: `已同步 ${successCount} 个分类封面`, key: progressMessageKey, duration: 2 });
+		await fetchCategories();
+	} catch (error: any) {
+		message.error({
+			content: error?.message || `分类封面同步失败，已完成 ${successCount}/${categories.length}`,
+			key: progressMessageKey,
+			duration: 3,
+		});
+	} finally {
+		syncCategoryCoversLoading.value = false;
+	}
+};
+
+const handleCategoryCoverConfigSaved = async () => {
+	coverConfigCache = null;
+	await syncAllCategoryCovers();
+	scheduleAutoCoverPreview(0);
 };
 
 const sanitizeFileName = (value: string) => value.replace(/[\\/:*?"<>|]+/g, '-').slice(0, 40);

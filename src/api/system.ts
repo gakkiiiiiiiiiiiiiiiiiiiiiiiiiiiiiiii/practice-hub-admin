@@ -91,6 +91,14 @@ export function setCourseCoverConfig(data: any) {
   return request.put('/admin/settings/course-cover', data)
 }
 
+export function getCategoryCoverConfig() {
+  return request.get('/admin/settings/category-cover')
+}
+
+export function setCategoryCoverConfig(data: any) {
+  return request.put('/admin/settings/category-cover', data)
+}
+
 export function getCourseIntroTemplate() {
   return request.get('/admin/settings/course-intro-template')
 }

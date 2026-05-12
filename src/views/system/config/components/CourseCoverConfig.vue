@@ -301,7 +301,7 @@ import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import { message } from 'ant-design-vue';
 import { PlusOutlined } from '@ant-design/icons-vue';
 import { uploadImage } from '@/api/upload';
-import { getCourseCoverConfig, setCourseCoverConfig } from '@/api/system';
+import { getCategoryCoverConfig, getCourseCoverConfig, setCategoryCoverConfig, setCourseCoverConfig } from '@/api/system';
 import {
 	COURSE_COVER_FIELD_OPTIONS,
 	DEFAULT_COURSE_COVER_CONFIG,
@@ -324,6 +324,19 @@ const previewBoardWidth = ref(420);
 const dragOffset = ref({ x: 0, y: 0 });
 const copiedFieldStyle = ref<Partial<CourseCoverFieldConfig> | null>(null);
 
+const props = withDefaults(
+	defineProps<{
+		configType?: 'course' | 'category';
+	}>(),
+	{
+		configType: 'course',
+	},
+);
+
+const emit = defineEmits<{
+	(e: 'saved', config: CourseCoverConfig): void;
+}>();
+
 const samplePayload = {
 	school: '武汉理工大学',
 	major: '602数学分析+817高等代数',
@@ -331,9 +344,16 @@ const samplePayload = {
 	answer_year: '2002-2025',
 	name: '武汉理工大学 602数学分析+817高等代数',
 	subject: '数学',
+	category: '考研专业课',
+	sub_category: '心理学',
 };
 
-const courseFieldOptions = computed(() => COURSE_COVER_FIELD_OPTIONS);
+const courseFieldOptions = computed(() => {
+	if (props.configType === 'category') {
+		return COURSE_COVER_FIELD_OPTIONS.filter((item) => ['category', 'sub_category'].includes(item.value));
+	}
+	return COURSE_COVER_FIELD_OPTIONS;
+});
 const fontWeightOptions = [
 	{ label: '常规 400', value: '400' },
 	{ label: '中等 500', value: '500' },
@@ -370,7 +390,7 @@ const normalizeFieldConfig = (field: CourseCoverFieldConfig) => {
 	const canvasHeight = clampNumber(formState.value.height, 200, 4000, DEFAULT_COURSE_COVER_CONFIG.height);
 	field.label = String(field.label || '').slice(0, 30);
 	field.type = field.type === 'staticText' ? 'staticText' : 'courseField';
-	field.sourceKey = field.type === 'courseField' ? field.sourceKey || 'school' : '';
+	field.sourceKey = field.type === 'courseField' ? field.sourceKey || (props.configType === 'category' ? 'sub_category' : 'school') : '';
 	field.text = field.type === 'staticText' ? String(field.text || '').slice(0, 80) : '';
 	field.fontSize = clampNumber(field.fontSize, 8, 240, 32);
 	field.lineHeight = clampNumber(field.lineHeight, 10, 300, field.fontSize);
@@ -451,7 +471,7 @@ const updateBackgroundFileList = () => {
 
 const fetchConfig = async () => {
 	try {
-		const res = await getCourseCoverConfig();
+		const res = props.configType === 'category' ? await getCategoryCoverConfig() : await getCourseCoverConfig();
 		formState.value = normalizeCourseCoverConfig(res.data || res);
 	} catch (error) {
 		formState.value = cloneCourseCoverConfig(DEFAULT_COURSE_COVER_CONFIG);
@@ -533,7 +553,7 @@ const createField = (type: 'courseField' | 'staticText'): CourseCoverFieldConfig
 	id: `field_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
 	label: type === 'courseField' ? '新字段' : '新文案',
 	type,
-	sourceKey: type === 'courseField' ? 'school' : '',
+	sourceKey: type === 'courseField' ? (props.configType === 'category' ? 'sub_category' : 'school') : '',
 	text: type === 'staticText' ? '请输入文案' : '',
 	x: 600,
 	y: 600,
@@ -698,8 +718,14 @@ const handleSave = async () => {
 			message.error(error);
 			return;
 		}
-		await setCourseCoverConfig(normalizeCourseCoverConfig(formState.value));
-		message.success('课程封面配置已保存');
+		const normalizedConfig = normalizeCourseCoverConfig(formState.value);
+		if (props.configType === 'category') {
+			await setCategoryCoverConfig(normalizedConfig);
+		} else {
+			await setCourseCoverConfig(normalizedConfig);
+		}
+		message.success(props.configType === 'category' ? '分类封面配置已保存' : '课程封面配置已保存');
+		emit('saved', normalizedConfig);
 	} catch (error: any) {
 		message.error(error?.message || '保存失败');
 	} finally {
