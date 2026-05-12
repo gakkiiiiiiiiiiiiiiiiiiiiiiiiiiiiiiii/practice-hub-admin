@@ -55,6 +55,36 @@ export const COURSE_COVER_FIELD_OPTIONS = [
 	{ label: '二级分类', value: 'sub_category' },
 ];
 
+/** 与 Canvas / CSS 共用的字体栈，便于预览与导出一致 */
+export const COURSE_COVER_FONT_PRESETS: ReadonlyArray<{ label: string; value: string }> = [
+	{ label: '宋体 · 衬线（偏印刷/试卷）', value: 'STSong, "SimSun", "Songti SC", "Noto Serif CJK SC", serif' },
+	{ label: '黑体 · 无衬线', value: '"PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif' },
+	{ label: '思源宋体（若本机已安装）', value: '"Source Han Serif SC", "Noto Serif CJK SC", STSong, "SimSun", serif' },
+	{ label: '思源黑体（若本机已安装）', value: '"Source Han Sans SC", "Noto Sans CJK SC", "PingFang SC", sans-serif' },
+	{ label: '楷体', value: 'KaiTi, "Kaiti SC", STKaiti, serif' },
+	{ label: '仿宋', value: 'FangSong, "FangSong SC", STFangSong, serif' },
+	{ label: '苹方 / 冬青黑体', value: '"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif' },
+	{ label: '系统衬线', value: 'ui-serif, "Songti SC", STSong, "SimSun", serif' },
+	{ label: '系统非衬线', value: 'ui-sans-serif, "PingFang SC", "Microsoft YaHei", sans-serif' },
+	{ label: '等宽（数字/代码感）', value: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace' },
+];
+
+const DEFAULT_COVER_FONT_STACK = COURSE_COVER_FONT_PRESETS[0].value;
+
+export function normalizeFontFamilyForCover(raw?: string | null): string {
+	const trimmed = String(raw || '').trim();
+	if (!trimmed) return DEFAULT_COVER_FONT_STACK;
+	if (COURSE_COVER_FONT_PRESETS.some((preset) => preset.value === trimmed)) {
+		return trimmed;
+	}
+	const lower = trimmed.toLowerCase();
+	if (lower === 'serif') return DEFAULT_COVER_FONT_STACK;
+	if (lower === 'sans-serif') return COURSE_COVER_FONT_PRESETS[1].value;
+	if (lower === 'monospace') return COURSE_COVER_FONT_PRESETS[9].value;
+	if (trimmed.includes(',')) return trimmed.slice(0, 220);
+	return trimmed.slice(0, 220);
+}
+
 export const DEFAULT_COURSE_COVER_CONFIG: CourseCoverConfig = {
 	width: 1200,
 	height: 1200,
@@ -200,6 +230,50 @@ export const DEFAULT_COURSE_COVER_CONFIG: CourseCoverConfig = {
 	],
 };
 
+/** 与后端 getDefaultCategoryCoverConfig 保持一致，供管理端恢复默认与兜底 */
+export const DEFAULT_CATEGORY_COVER_CONFIG: CourseCoverConfig = {
+	width: 1200,
+	height: 1200,
+	backgroundImage: '',
+	backgroundColor: '#F4F7FB',
+	fields: [
+		{
+			id: 'category',
+			label: '一级分类',
+			type: 'courseField',
+			sourceKey: 'category',
+			x: 600,
+			y: 460,
+			fontSize: 112,
+			color: '#8A9AB3',
+			backgroundColor: 'transparent',
+			fontWeight: '800',
+			fontFamily: DEFAULT_COVER_FONT_STACK,
+			maxWidth: 920,
+			align: 'center',
+			maxLines: 1,
+			lineHeight: 122,
+		},
+		{
+			id: 'sub_category',
+			label: '二级分类',
+			type: 'courseField',
+			sourceKey: 'sub_category',
+			x: 600,
+			y: 735,
+			fontSize: 148,
+			color: '#6F7F99',
+			backgroundColor: 'transparent',
+			fontWeight: '900',
+			fontFamily: DEFAULT_COVER_FONT_STACK,
+			maxWidth: 980,
+			align: 'center',
+			maxLines: 1,
+			lineHeight: 158,
+		},
+	],
+};
+
 export function cloneCourseCoverConfig(config: CourseCoverConfig): CourseCoverConfig {
 	return JSON.parse(JSON.stringify(config));
 }
@@ -226,7 +300,7 @@ export function normalizeCourseCoverConfig(input?: Partial<CourseCoverConfig> | 
 			color: field.color || '#FFFFFF',
 			backgroundColor: field.backgroundColor || 'transparent',
 			fontWeight: field.fontWeight || '700',
-			fontFamily: field.fontFamily || 'serif',
+			fontFamily: normalizeFontFamilyForCover(field.fontFamily),
 			maxWidth: Number(field.maxWidth) || undefined,
 			align: field.align || 'center',
 			maxLines: Number(field.maxLines) || 1,
@@ -269,7 +343,7 @@ async function drawCourseCover(
 	}
 
 	for (const field of config.fields) {
-		const text = resolveFieldText(field, payload);
+		const text = resolveCourseCoverFieldText(field, payload);
 		if (!text) continue;
 		drawConfiguredText(ctx, field, text);
 	}
@@ -315,25 +389,7 @@ function drawReferenceShapes(ctx: CanvasRenderingContext2D, width: number, heigh
 	ctx.fill();
 }
 
-function drawConfiguredText(ctx: CanvasRenderingContext2D, field: CourseCoverFieldConfig, text: string) {
-	const align = field.align || 'center';
-	const fontWeight = field.fontWeight || '700';
-	const fontFamily = field.fontFamily || 'serif';
-	const lineHeight = field.lineHeight || field.fontSize;
-	const maxWidth = field.maxWidth || ctx.canvas.width - 40;
-	ctx.save();
-	ctx.textAlign = align;
-	ctx.font = `${fontWeight} ${field.fontSize}px ${fontFamily}`;
-	const lines = buildMultilineTextLines(ctx, text, maxWidth, field.maxLines || 1);
-	drawTextBackground(ctx, field, lines, maxWidth, lineHeight, align);
-	ctx.fillStyle = field.color || '#FFFFFF';
-	lines.forEach((line, index) => {
-		ctx.fillText(line, field.x, field.y + index * lineHeight);
-	});
-	ctx.restore();
-}
-
-function resolveFieldText(field: CourseCoverFieldConfig, payload: CourseCoverPayload) {
+export function resolveCourseCoverFieldText(field: CourseCoverFieldConfig, payload: CourseCoverPayload) {
 	if (field.type === 'staticText') {
 		return (field.text || '').trim();
 	}
@@ -344,53 +400,135 @@ function resolveFieldText(field: CourseCoverFieldConfig, payload: CourseCoverPay
 	return String(raw).trim();
 }
 
+function drawConfiguredText(ctx: CanvasRenderingContext2D, field: CourseCoverFieldConfig, text: string) {
+	const align = field.align || 'center';
+	const fontWeight = field.fontWeight || '700';
+	const fontFamily = normalizeFontFamilyForCover(field.fontFamily);
+	const lineHeight = field.lineHeight || field.fontSize;
+	const maxWidth = field.maxWidth || ctx.canvas.width - 40;
+	ctx.save();
+	ctx.textAlign = align;
+	ctx.textBaseline = 'alphabetic';
+	ctx.font = `${fontWeight} ${field.fontSize}px ${fontFamily}`;
+	const lines = buildMultilineTextLines(ctx, text, maxWidth, field.maxLines || 1);
+	drawTextBackground(ctx, field, lines, maxWidth, lineHeight, align);
+	ctx.fillStyle = field.color || '#FFFFFF';
+	lines.forEach((line, index) => {
+		ctx.fillText(line, field.x, field.y + index * lineHeight);
+	});
+	ctx.restore();
+}
+
+/** 折叠换行与多余空白，避免 Canvas 把不可见换行算进排版导致异常换行 */
+function normalizeCoverTextForLayout(text: string): string {
+	return String(text || '')
+		.replace(/\r\n|\r|\n/g, ' ')
+		.replace(/[\u00a0\u3000]+/g, ' ')
+		.replace(/\s+/g, ' ')
+		.trim();
+}
+
+const ELLIPSIS = '...';
+
+/** 单行：宽度内完整展示，否则仅一行 + 省略号（不出现第二行） */
+function fitSingleLineWithEllipsis(
+	ctx: CanvasRenderingContext2D,
+	text: string,
+	maxWidth: number,
+): string[] {
+	if (!text) return [];
+	if (ctx.measureText(text).width <= maxWidth) return [text];
+	if (ctx.measureText(ELLIPSIS).width > maxWidth) {
+		return [text.slice(0, 1)];
+	}
+	let lo = 0;
+	let hi = text.length;
+	let fitLen = 0;
+	while (lo <= hi) {
+		const mid = (lo + hi) >> 1;
+		const candidate = text.slice(0, mid) + ELLIPSIS;
+		if (ctx.measureText(candidate).width <= maxWidth) {
+			fitLen = mid;
+			lo = mid + 1;
+		} else {
+			hi = mid - 1;
+		}
+	}
+	let prefix = text.slice(0, fitLen);
+	while (prefix.length > 0 && ctx.measureText(prefix + ELLIPSIS).width > maxWidth) {
+		prefix = prefix.slice(0, -1);
+	}
+	return [prefix ? prefix + ELLIPSIS : ELLIPSIS];
+}
+
+/** 最长前缀宽度不超过 maxWidth；若截断点落在词中间，则回退到段内最后一个空格（避免丢字） */
+function takeLinePrefixPreferSpaceBreak(
+	ctx: CanvasRenderingContext2D,
+	remaining: string,
+	maxWidth: number,
+): { line: string; nextStart: number } {
+	if (!remaining) return { line: '', nextStart: 0 };
+	let lo = 0;
+	let hi = remaining.length;
+	let best = 0;
+	while (lo <= hi) {
+		const mid = (lo + hi) >> 1;
+		const sub = remaining.slice(0, mid);
+		if (ctx.measureText(sub).width <= maxWidth) {
+			best = mid;
+			lo = mid + 1;
+		} else {
+			hi = mid - 1;
+		}
+	}
+	if (best === 0) {
+		return { line: remaining[0] || '', nextStart: Math.min(1, remaining.length) };
+	}
+	if (best < remaining.length) {
+		const slice = remaining.slice(0, best);
+		const lastSpace = slice.lastIndexOf(' ');
+		if (lastSpace > 0) {
+			const line = remaining.slice(0, lastSpace).trimEnd();
+			return { line, nextStart: lastSpace + 1 };
+		}
+	}
+	return { line: remaining.slice(0, best), nextStart: best };
+}
+
 function buildMultilineTextLines(
 	ctx: CanvasRenderingContext2D,
 	text: string,
 	maxWidth: number,
 	maxLines: number,
 ) {
+	const safeMaxWidth = Math.max(1, Number(maxWidth) || 1);
 	const normalizedMaxLines = Math.max(1, Math.floor(Number(maxLines) || 1));
+	const normalizedText = normalizeCoverTextForLayout(text);
+	if (!normalizedText) return [];
+
+	if (normalizedMaxLines === 1) {
+		return fitSingleLineWithEllipsis(ctx, normalizedText, safeMaxWidth);
+	}
+
 	const lines: string[] = [];
-	let currentLine = '';
-	let isTruncated = false;
+	let remaining = normalizedText;
 
-	for (const char of text) {
-		const nextLine = currentLine + char;
-		if (ctx.measureText(nextLine).width > maxWidth && currentLine) {
-			lines.push(currentLine);
-			if (lines.length >= normalizedMaxLines) {
-				isTruncated = true;
-				break;
-			}
-			currentLine = char;
-		} else {
-			currentLine = nextLine;
+	while (remaining && lines.length < normalizedMaxLines) {
+		if (lines.length === normalizedMaxLines - 1) {
+			lines.push(...fitSingleLineWithEllipsis(ctx, remaining, safeMaxWidth));
+			break;
 		}
+		const { line, nextStart } = takeLinePrefixPreferSpaceBreak(ctx, remaining, safeMaxWidth);
+		if (!line.trim() && remaining) {
+			lines.push(remaining[0]);
+			remaining = remaining.slice(1).replace(/^\s+/, '');
+			continue;
+		}
+		lines.push(line.trimEnd());
+		remaining = remaining.slice(nextStart).replace(/^\s+/, '');
 	}
 
-	if (!isTruncated && currentLine && lines.length < normalizedMaxLines) {
-		lines.push(currentLine);
-	}
-
-	if (lines.length > normalizedMaxLines) {
-		lines.length = normalizedMaxLines;
-		isTruncated = true;
-	}
-
-	const renderedLength = lines.join('').length;
-	const hasRemaining = isTruncated || text.length > renderedLength;
-
-	return lines.map((line, index) => {
-		if (index !== lines.length - 1 || !hasRemaining) {
-			return line;
-		}
-		let output = line;
-		while (ctx.measureText(`${output}...`).width > maxWidth && output.length > 1) {
-			output = output.slice(0, -1);
-		}
-		return `${output}...`;
-	});
+	return lines;
 }
 
 function drawTextBackground(

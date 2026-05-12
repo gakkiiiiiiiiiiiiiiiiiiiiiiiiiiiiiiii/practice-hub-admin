@@ -199,7 +199,14 @@
 						<a-row :gutter="12">
 							<a-col :span="12">
 								<a-form-item label="字体" :label-col="{ span: 8 }" :wrapper-col="{ span: 16 }">
-									<a-input v-model:value="field.fontFamily" />
+									<a-select
+										v-model:value="field.fontFamily"
+										:options="getFontOptionsForField(field)"
+										show-search
+										:filter-option="filterFontOption"
+										placeholder="选择字体栈"
+										@change="() => normalizeFieldConfig(field)"
+									/>
 								</a-form-item>
 							</a-col>
 							<a-col :span="12">
@@ -254,19 +261,28 @@
 
 			<a-col :span="10">
 				<a-card title="实时预览">
+					<div class="preview-hint">下方为与导出相同的 Canvas 合成图；虚线框为可拖拽的字段区域（标签仅作区分）。</div>
 					<div class="preview-wrap">
 							<div ref="previewBoardRef" class="preview-board" :style="previewBoardStyle">
-								<img v-if="previewUrl && formState.backgroundImage" :src="previewUrl" alt="封面预览底图" class="preview-board__image" />
+								<a-spin :spinning="fullPreviewLoading" class="preview-board__spin">
+									<img
+										v-if="fullPreviewUrl"
+										:src="fullPreviewUrl"
+										alt="封面合成预览"
+										class="preview-board__image"
+										draggable="false"
+									/>
+								</a-spin>
 							<div
 								v-for="field in formState.fields"
 								:key="field.id"
-								class="preview-board__field"
+								class="preview-board__hit"
 								:class="{ 'is-active': activeFieldId === field.id }"
-								:style="getFieldStyle(field)"
+								:style="getFieldHitAreaStyle(field)"
 								@click.stop="setActiveField(field.id)"
 								@pointerdown="startDrag(field, $event)"
 							>
-								{{ getFieldPreviewText(field) }}
+								<span class="preview-board__hit-label">{{ field.label || field.id }}</span>
 							</div>
 							<div
 								v-if="draggingField"
@@ -304,17 +320,22 @@ import { uploadImage } from '@/api/upload';
 import { getCategoryCoverConfig, getCourseCoverConfig, setCategoryCoverConfig, setCourseCoverConfig } from '@/api/system';
 import {
 	COURSE_COVER_FIELD_OPTIONS,
+	COURSE_COVER_FONT_PRESETS,
+	DEFAULT_CATEGORY_COVER_CONFIG,
 	DEFAULT_COURSE_COVER_CONFIG,
 	cloneCourseCoverConfig,
 	defaultCourseCoverBackground,
 	normalizeCourseCoverConfig,
+	normalizeFontFamilyForCover,
 	renderCourseCover,
 	type CourseCoverConfig,
 	type CourseCoverFieldConfig,
 } from '@/utils/course-cover';
 
 const saving = ref(false);
-const previewUrl = ref('');
+const fullPreviewUrl = ref('');
+const fullPreviewLoading = ref(false);
+let fullPreviewTimer: ReturnType<typeof setTimeout> | null = null;
 const backgroundFileList = ref<any[]>([]);
 const formState = ref<CourseCoverConfig>(cloneCourseCoverConfig(DEFAULT_COURSE_COVER_CONFIG));
 const previewBoardRef = ref<HTMLDivElement | null>(null);
@@ -362,6 +383,27 @@ const fontWeightOptions = [
 	{ label: '特粗 800', value: '800' },
 	{ label: '黑体 900', value: '900' },
 ];
+
+const filterFontOption = (input: string, option: { label?: string; value?: string }) => {
+	const q = String(input || '').trim().toLowerCase();
+	if (!q) return true;
+	const label = String(option?.label || '').toLowerCase();
+	const value = String(option?.value || '').toLowerCase();
+	return label.includes(q) || value.includes(q);
+};
+
+const getFontOptionsForField = (field: CourseCoverFieldConfig) => {
+	const current = normalizeFontFamilyForCover(field.fontFamily);
+	const inList = COURSE_COVER_FONT_PRESETS.some((item) => item.value === current);
+	if (inList) return [...COURSE_COVER_FONT_PRESETS];
+	return [
+		{
+			label: `当前配置（自定义栈）`,
+			value: current,
+		},
+		...COURSE_COVER_FONT_PRESETS,
+	];
+};
 const previewScale = computed(() => previewBoardWidth.value / Math.max(formState.value.width || 1, 1));
 const draggingField = computed(() => {
 	if (!draggingFieldId.value) return null;
@@ -401,7 +443,7 @@ const normalizeFieldConfig = (field: CourseCoverFieldConfig) => {
 	field.color = normalizeColorInput(field.color, '#FFFFFF');
 	field.backgroundColor = normalizeOptionalColorInput(field.backgroundColor);
 	field.fontWeight = fontWeightOptions.some((item) => item.value === String(field.fontWeight)) ? String(field.fontWeight) : '700';
-	field.fontFamily = String(field.fontFamily || 'serif').slice(0, 40);
+	field.fontFamily = normalizeFontFamilyForCover(field.fontFamily);
 	field.align = ['left', 'center', 'right'].includes(field.align || '') ? field.align : 'center';
 };
 
@@ -474,26 +516,46 @@ const fetchConfig = async () => {
 		const res = props.configType === 'category' ? await getCategoryCoverConfig() : await getCourseCoverConfig();
 		formState.value = normalizeCourseCoverConfig(res.data || res);
 	} catch (error) {
-		formState.value = cloneCourseCoverConfig(DEFAULT_COURSE_COVER_CONFIG);
+		formState.value = cloneCourseCoverConfig(
+			props.configType === 'category' ? DEFAULT_CATEGORY_COVER_CONFIG : DEFAULT_COURSE_COVER_CONFIG,
+		);
 	} finally {
 		updateBackgroundFileList();
-		await refreshPreview();
+		scheduleFullPreview(0);
 	}
 };
 
-const refreshPreview = async () => {
+const runFullPreview = async () => {
+	fullPreviewLoading.value = true;
 	try {
-		const canvas = await renderCourseCover(formState.value, samplePayload, { includeFields: false });
-		previewUrl.value = canvas.toDataURL('image/png');
+		const canvas = await renderCourseCover(formState.value, samplePayload);
+		fullPreviewUrl.value = canvas.toDataURL('image/png', 0.92);
 	} catch (error) {
-		console.error('封面预览生成失败:', error);
+		console.error('封面合成预览失败:', error);
+	} finally {
+		fullPreviewLoading.value = false;
 	}
+};
+
+const scheduleFullPreview = (delay = 120) => {
+	if (fullPreviewTimer) {
+		clearTimeout(fullPreviewTimer);
+		fullPreviewTimer = null;
+	}
+	if (delay <= 0) {
+		void runFullPreview();
+		return;
+	}
+	fullPreviewTimer = setTimeout(() => {
+		fullPreviewTimer = null;
+		void runFullPreview();
+	}, delay);
 };
 
 watch(
 	() => formState.value,
 	() => {
-		refreshPreview();
+		scheduleFullPreview();
 	},
 	{ deep: true },
 );
@@ -535,12 +597,14 @@ const restoreDefaultBackground = () => {
 	formState.value.backgroundImage = defaultCourseCoverBackground;
 	updateBackgroundFileList();
 	message.success('已恢复默认背景图');
+	scheduleFullPreview(0);
 };
 
 const clearBackgroundImage = () => {
 	formState.value.backgroundImage = '';
 	updateBackgroundFileList();
 	message.success('已设为无背景图，将使用背景色预览和生成封面');
+	scheduleFullPreview(0);
 };
 
 const handleBackgroundRemove = () => {
@@ -561,38 +625,33 @@ const createField = (type: 'courseField' | 'staticText'): CourseCoverFieldConfig
 	color: '#FFFFFF',
 	backgroundColor: 'transparent',
 	fontWeight: '700',
-	fontFamily: 'serif',
+	fontFamily: normalizeFontFamilyForCover('serif'),
 	maxWidth: 900,
 	align: 'center',
 	maxLines: 1,
 	lineHeight: 42,
 });
 
-const getFieldPreviewText = (field: CourseCoverFieldConfig) => {
-	if (field.type === 'staticText') {
-		return field.label || field.text || '静态文本';
-	}
-	return field.label || '字段';
+const getFieldHitAreaStyle = (field: CourseCoverFieldConfig) => {
+	const scale = previewScale.value;
+	const lineHeightCanvas = field.lineHeight || field.fontSize;
+	const maxLines = Math.max(1, Number(field.maxLines) || 1);
+	const heightPx = Math.max(field.fontSize * scale * 0.92, lineHeightCanvas * scale * maxLines);
+	const widthPx = (field.maxWidth || formState.value.width) * scale;
+	const align = field.align || 'center';
+	return {
+		left: `${field.x * scale}px`,
+		top: `${field.y * scale}px`,
+		width: `${widthPx}px`,
+		height: `${heightPx}px`,
+		transform:
+			align === 'left'
+				? 'translate(0, -100%)'
+				: align === 'right'
+					? 'translate(-100%, -100%)'
+					: 'translate(-50%, -100%)',
+	};
 };
-
-const getFieldStyle = (field: CourseCoverFieldConfig) => ({
-	left: `${field.x * previewScale.value}px`,
-	top: `${field.y * previewScale.value}px`,
-	color: field.color,
-	backgroundColor: normalizeOptionalColorInput(field.backgroundColor),
-	fontSize: `${field.fontSize * previewScale.value}px`,
-	fontWeight: field.fontWeight || '700',
-	fontFamily: field.fontFamily || 'serif',
-	lineHeight: `${(field.lineHeight || field.fontSize) * previewScale.value}px`,
-	textAlign: field.align || 'center',
-	maxWidth: `${(field.maxWidth || formState.value.width) * previewScale.value}px`,
-	transform:
-		field.align === 'left'
-			? 'translate(0, -100%)'
-			: field.align === 'right'
-				? 'translate(-100%, -100%)'
-				: 'translate(-50%, -100%)',
-});
 
 const startDrag = (field: CourseCoverFieldConfig, event: PointerEvent) => {
 	const board = previewBoardRef.value;
@@ -734,10 +793,12 @@ const handleSave = async () => {
 };
 
 const handleReset = async () => {
-	formState.value = cloneCourseCoverConfig(DEFAULT_COURSE_COVER_CONFIG);
+	formState.value = cloneCourseCoverConfig(
+		props.configType === 'category' ? DEFAULT_CATEGORY_COVER_CONFIG : DEFAULT_COURSE_COVER_CONFIG,
+	);
 	updateBackgroundFileList();
-	await refreshPreview();
-	message.success('已恢复默认配置');
+	scheduleFullPreview(0);
+	message.success(props.configType === 'category' ? '已恢复分类封面默认配置' : '已恢复课程封面默认配置');
 };
 
 onMounted(() => {
@@ -749,6 +810,10 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+	if (fullPreviewTimer) {
+		clearTimeout(fullPreviewTimer);
+		fullPreviewTimer = null;
+	}
 	window.removeEventListener('pointermove', updateDraggedField);
 	window.removeEventListener('pointerup', stopDrag);
 	window.removeEventListener('keydown', handleKeydown);
@@ -864,12 +929,29 @@ onBeforeUnmount(() => {
 		font-size: 12px;
 	}
 
+	.preview-hint {
+		margin: 0 0 10px;
+		color: #8c8c8c;
+		font-size: 12px;
+		line-height: 1.5;
+	}
+
 	.preview-wrap {
 		display: flex;
 		justify-content: center;
 		padding: 8px;
 		background: #f7f7f7;
 		border-radius: 12px;
+	}
+
+	.preview-board__spin {
+		display: block;
+		width: 100%;
+		min-height: 120px;
+	}
+
+	.preview-board__spin :deep(.ant-spin-container) {
+		width: 100%;
 	}
 
 	.preview-board {
@@ -883,29 +965,43 @@ onBeforeUnmount(() => {
 		touch-action: none;
 	}
 
-	.preview-wrap img,
 	.preview-board__image {
 		width: 100%;
-		height: 100%;
+		height: auto;
 		display: block;
 		border-radius: 10px;
-		object-fit: cover;
 	}
 
-	.preview-board__field {
+	.preview-board__hit {
 		position: absolute;
 		z-index: 2;
-		padding: 0.08em 0.12em;
-		border-radius: 2px;
+		box-sizing: border-box;
+		border: 1px dashed rgba(0, 0, 0, 0.22);
+		border-radius: 6px;
+		background: rgba(255, 255, 255, 0.06);
 		cursor: grab;
-		white-space: pre-wrap;
-		line-height: 1.1;
-		text-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+		pointer-events: auto;
 	}
 
-	.preview-board__field.is-active {
-		outline: 1px dashed rgba(255, 255, 255, 0.9);
-		outline-offset: 4px;
+	.preview-board__hit.is-active {
+		border-color: #1677ff;
+		background: rgba(22, 119, 255, 0.1);
+		box-shadow: 0 0 0 1px rgba(22, 119, 255, 0.25);
+	}
+
+	.preview-board__hit-label {
+		position: absolute;
+		left: 6px;
+		top: 4px;
+		font-size: 11px;
+		line-height: 1.2;
+		color: rgba(0, 0, 0, 0.55);
+		pointer-events: none;
+		max-width: calc(100% - 12px);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-weight: 600;
 	}
 
 	.preview-board__guide {
