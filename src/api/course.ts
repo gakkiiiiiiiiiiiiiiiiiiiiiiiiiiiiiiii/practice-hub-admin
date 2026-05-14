@@ -59,3 +59,8 @@ export function generateMissingCoursePreviewCaches() {
 export function getCoursePreviewCacheProgress() {
   return request.get('/admin/courses/preview-cache/progress')
 }
+
+// 中断正在生成的课程 PDF 图片预览缓存
+export function interruptCoursePreviewCacheTask() {
+  return request.post('/admin/courses/preview-cache/interrupt')
+}

@@ -36,6 +36,15 @@
 					>
 						{{ previewCacheTaskRunning ? '图片缓存生成中' : '生成图片缓存' }}
 					</a-button>
+					<a-popconfirm
+						v-if="previewCacheTaskRunning"
+						title="确定要中断当前图片缓存生成任务吗？已生成的缓存会保留。"
+						ok-text="确定中断"
+						cancel-text="继续生成"
+						@confirm="handleInterruptPreviewCacheTask"
+					>
+						<a-button danger :loading="previewCacheCanceling">中断生成</a-button>
+					</a-popconfirm>
 					<a-button @click="handleGlobalRecommend">公共推荐配置</a-button>
 					<a-button type="primary" @click="handleAdd">
 						<template #icon><plus-outlined /></template>
@@ -260,7 +269,7 @@
 	import { ref, onMounted, watch, computed, onBeforeUnmount } from 'vue';
 	import { message } from 'ant-design-vue';
 	import { PlusOutlined, DeleteOutlined, CheckOutlined, CloseOutlined, DownOutlined } from '@ant-design/icons-vue';
-	import { getCourseList, deleteCourse, batchDeleteCourses, batchUpdateCourseStatus, updateCourseSort, generateMissingCoursePreviewCaches, getCoursePreviewCacheProgress } from '@/api/course';
+	import { getCourseList, deleteCourse, batchDeleteCourses, batchUpdateCourseStatus, updateCourseSort, generateMissingCoursePreviewCaches, getCoursePreviewCacheProgress, interruptCoursePreviewCacheTask } from '@/api/course';
 	import { getCourseCategoryTree } from '@/api/course-category';
 	import { getToken } from '@/utils/auth';
 import CourseModal from './components/CourseModal.vue';
@@ -282,6 +291,7 @@ const currentCourseName = ref<string>('');
 	const exporting = ref(false);
 	const exportingByCategory = ref(false);
 	const previewCacheGenerating = ref(false);
+	const previewCacheCanceling = ref(false);
 	const previewCacheProgressVisible = ref(false);
 	const previewCacheProgress = ref<any>({
 		totalCourses: 0,
@@ -363,6 +373,7 @@ const previewCacheStatusText = (status?: string) => {
 		running: '生成中',
 		completed: '已完成',
 		failed: '有失败',
+		interrupted: '已中断',
 	};
 	return map[status || ''] || status || '-';
 };
@@ -370,6 +381,7 @@ const previewCacheStatusText = (status?: string) => {
 const previewCacheRecordColor = (status?: string) => {
 	if (status === 'completed') return 'green';
 	if (status === 'failed') return 'red';
+	if (status === 'interrupted') return 'orange';
 	if (status === 'running' || status === 'pending') return 'blue';
 	return 'default';
 };
@@ -733,6 +745,24 @@ const handleGenerateMissingPreviewCaches = async () => {
 		message.error(error?.msg || error?.message || '生成图片缓存失败');
 	} finally {
 		previewCacheGenerating.value = false;
+	}
+};
+
+const handleInterruptPreviewCacheTask = async () => {
+	if (!previewCacheTaskRunning.value || previewCacheCanceling.value) return;
+	previewCacheCanceling.value = true;
+	try {
+		const res = await interruptCoursePreviewCacheTask();
+		const data = res?.data || {};
+		previewCacheProgressVisible.value = true;
+		previewCacheProgress.value = data;
+		message.success(data.message || '已中断图片缓存生成任务');
+		await fetchPreviewCacheProgress();
+		stopPreviewCachePolling();
+	} catch (error: any) {
+		message.error(error?.msg || error?.message || '中断任务失败');
+	} finally {
+		previewCacheCanceling.value = false;
 	}
 };
 
