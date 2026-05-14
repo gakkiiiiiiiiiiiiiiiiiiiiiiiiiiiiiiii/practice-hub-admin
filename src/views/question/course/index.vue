@@ -28,6 +28,10 @@
 						批量禁用 ({{ selectedRowKeys.length || 0 }})
 					</a-button>
 					<a-button :loading="exporting" @click="handleExportCourses">批量导出课程</a-button>
+					<a-button :loading="exportingByCategory" @click="openExportByCategoryModal">按分类导出</a-button>
+					<a-button :loading="previewCacheGenerating" @click="handleGenerateMissingPreviewCaches">
+						生成图片缓存
+					</a-button>
 					<a-button @click="handleGlobalRecommend">公共推荐配置</a-button>
 					<a-button type="primary" @click="handleAdd">
 						<template #icon><plus-outlined /></template>
@@ -74,6 +78,27 @@
 					</a-space>
 				</a-form-item>
 			</a-form>
+
+			<a-alert
+				v-if="previewCacheProgressVisible"
+				class="preview-cache-progress"
+				:type="previewCacheProgressStatus"
+				show-icon
+				:message="previewCacheProgressTitle"
+			>
+				<template #description>
+					<a-progress
+						:percent="previewCachePercent"
+						:status="previewCacheProgressStatus === 'error' ? 'exception' : previewCachePercent >= 100 ? 'success' : 'active'"
+					/>
+					<div class="preview-cache-progress__meta">
+						已处理 {{ previewCacheProgress.processed || 0 }} / {{ previewCacheProgress.totalPages || 0 }} 页，
+						新生成 {{ previewCacheProgress.generated || 0 }} 页，
+						已存在 {{ previewCacheProgress.skipped || 0 }} 页，
+						失败 {{ previewCacheProgress.failed || 0 }} 页
+					</div>
+				</template>
+			</a-alert>
 
 			<a-table
 				:columns="columns"
@@ -175,14 +200,38 @@
 			<p>确定要删除选中的 {{ selectedRowKeys.length }} 个课程吗？</p>
 			<p style="color: #ff4d4f; font-size: 12px; margin-top: 8px">此操作不可恢复，请谨慎操作！</p>
 		</a-modal>
+
+		<a-modal
+			v-model:open="exportByCategoryVisible"
+			title="按分类导出课程"
+			:confirm-loading="exportingByCategory"
+			@ok="handleExportByCategory"
+			@cancel="exportCategoryValue = []"
+		>
+			<a-form :label-col="{ span: 5 }" :wrapper-col="{ span: 18 }">
+				<a-form-item label="导出分类" required>
+					<a-cascader
+						v-model:value="exportCategoryValue"
+						:options="categoryFilterOptions"
+						:field-names="{ label: 'label', value: 'value', children: 'children' }"
+						:show-search="{ filter: cascaderFilter }"
+						change-on-select
+						allow-clear
+						placeholder="请选择一级或二级分类"
+						style="width: 100%"
+					/>
+					<div class="form-tip">选择一级分类会导出该一级分类下所有课程；选择二级分类则只导出该二级分类课程。</div>
+				</a-form-item>
+			</a-form>
+		</a-modal>
 	</div>
 </template>
 
 	<script setup lang="ts">
-	import { ref, onMounted, watch, computed } from 'vue';
+	import { ref, onMounted, watch, computed, onBeforeUnmount } from 'vue';
 	import { message } from 'ant-design-vue';
 	import { PlusOutlined, DeleteOutlined, CheckOutlined, CloseOutlined, DownOutlined } from '@ant-design/icons-vue';
-	import { getCourseList, deleteCourse, batchDeleteCourses, batchUpdateCourseStatus, updateCourseSort } from '@/api/course';
+	import { getCourseList, deleteCourse, batchDeleteCourses, batchUpdateCourseStatus, updateCourseSort, generateMissingCoursePreviewCaches, getCoursePreviewCacheProgress } from '@/api/course';
 	import { getCourseCategoryTree } from '@/api/course-category';
 import CourseModal from './components/CourseModal.vue';
 import ExamConfigDrawer from './components/ExamConfigDrawer.vue';
@@ -201,6 +250,24 @@ const currentCourseName = ref<string>('');
 	const batchDeleteLoading = ref(false);
 	const sortUpdatingId = ref<number | null>(null);
 	const exporting = ref(false);
+	const exportingByCategory = ref(false);
+	const previewCacheGenerating = ref(false);
+	const previewCacheProgressVisible = ref(false);
+	const previewCacheProgress = ref<any>({
+		totalCourses: 0,
+		runningCourses: 0,
+		completedCourses: 0,
+		failedCourses: 0,
+		totalPages: 0,
+		processed: 0,
+		generated: 0,
+		skipped: 0,
+		failed: 0,
+		courses: [],
+	});
+	let previewCachePollTimer: ReturnType<typeof setInterval> | null = null;
+	const exportByCategoryVisible = ref(false);
+	const exportCategoryValue = ref<string[]>([]);
 	const jumpPage = ref(1);
 	const searchForm = ref({
 		name: '',
@@ -237,6 +304,25 @@ const pagination = ref({
 });
 
 const lastPage = computed(() => Math.max(1, Math.ceil((pagination.value.total || 0) / pagination.value.pageSize)));
+const previewCachePercent = computed(() => {
+	const total = Number(previewCacheProgress.value.totalPages || 0);
+	if (!total) return 0;
+	return Math.min(100, Math.round((Number(previewCacheProgress.value.processed || 0) / total) * 100));
+});
+const previewCacheProgressStatus = computed(() => {
+	if (previewCacheProgress.value.failedCourses > 0 || previewCacheProgress.value.failed > 0) return 'error';
+	if (previewCacheProgress.value.runningCourses > 0) return 'info';
+	return 'success';
+});
+const previewCacheProgressTitle = computed(() => {
+	if (previewCacheProgress.value.runningCourses > 0) {
+		return `正在生成图片缓存：${previewCacheProgress.value.runningCourses} 个课程进行中`;
+	}
+	if (previewCacheProgress.value.failedCourses > 0 || previewCacheProgress.value.failed > 0) {
+		return '图片缓存生成完成，但存在失败页面';
+	}
+	return '图片缓存生成完成';
+});
 
 const columns = [
 	// {
@@ -315,7 +401,7 @@ const columns = [
 		{
 			title: '操作',
 			key: 'action',
-			width: 180,
+			width: 260,
 			fixed: 'right',
 		},
 ];
@@ -400,6 +486,48 @@ const formatFileSize = (record: any) => {
 	return `${size} B`;
 };
 
+const sanitizeExportFileName = (value: string) =>
+	String(value || '课程列表')
+		.replace(/[\\/:*?"<>|]+/g, '-')
+		.slice(0, 80);
+
+const exportCoursesToExcel = async (rows: any[], fileNamePrefix: string) => {
+	const ExcelJS = await import('exceljs');
+	const workbook = new ExcelJS.Workbook();
+	const worksheet = workbook.addWorksheet('课程列表');
+	worksheet.columns = [
+		{ header: '课程名称', key: 'name', width: 28 },
+		{ header: '课程', key: 'subject', width: 18 },
+		{ header: '一级分类', key: 'category', width: 18 },
+		{ header: '二级分类', key: 'sub_category', width: 18 },
+		{ header: '价格', key: 'price', width: 12 },
+		{ header: '文件类型', key: 'file_type', width: 12 },
+		{ header: '文件大小', key: 'file_size', width: 14 },
+	];
+	rows.forEach((record: any) => {
+		worksheet.addRow({
+			name: record.name || '',
+			subject: record.subject || '',
+			category: record.category || '',
+			sub_category: record.sub_category || '',
+			price: Number(record.price || 0),
+			file_type: record.file_type || '',
+			file_size: formatFileSize(record),
+		});
+	});
+	worksheet.getRow(1).font = { bold: true };
+	const buffer = await workbook.xlsx.writeBuffer();
+	const blob = new Blob([buffer], {
+		type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+	});
+	const url = URL.createObjectURL(blob);
+	const link = document.createElement('a');
+	link.href = url;
+	link.download = `${sanitizeExportFileName(fileNamePrefix)}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+	link.click();
+	URL.revokeObjectURL(url);
+};
+
 const handleExportCourses = async () => {
 	const rows = selectedRowKeys.value.length
 		? dataSource.value.filter((item: any) => selectedRowKeys.value.includes(item.id))
@@ -410,46 +538,49 @@ const handleExportCourses = async () => {
 	}
 	exporting.value = true;
 	try {
-		const ExcelJS = await import('exceljs');
-		const workbook = new ExcelJS.Workbook();
-		const worksheet = workbook.addWorksheet('课程列表');
-		worksheet.columns = [
-			{ header: '课程名称', key: 'name', width: 28 },
-			{ header: '课程', key: 'subject', width: 18 },
-			{ header: '一级分类', key: 'category', width: 18 },
-			{ header: '二级分类', key: 'sub_category', width: 18 },
-			{ header: '价格', key: 'price', width: 12 },
-			{ header: '文件类型', key: 'file_type', width: 12 },
-			{ header: '文件大小', key: 'file_size', width: 14 },
-		];
-		rows.forEach((record: any) => {
-			worksheet.addRow({
-				name: record.name || '',
-				subject: record.subject || '',
-				category: record.category || '',
-				sub_category: record.sub_category || '',
-				price: Number(record.price || 0),
-				file_type: record.file_type || '',
-				file_size: formatFileSize(record),
-			});
-		});
-		worksheet.getRow(1).font = { bold: true };
-		const buffer = await workbook.xlsx.writeBuffer();
-		const blob = new Blob([buffer], {
-			type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-		});
-		const url = URL.createObjectURL(blob);
-		const link = document.createElement('a');
-		link.href = url;
-		link.download = `课程列表_${new Date().toISOString().slice(0, 10)}.xlsx`;
-		link.click();
-		URL.revokeObjectURL(url);
+		await exportCoursesToExcel(rows, selectedRowKeys.value.length ? '选中课程列表' : '课程列表');
 		message.success('导出成功');
 	} catch (error) {
 		console.error('导出课程失败:', error);
 		message.error('导出失败');
 	} finally {
 		exporting.value = false;
+	}
+};
+
+const openExportByCategoryModal = () => {
+	if (!categoryTree.value.length) {
+		fetchCategoryTree();
+	}
+	exportByCategoryVisible.value = true;
+};
+
+const handleExportByCategory = async () => {
+	const [category, subCategory] = exportCategoryValue.value || [];
+	if (!category) {
+		message.warning('请先选择要导出的分类');
+		return;
+	}
+	exportingByCategory.value = true;
+	try {
+		const res = await getCourseList({
+			category,
+			subCategory: subCategory || undefined,
+		});
+		const rows = Array.isArray(res.data) ? res.data : res.data?.list || [];
+		if (!rows.length) {
+			message.warning('该分类下暂无可导出的课程');
+			return;
+		}
+		await exportCoursesToExcel(rows, `课程列表_${subCategory ? `${category}-${subCategory}` : category}`);
+		message.success(`已导出 ${rows.length} 个课程`);
+		exportByCategoryVisible.value = false;
+		exportCategoryValue.value = [];
+	} catch (error) {
+		console.error('按分类导出课程失败:', error);
+		message.error('按分类导出失败');
+	} finally {
+		exportingByCategory.value = false;
 	}
 };
 
@@ -511,6 +642,62 @@ const handleRecommendConfig = (record: any) => {
 	currentCourseId.value = record.id;
 	currentCourseName.value = record.name;
 	recommendDrawerVisible.value = true;
+};
+
+const handleGenerateMissingPreviewCaches = async () => {
+	if (previewCacheGenerating.value) return;
+	previewCacheGenerating.value = true;
+	try {
+		const res = await generateMissingCoursePreviewCaches();
+		const data = res?.data || {};
+		if (data.total === 0) {
+			message.info('暂无需要生成图片缓存的文件类 PDF 课程');
+		} else if (data.started > 0) {
+			message.success(`已开始为 ${data.started} 个课程生成缺失图片缓存`);
+			previewCacheProgressVisible.value = true;
+			await fetchPreviewCacheProgress();
+			startPreviewCachePolling();
+		} else {
+			message.info(`所有 ${data.running || 0} 个课程缓存任务已在生成中`);
+			previewCacheProgressVisible.value = true;
+			await fetchPreviewCacheProgress();
+			startPreviewCachePolling();
+		}
+	} catch (error: any) {
+		message.error(error?.msg || error?.message || '生成图片缓存失败');
+	} finally {
+		previewCacheGenerating.value = false;
+	}
+};
+
+const fetchPreviewCacheProgress = async () => {
+	try {
+		const res = await getCoursePreviewCacheProgress();
+		previewCacheProgress.value = res?.data || previewCacheProgress.value;
+		const running = Number(previewCacheProgress.value.runningCourses || 0);
+		const hasProgress = Number(previewCacheProgress.value.totalCourses || 0) > 0
+			|| Number(previewCacheProgress.value.totalPages || 0) > 0;
+		if (running > 0 || (previewCacheProgressVisible.value && hasProgress)) {
+			previewCacheProgressVisible.value = true;
+		}
+		if (running === 0 && previewCachePollTimer) {
+			stopPreviewCachePolling();
+		}
+	} catch (error) {
+		console.warn('查询图片缓存生成进度失败:', error);
+	}
+};
+
+const startPreviewCachePolling = () => {
+	stopPreviewCachePolling();
+	previewCachePollTimer = setInterval(fetchPreviewCacheProgress, 2000);
+};
+
+const stopPreviewCachePolling = () => {
+	if (previewCachePollTimer) {
+		clearInterval(previewCachePollTimer);
+		previewCachePollTimer = null;
+	}
 };
 
 const handleGlobalRecommend = () => {
@@ -593,6 +780,16 @@ const handleBatchDisable = async () => {
 onMounted(() => {
 	fetchCategoryTree();
 	fetchData();
+	fetchPreviewCacheProgress().then(() => {
+		if (Number(previewCacheProgress.value.runningCourses || 0) > 0) {
+			previewCacheProgressVisible.value = true;
+			startPreviewCachePolling();
+		}
+	});
+});
+
+onBeforeUnmount(() => {
+	stopPreviewCachePolling();
 });
 </script>
 
@@ -607,6 +804,15 @@ onMounted(() => {
 
 	.course-filter-form {
 		margin-bottom: 16px;
+	}
+
+	.preview-cache-progress {
+		margin-bottom: 16px;
+	}
+
+	.preview-cache-progress__meta {
+		margin-top: 8px;
+		color: #666;
 	}
 
 	.pagination-jumper {

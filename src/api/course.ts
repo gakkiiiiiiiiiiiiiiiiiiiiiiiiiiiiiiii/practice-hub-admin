@@ -44,3 +44,18 @@ export function batchDeleteCourses(ids: number[]) {
 export function batchUpdateCourseStatus(ids: number[], status: number) {
   return request.post('/admin/courses/batch-update-status', { ids, status })
 }
+
+// 生成课程 PDF 图片预览缓存
+export function generateCoursePreviewCache(id: number, force = true) {
+  return request.post(`/admin/courses/${id}/preview-cache`, { force })
+}
+
+// 生成所有文件类 PDF 课程缺失的图片预览缓存
+export function generateMissingCoursePreviewCaches() {
+  return request.post('/admin/courses/preview-cache/missing')
+}
+
+// 查询课程 PDF 图片预览缓存生成进度
+export function getCoursePreviewCacheProgress() {
+  return request.get('/admin/courses/preview-cache/progress')
+}
