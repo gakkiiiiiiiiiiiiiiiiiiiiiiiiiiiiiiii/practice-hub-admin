@@ -29,8 +29,12 @@
 					</a-button>
 					<a-button :loading="exporting" @click="handleExportCourses">批量导出课程</a-button>
 					<a-button :loading="exportingByCategory" @click="openExportByCategoryModal">按分类导出</a-button>
-					<a-button :loading="previewCacheGenerating" @click="handleGenerateMissingPreviewCaches">
-						生成图片缓存
+					<a-button
+						:loading="previewCacheGenerating"
+						:disabled="previewCacheTaskRunning"
+						@click="handleGenerateMissingPreviewCaches"
+					>
+						{{ previewCacheTaskRunning ? '图片缓存生成中' : '生成图片缓存' }}
 					</a-button>
 					<a-button @click="handleGlobalRecommend">公共推荐配置</a-button>
 					<a-button type="primary" @click="handleAdd">
@@ -97,8 +101,33 @@
 						已存在 {{ previewCacheProgress.skipped || 0 }} 页，
 						失败 {{ previewCacheProgress.failed || 0 }} 页
 					</div>
+					<div class="preview-cache-progress__meta" v-if="previewCacheProgress.currentCourseName">
+						当前课程：{{ previewCacheProgress.currentCourseName }}
+						<span v-if="previewCacheProgress.currentPage">，第 {{ previewCacheProgress.currentPage }} 页</span>
+					</div>
+					<div class="preview-cache-progress__meta" v-if="previewCacheProgress.taskNo">
+						任务编号：{{ previewCacheProgress.taskNo }}，状态：{{ previewCacheStatusText(previewCacheProgress.status) }}
+					</div>
 				</template>
 			</a-alert>
+
+			<div v-if="previewCacheRecords.length" class="preview-cache-records">
+				<div class="preview-cache-records__title">最近生成记录</div>
+				<div
+					v-for="record in previewCacheRecords"
+					:key="record.id"
+					class="preview-cache-records__item"
+				>
+					<a-tag :color="previewCacheRecordColor(record.status)">
+						{{ previewCacheStatusText(record.status) }}
+					</a-tag>
+					<span class="preview-cache-records__no">{{ record.taskNo }}</span>
+					<span>课程 {{ record.processedCourses || 0 }} / {{ record.totalCourses || 0 }}</span>
+					<span>页数 {{ record.processed || 0 }} / {{ record.totalPages || 0 }}</span>
+					<span>生成 {{ record.generated || 0 }}，跳过 {{ record.skipped || 0 }}，失败 {{ record.failed || 0 }}</span>
+					<span class="preview-cache-records__time">{{ formatPreviewCacheTime(record.updateTime || record.createTime) }}</span>
+				</div>
+			</div>
 
 			<a-table
 				:columns="columns"
@@ -233,6 +262,7 @@
 	import { PlusOutlined, DeleteOutlined, CheckOutlined, CloseOutlined, DownOutlined } from '@ant-design/icons-vue';
 	import { getCourseList, deleteCourse, batchDeleteCourses, batchUpdateCourseStatus, updateCourseSort, generateMissingCoursePreviewCaches, getCoursePreviewCacheProgress } from '@/api/course';
 	import { getCourseCategoryTree } from '@/api/course-category';
+	import { getToken } from '@/utils/auth';
 import CourseModal from './components/CourseModal.vue';
 import ExamConfigDrawer from './components/ExamConfigDrawer.vue';
 import RecommendationDrawer from './components/RecommendationDrawer.vue';
@@ -309,6 +339,8 @@ const previewCachePercent = computed(() => {
 	if (!total) return 0;
 	return Math.min(100, Math.round((Number(previewCacheProgress.value.processed || 0) / total) * 100));
 });
+const previewCacheTaskRunning = computed(() => Number(previewCacheProgress.value.runningCourses || 0) > 0);
+const previewCacheRecords = computed(() => Array.isArray(previewCacheProgress.value.records) ? previewCacheProgress.value.records : []);
 const previewCacheProgressStatus = computed(() => {
 	if (previewCacheProgress.value.failedCourses > 0 || previewCacheProgress.value.failed > 0) return 'error';
 	if (previewCacheProgress.value.runningCourses > 0) return 'info';
@@ -323,6 +355,32 @@ const previewCacheProgressTitle = computed(() => {
 	}
 	return '图片缓存生成完成';
 });
+
+const previewCacheStatusText = (status?: string) => {
+	const map: Record<string, string> = {
+		idle: '暂无任务',
+		pending: '等待中',
+		running: '生成中',
+		completed: '已完成',
+		failed: '有失败',
+	};
+	return map[status || ''] || status || '-';
+};
+
+const previewCacheRecordColor = (status?: string) => {
+	if (status === 'completed') return 'green';
+	if (status === 'failed') return 'red';
+	if (status === 'running' || status === 'pending') return 'blue';
+	return 'default';
+};
+
+const formatPreviewCacheTime = (value?: string | Date) => {
+	if (!value) return '';
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) return '';
+	const pad = (num: number) => String(num).padStart(2, '0');
+	return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
 
 const columns = [
 	// {
@@ -645,21 +703,29 @@ const handleRecommendConfig = (record: any) => {
 };
 
 const handleGenerateMissingPreviewCaches = async () => {
-	if (previewCacheGenerating.value) return;
+	if (previewCacheGenerating.value || previewCacheTaskRunning.value) return;
 	previewCacheGenerating.value = true;
 	try {
 		const res = await generateMissingCoursePreviewCaches();
 		const data = res?.data || {};
 		if (data.total === 0) {
 			message.info('暂无需要生成图片缓存的文件类 PDF 课程');
+			await fetchPreviewCacheProgress();
+		} else if (data.alreadyRunning) {
+			message.info('已有图片缓存生成任务正在执行，请稍后查看进度');
+			previewCacheProgressVisible.value = true;
+			previewCacheProgress.value = data;
+			startPreviewCachePolling();
 		} else if (data.started > 0) {
 			message.success(`已开始为 ${data.started} 个课程生成缺失图片缓存`);
 			previewCacheProgressVisible.value = true;
+			previewCacheProgress.value = data;
 			await fetchPreviewCacheProgress();
 			startPreviewCachePolling();
 		} else {
 			message.info(`所有 ${data.running || 0} 个课程缓存任务已在生成中`);
 			previewCacheProgressVisible.value = true;
+			previewCacheProgress.value = data;
 			await fetchPreviewCacheProgress();
 			startPreviewCachePolling();
 		}
@@ -671,12 +737,16 @@ const handleGenerateMissingPreviewCaches = async () => {
 };
 
 const fetchPreviewCacheProgress = async () => {
+	if (!getToken()) {
+		return;
+	}
 	try {
 		const res = await getCoursePreviewCacheProgress();
 		previewCacheProgress.value = res?.data || previewCacheProgress.value;
 		const running = Number(previewCacheProgress.value.runningCourses || 0);
 		const hasProgress = Number(previewCacheProgress.value.totalCourses || 0) > 0
-			|| Number(previewCacheProgress.value.totalPages || 0) > 0;
+			|| Number(previewCacheProgress.value.totalPages || 0) > 0
+			|| previewCacheRecords.value.length > 0;
 		if (running > 0 || (previewCacheProgressVisible.value && hasProgress)) {
 			previewCacheProgressVisible.value = true;
 		}
@@ -689,6 +759,9 @@ const fetchPreviewCacheProgress = async () => {
 };
 
 const startPreviewCachePolling = () => {
+	if (!getToken()) {
+		return;
+	}
 	stopPreviewCachePolling();
 	previewCachePollTimer = setInterval(fetchPreviewCacheProgress, 2000);
 };
@@ -780,12 +853,14 @@ const handleBatchDisable = async () => {
 onMounted(() => {
 	fetchCategoryTree();
 	fetchData();
-	fetchPreviewCacheProgress().then(() => {
-		if (Number(previewCacheProgress.value.runningCourses || 0) > 0) {
-			previewCacheProgressVisible.value = true;
-			startPreviewCachePolling();
-		}
-	});
+	if (getToken()) {
+		fetchPreviewCacheProgress().then(() => {
+			if (Number(previewCacheProgress.value.runningCourses || 0) > 0) {
+				previewCacheProgressVisible.value = true;
+				startPreviewCachePolling();
+			}
+		});
+	}
 });
 
 onBeforeUnmount(() => {
@@ -808,6 +883,39 @@ onBeforeUnmount(() => {
 
 	.preview-cache-progress {
 		margin-bottom: 16px;
+	}
+
+	.preview-cache-records {
+		margin-bottom: 16px;
+		padding: 12px 16px;
+		border: 1px solid #f0f0f0;
+		border-radius: 8px;
+		background: #fafafa;
+	}
+
+	.preview-cache-records__title {
+		margin-bottom: 8px;
+		font-weight: 600;
+		color: #1f2937;
+	}
+
+	.preview-cache-records__item {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px 14px;
+		align-items: center;
+		padding: 6px 0;
+		color: #4b5563;
+		font-size: 13px;
+	}
+
+	.preview-cache-records__no {
+		color: #1f2937;
+		font-weight: 600;
+	}
+
+	.preview-cache-records__time {
+		color: #8c8c8c;
 	}
 
 	.preview-cache-progress__meta {
