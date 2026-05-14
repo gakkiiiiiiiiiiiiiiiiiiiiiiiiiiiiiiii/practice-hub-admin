@@ -117,6 +117,18 @@
 					<div class="preview-cache-progress__meta" v-if="previewCacheProgress.taskNo">
 						任务编号：{{ previewCacheProgress.taskNo }}，状态：{{ previewCacheStatusText(previewCacheProgress.status) }}
 					</div>
+					<div v-if="previewCacheFailedDetails.length" class="preview-cache-failed-list">
+						<div class="preview-cache-failed-list__title">失败明细（最近 {{ previewCacheFailedDetails.length }} 条）</div>
+						<div
+							v-for="(item, idx) in previewCacheFailedDetails"
+							:key="`${item.courseId}-${item.pageNum}-${idx}`"
+							class="preview-cache-failed-list__item"
+						>
+							<span>课程ID {{ item.courseId }}（{{ item.courseName || '-' }}）</span>
+							<span>页码：{{ item.pageNum > 0 ? item.pageNum : '课程级失败' }}</span>
+							<span>原因：{{ item.message }}</span>
+						</div>
+					</div>
 				</template>
 			</a-alert>
 
@@ -135,6 +147,14 @@
 					<span>页数 {{ record.processed || 0 }} / {{ record.totalPages || 0 }}</span>
 					<span>生成 {{ record.generated || 0 }}，跳过 {{ record.skipped || 0 }}，失败 {{ record.failed || 0 }}</span>
 					<span class="preview-cache-records__time">{{ formatPreviewCacheTime(record.updateTime || record.createTime) }}</span>
+					<div v-if="Array.isArray(record.failedDetails) && record.failedDetails.length" class="preview-cache-records__failed">
+						<div
+							v-for="(item, idx) in record.failedDetails.slice(0, 5)"
+							:key="`${record.id}-${idx}`"
+						>
+							[课程 {{ item.courseId }} | 页 {{ item.pageNum > 0 ? item.pageNum : '-' }}] {{ item.message }}
+						</div>
+					</div>
 				</div>
 			</div>
 
@@ -301,9 +321,11 @@ const currentCourseName = ref<string>('');
 		totalPages: 0,
 		processed: 0,
 		generated: 0,
-		skipped: 0,
-		failed: 0,
-		courses: [],
+	skipped: 0,
+	failed: 0,
+	failedDetails: [],
+	courses: [],
+	records: [],
 	});
 	let previewCachePollTimer: ReturnType<typeof setInterval> | null = null;
 	const exportByCategoryVisible = ref(false);
@@ -351,6 +373,10 @@ const previewCachePercent = computed(() => {
 });
 const previewCacheTaskRunning = computed(() => Number(previewCacheProgress.value.runningCourses || 0) > 0);
 const previewCacheRecords = computed(() => Array.isArray(previewCacheProgress.value.records) ? previewCacheProgress.value.records : []);
+const previewCacheFailedDetails = computed(() => {
+	const list = previewCacheProgress.value.failedDetails;
+	return Array.isArray(list) ? list.slice(0, 20) : [];
+});
 const previewCacheProgressStatus = computed(() => {
 	if (previewCacheProgress.value.failedCourses > 0 || previewCacheProgress.value.failed > 0) return 'error';
 	if (previewCacheProgress.value.runningCourses > 0) return 'info';
@@ -948,9 +974,40 @@ onBeforeUnmount(() => {
 		color: #8c8c8c;
 	}
 
+	.preview-cache-records__failed {
+		width: 100%;
+		padding-left: 42px;
+		color: #8c8c8c;
+		font-size: 12px;
+		line-height: 1.6;
+	}
+
 	.preview-cache-progress__meta {
 		margin-top: 8px;
 		color: #666;
+	}
+
+	.preview-cache-failed-list {
+		margin-top: 10px;
+		padding: 10px 12px;
+		border-radius: 6px;
+		background: #fff2f0;
+		border: 1px solid #ffccc7;
+	}
+
+	.preview-cache-failed-list__title {
+		font-weight: 600;
+		color: #a8071a;
+		margin-bottom: 6px;
+	}
+
+	.preview-cache-failed-list__item {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px 12px;
+		color: #434343;
+		font-size: 12px;
+		line-height: 1.5;
 	}
 
 	.pagination-jumper {
