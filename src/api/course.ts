@@ -55,6 +55,11 @@ export function generateMissingCoursePreviewCaches() {
   return request.post('/admin/courses/preview-cache/missing')
 }
 
+// 重新生成失败课程的 PDF 图片预览缓存
+export function retryFailedCoursePreviewCaches(taskId?: number) {
+  return request.post('/admin/courses/preview-cache/retry-failed', taskId ? { taskId } : {})
+}
+
 // 查询课程 PDF 图片预览缓存生成进度
 export function getCoursePreviewCacheProgress() {
   return request.get('/admin/courses/preview-cache/progress')

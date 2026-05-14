@@ -30,21 +30,11 @@
 					<a-button :loading="exporting" @click="handleExportCourses">批量导出课程</a-button>
 					<a-button :loading="exportingByCategory" @click="openExportByCategoryModal">按分类导出</a-button>
 					<a-button
-						:loading="previewCacheGenerating"
-						:disabled="previewCacheTaskRunning"
-						@click="handleGenerateMissingPreviewCaches"
+						:type="previewCacheTaskRunning ? 'primary' : 'default'"
+						@click="openPreviewCacheModal"
 					>
-						{{ previewCacheTaskRunning ? '图片缓存生成中' : '生成图片缓存' }}
+						{{ previewCacheTaskRunning ? '图片缓存生成中' : '图片缓存' }}
 					</a-button>
-					<a-popconfirm
-						v-if="previewCacheTaskRunning"
-						title="确定要中断当前图片缓存生成任务吗？已生成的缓存会保留。"
-						ok-text="确定中断"
-						cancel-text="继续生成"
-						@confirm="handleInterruptPreviewCacheTask"
-					>
-						<a-button danger :loading="previewCacheCanceling">中断生成</a-button>
-					</a-popconfirm>
 					<a-button @click="handleGlobalRecommend">公共推荐配置</a-button>
 					<a-button type="primary" @click="handleAdd">
 						<template #icon><plus-outlined /></template>
@@ -91,72 +81,6 @@
 					</a-space>
 				</a-form-item>
 			</a-form>
-
-			<a-alert
-				v-if="previewCacheProgressVisible"
-				class="preview-cache-progress"
-				:type="previewCacheProgressStatus"
-				show-icon
-				:message="previewCacheProgressTitle"
-			>
-				<template #description>
-					<a-progress
-						:percent="previewCachePercent"
-						:status="previewCacheProgressStatus === 'error' ? 'exception' : previewCachePercent >= 100 ? 'success' : 'active'"
-					/>
-					<div class="preview-cache-progress__meta">
-						已处理 {{ previewCacheProgress.processed || 0 }} / {{ previewCacheProgress.totalPages || 0 }} 页，
-						新生成 {{ previewCacheProgress.generated || 0 }} 页，
-						已存在 {{ previewCacheProgress.skipped || 0 }} 页，
-						失败 {{ previewCacheProgress.failed || 0 }} 页
-					</div>
-					<div class="preview-cache-progress__meta" v-if="previewCacheProgress.currentCourseName">
-						当前课程：{{ previewCacheProgress.currentCourseName }}
-						<span v-if="previewCacheProgress.currentPage">，第 {{ previewCacheProgress.currentPage }} 页</span>
-					</div>
-					<div class="preview-cache-progress__meta" v-if="previewCacheProgress.taskNo">
-						任务编号：{{ previewCacheProgress.taskNo }}，状态：{{ previewCacheStatusText(previewCacheProgress.status) }}
-					</div>
-					<div v-if="previewCacheFailedDetails.length" class="preview-cache-failed-list">
-						<div class="preview-cache-failed-list__title">失败明细（最近 {{ previewCacheFailedDetails.length }} 条）</div>
-						<div
-							v-for="(item, idx) in previewCacheFailedDetails"
-							:key="`${item.courseId}-${item.pageNum}-${idx}`"
-							class="preview-cache-failed-list__item"
-						>
-							<span>课程ID {{ item.courseId }}（{{ item.courseName || '-' }}）</span>
-							<span>页码：{{ item.pageNum > 0 ? item.pageNum : '课程级失败' }}</span>
-							<span>原因：{{ item.message }}</span>
-						</div>
-					</div>
-				</template>
-			</a-alert>
-
-			<div v-if="previewCacheRecords.length" class="preview-cache-records">
-				<div class="preview-cache-records__title">最近生成记录</div>
-				<div
-					v-for="record in previewCacheRecords"
-					:key="record.id"
-					class="preview-cache-records__item"
-				>
-					<a-tag :color="previewCacheRecordColor(record.status)">
-						{{ previewCacheStatusText(record.status) }}
-					</a-tag>
-					<span class="preview-cache-records__no">{{ record.taskNo }}</span>
-					<span>课程 {{ record.processedCourses || 0 }} / {{ record.totalCourses || 0 }}</span>
-					<span>页数 {{ record.processed || 0 }} / {{ record.totalPages || 0 }}</span>
-					<span>生成 {{ record.generated || 0 }}，跳过 {{ record.skipped || 0 }}，失败 {{ record.failed || 0 }}</span>
-					<span class="preview-cache-records__time">{{ formatPreviewCacheTime(record.updateTime || record.createTime) }}</span>
-					<div v-if="Array.isArray(record.failedDetails) && record.failedDetails.length" class="preview-cache-records__failed">
-						<div
-							v-for="(item, idx) in record.failedDetails.slice(0, 5)"
-							:key="`${record.id}-${idx}`"
-						>
-							[课程 {{ item.courseId }} | 页 {{ item.pageNum > 0 ? item.pageNum : '-' }}] {{ item.message }}
-						</div>
-					</div>
-				</div>
-			</div>
 
 			<a-table
 				:columns="columns"
@@ -260,6 +184,109 @@
 		</a-modal>
 
 		<a-modal
+			v-model:open="previewCacheProgressVisible"
+			title="图片缓存生成"
+			width="920px"
+			:footer="null"
+		>
+			<div class="preview-cache-modal-actions">
+				<a-space wrap>
+					<a-button
+						type="primary"
+						:loading="previewCacheGenerating"
+						:disabled="previewCacheTaskRunning"
+						@click="handleGenerateMissingPreviewCaches"
+					>
+						生成缺失缓存
+					</a-button>
+					<a-button
+						:loading="previewCacheRetrying"
+						:disabled="previewCacheTaskRunning || !canRetryPreviewCacheFailures"
+						@click="handleRetryFailedPreviewCaches"
+					>
+						重新生成失败课程
+					</a-button>
+					<a-popconfirm
+						v-if="previewCacheTaskRunning"
+						title="确定要中断当前图片缓存生成任务吗？已生成的缓存会保留。"
+						ok-text="确定中断"
+						cancel-text="继续生成"
+						@confirm="handleInterruptPreviewCacheTask"
+					>
+						<a-button danger :loading="previewCacheCanceling">中断生成</a-button>
+					</a-popconfirm>
+					<a-button :loading="previewCacheRefreshing" @click="fetchPreviewCacheProgress">刷新进度</a-button>
+				</a-space>
+			</div>
+
+			<a-alert
+				class="preview-cache-progress"
+				:type="previewCacheProgressStatus"
+				show-icon
+				:message="previewCacheProgressTitle"
+			>
+				<template #description>
+					<a-progress
+						:percent="previewCachePercent"
+						:status="previewCacheProgressStatus === 'error' ? 'exception' : previewCachePercent >= 100 ? 'success' : 'active'"
+					/>
+					<div class="preview-cache-progress__meta">
+						已处理 {{ previewCacheProgress.processed || 0 }} / {{ previewCacheProgress.totalPages || 0 }} 页，
+						新生成 {{ previewCacheProgress.generated || 0 }} 页，
+						已存在 {{ previewCacheProgress.skipped || 0 }} 页，
+						失败 {{ previewCacheProgress.failed || 0 }} 页
+					</div>
+					<div class="preview-cache-progress__meta" v-if="previewCacheProgress.currentCourseName">
+						当前课程：{{ previewCacheProgress.currentCourseName }}
+						<span v-if="previewCacheProgress.currentPage">，第 {{ previewCacheProgress.currentPage }} 页</span>
+					</div>
+					<div class="preview-cache-progress__meta" v-if="previewCacheProgress.taskNo">
+						任务编号：{{ previewCacheProgress.taskNo }}，状态：{{ previewCacheStatusText(previewCacheProgress.status) }}
+					</div>
+					<div v-if="previewCacheFailedDetails.length" class="preview-cache-failed-list">
+						<div class="preview-cache-failed-list__title">失败明细（最近 {{ previewCacheFailedDetails.length }} 条）</div>
+						<div
+							v-for="(item, idx) in previewCacheFailedDetails"
+							:key="`${item.courseId}-${item.pageNum}-${idx}`"
+							class="preview-cache-failed-list__item"
+						>
+							<span>课程ID {{ item.courseId }}（{{ item.courseName || '-' }}）</span>
+							<span>页码：{{ item.pageNum > 0 ? item.pageNum : '课程级失败' }}</span>
+							<span>原因：{{ item.message }}</span>
+						</div>
+					</div>
+				</template>
+			</a-alert>
+
+			<div v-if="previewCacheRecords.length" class="preview-cache-records">
+				<div class="preview-cache-records__title">最近生成记录</div>
+				<div
+					v-for="record in previewCacheRecords"
+					:key="record.id"
+					class="preview-cache-records__item"
+				>
+					<a-tag :color="previewCacheRecordColor(record.status)">
+						{{ previewCacheStatusText(record.status) }}
+					</a-tag>
+					<span class="preview-cache-records__no">{{ record.taskNo }}</span>
+					<span>课程 {{ record.processedCourses || 0 }} / {{ record.totalCourses || 0 }}</span>
+					<span>页数 {{ record.processed || 0 }} / {{ record.totalPages || 0 }}</span>
+					<span>生成 {{ record.generated || 0 }}，跳过 {{ record.skipped || 0 }}，失败 {{ record.failed || 0 }}</span>
+					<span class="preview-cache-records__time">{{ formatPreviewCacheTime(record.updateTime || record.createTime) }}</span>
+					<div v-if="Array.isArray(record.failedDetails) && record.failedDetails.length" class="preview-cache-records__failed">
+						<div
+							v-for="(item, idx) in record.failedDetails.slice(0, 5)"
+							:key="`${record.id}-${idx}`"
+						>
+							[课程 {{ item.courseId }} | 页 {{ item.pageNum > 0 ? item.pageNum : '-' }}] {{ item.message }}
+						</div>
+					</div>
+				</div>
+			</div>
+			<a-empty v-else description="暂无生成记录" />
+		</a-modal>
+
+		<a-modal
 			v-model:open="exportByCategoryVisible"
 			title="按分类导出课程"
 			:confirm-loading="exportingByCategory"
@@ -289,7 +316,7 @@
 	import { ref, onMounted, watch, computed, onBeforeUnmount } from 'vue';
 	import { message } from 'ant-design-vue';
 	import { PlusOutlined, DeleteOutlined, CheckOutlined, CloseOutlined, DownOutlined } from '@ant-design/icons-vue';
-	import { getCourseList, deleteCourse, batchDeleteCourses, batchUpdateCourseStatus, updateCourseSort, generateMissingCoursePreviewCaches, getCoursePreviewCacheProgress, interruptCoursePreviewCacheTask } from '@/api/course';
+	import { getCourseList, deleteCourse, batchDeleteCourses, batchUpdateCourseStatus, updateCourseSort, generateMissingCoursePreviewCaches, retryFailedCoursePreviewCaches, getCoursePreviewCacheProgress, interruptCoursePreviewCacheTask } from '@/api/course';
 	import { getCourseCategoryTree } from '@/api/course-category';
 	import { getToken } from '@/utils/auth';
 import CourseModal from './components/CourseModal.vue';
@@ -311,7 +338,9 @@ const currentCourseName = ref<string>('');
 	const exporting = ref(false);
 	const exportingByCategory = ref(false);
 	const previewCacheGenerating = ref(false);
+	const previewCacheRetrying = ref(false);
 	const previewCacheCanceling = ref(false);
+	const previewCacheRefreshing = ref(false);
 	const previewCacheProgressVisible = ref(false);
 	const previewCacheProgress = ref<any>({
 		totalCourses: 0,
@@ -377,6 +406,7 @@ const previewCacheFailedDetails = computed(() => {
 	const list = previewCacheProgress.value.failedDetails;
 	return Array.isArray(list) ? list.slice(0, 20) : [];
 });
+const canRetryPreviewCacheFailures = computed(() => previewCacheFailedDetails.value.length > 0);
 const previewCacheProgressStatus = computed(() => {
 	if (previewCacheProgress.value.failedCourses > 0 || previewCacheProgress.value.failed > 0) return 'error';
 	if (previewCacheProgress.value.runningCourses > 0) return 'info';
@@ -740,6 +770,14 @@ const handleRecommendConfig = (record: any) => {
 	recommendDrawerVisible.value = true;
 };
 
+const openPreviewCacheModal = async () => {
+	previewCacheProgressVisible.value = true;
+	await fetchPreviewCacheProgress();
+	if (previewCacheTaskRunning.value) {
+		startPreviewCachePolling();
+	}
+};
+
 const handleGenerateMissingPreviewCaches = async () => {
 	if (previewCacheGenerating.value || previewCacheTaskRunning.value) return;
 	previewCacheGenerating.value = true;
@@ -774,6 +812,32 @@ const handleGenerateMissingPreviewCaches = async () => {
 	}
 };
 
+const handleRetryFailedPreviewCaches = async () => {
+	if (previewCacheRetrying.value || previewCacheTaskRunning.value) return;
+	if (!canRetryPreviewCacheFailures.value) {
+		message.warning('暂无可重试的失败课程明细');
+		return;
+	}
+	previewCacheRetrying.value = true;
+	try {
+		const res = await retryFailedCoursePreviewCaches(Number(previewCacheProgress.value.taskId || 0) || undefined);
+		const data = res?.data || {};
+		if (data.alreadyRunning) {
+			message.info('已有图片缓存生成任务正在执行，请稍后查看进度');
+		} else {
+			message.success(`已开始重新生成 ${data.started || data.total || 0} 个失败课程的图片缓存`);
+		}
+		previewCacheProgressVisible.value = true;
+		previewCacheProgress.value = data;
+		await fetchPreviewCacheProgress();
+		startPreviewCachePolling();
+	} catch (error: any) {
+		message.error(error?.msg || error?.message || '重新生成失败课程缓存失败');
+	} finally {
+		previewCacheRetrying.value = false;
+	}
+};
+
 const handleInterruptPreviewCacheTask = async () => {
 	if (!previewCacheTaskRunning.value || previewCacheCanceling.value) return;
 	previewCacheCanceling.value = true;
@@ -796,6 +860,7 @@ const fetchPreviewCacheProgress = async () => {
 	if (!getToken()) {
 		return;
 	}
+	previewCacheRefreshing.value = true;
 	try {
 		const res = await getCoursePreviewCacheProgress();
 		previewCacheProgress.value = res?.data || previewCacheProgress.value;
@@ -811,6 +876,8 @@ const fetchPreviewCacheProgress = async () => {
 		}
 	} catch (error) {
 		console.warn('查询图片缓存生成进度失败:', error);
+	} finally {
+		previewCacheRefreshing.value = false;
 	}
 };
 
@@ -912,7 +979,6 @@ onMounted(() => {
 	if (getToken()) {
 		fetchPreviewCacheProgress().then(() => {
 			if (Number(previewCacheProgress.value.runningCourses || 0) > 0) {
-				previewCacheProgressVisible.value = true;
 				startPreviewCachePolling();
 			}
 		});
@@ -938,6 +1004,10 @@ onBeforeUnmount(() => {
 	}
 
 	.preview-cache-progress {
+		margin-bottom: 16px;
+	}
+
+	.preview-cache-modal-actions {
 		margin-bottom: 16px;
 	}
 
