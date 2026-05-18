@@ -161,49 +161,22 @@ const handleResize = () => {
 const menuItems = computed(() => {
 	// 如果用户信息未准备好，返回空数组，避免菜单组件尝试渲染子菜单
 	if (!isUserInfoReady.value) {
-		// #region agent log
-		fetch('http://127.0.0.1:7242/ingest/edfe94a8-eb8e-4bce-92a0-b96513a794f5', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
-				location: 'BasicLayout.vue:147',
-				message: 'menuItems returning empty (not ready)',
-				data: { isUserInfoReady: isUserInfoReady.value },
-				timestamp: Date.now(),
-				sessionId: 'debug-session',
-				runId: 'run1',
-				hypothesisId: 'A',
-			}),
-		}).catch(() => {});
-		// #endregion
 		return [];
 	}
 
 	const role = userStore.roles?.[0] || '';
 	const items: MenuProps['items'] = [];
+	const isSuperAdmin = role === 'super_admin';
+	const hasRole = (roles: string[]) => roles.includes(role);
+	const hasPermission = (permission: string) => isSuperAdmin || userStore.hasPermission(permission);
 
 	// 如果没有角色信息，返回空数组
 	if (!role) {
-		// #region agent log
-		fetch('http://127.0.0.1:7242/ingest/edfe94a8-eb8e-4bce-92a0-b96513a794f5', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
-				location: 'BasicLayout.vue:155',
-				message: 'menuItems returning empty (no role)',
-				data: { role },
-				timestamp: Date.now(),
-				sessionId: 'debug-session',
-				runId: 'run1',
-				hypothesisId: 'A',
-			}),
-		}).catch(() => {});
-		// #endregion
 		return items;
 	}
 
 	// 仪表盘
-	if (role === 'super_admin') {
+	if (isSuperAdmin) {
 		items.push({
 			key: '/dashboard/analysis',
 			icon: () => h(DashboardOutlined),
@@ -215,31 +188,39 @@ const menuItems = computed(() => {
 			icon: () => h(DashboardOutlined),
 			label: '代理商工作台',
 		});
-	} else {
-		items.push({
-			key: '/dashboard',
-			icon: () => h(DashboardOutlined),
-			label: '仪表盘',
-		});
 	}
 
-	// 题库管理（super_admin, content_admin）
-	if (role === 'super_admin' || role === 'content_admin') {
+	// 题库管理（按权限显示子菜单，兼容内置题库管理员角色）
+	const questionChildren = [
+		(hasRole(['super_admin', 'content_admin']) || hasPermission('question:view')) && {
+			key: '/question/category',
+			label: '分类管理',
+		},
+		(hasRole(['super_admin', 'content_admin']) || hasPermission('course:view')) && {
+			key: '/question/course',
+			label: '课程管理',
+		},
+		(hasRole(['super_admin', 'content_admin']) || hasPermission('chapter:view')) && {
+			key: '/question/chapter',
+			label: '章节管理',
+		},
+		(hasRole(['super_admin', 'content_admin']) || hasPermission('question:view')) && {
+			key: '/question/list',
+			label: '试题管理',
+		},
+	].filter(Boolean) as NonNullable<MenuProps['items']>;
+
+	if (questionChildren.length > 0) {
 		items.push({
 			key: 'question',
 			icon: () => h(BookOutlined),
 			label: '题库管理',
-			children: [
-				{ key: '/question/category', label: '分类管理' },
-				{ key: '/question/course', label: '课程管理' },
-				{ key: '/question/chapter', label: '章节管理' },
-				{ key: '/question/list', label: '试题管理' },
-			],
+			children: questionChildren,
 		});
 	}
 
 	// 代理商中心（super_admin, agent）
-	if (role === 'super_admin' || role === 'agent') {
+	if (isSuperAdmin || role === 'agent') {
 		items.push({
 			key: 'agent',
 			icon: () => h(GiftOutlined),
@@ -252,7 +233,7 @@ const menuItems = computed(() => {
 	}
 
 	// 小程序用户（super_admin）
-	if (role === 'super_admin') {
+	if (isSuperAdmin) {
 		items.push({
 			key: '/user/list',
 			icon: () => h(UserSwitchOutlined),
@@ -261,7 +242,7 @@ const menuItems = computed(() => {
 	}
 
 	// 系统管理（super_admin）
-	if (role === 'super_admin') {
+	if (isSuperAdmin) {
 		items.push({
 			key: 'system',
 			icon: () => h(SettingOutlined),
@@ -278,117 +259,19 @@ const menuItems = computed(() => {
 		});
 	}
 
-	// #region agent log
-	const hasChildren = items.some((item: any) => item?.children && item.children.length > 0);
-	fetch('http://127.0.0.1:7242/ingest/edfe94a8-eb8e-4bce-92a0-b96513a794f5', {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({
-			location: 'BasicLayout.vue:234',
-			message: 'menuItems computed result',
-			data: { itemsCount: items.length, hasChildren, role, keys: items.map((i: any) => i?.key) },
-			timestamp: Date.now(),
-			sessionId: 'debug-session',
-			runId: 'run1',
-			hypothesisId: 'A',
-		}),
-	}).catch(() => {});
-	// #endregion
 	return items;
 });
-
-// 监听 menuItems 变化，记录渲染时机
-watch(
-	() => menuItems.value,
-	(newItems, oldItems) => {
-		// #region agent log
-		const hasChildren = newItems.some(
-			(i: any) => i && 'children' in i && Array.isArray(i.children) && i.children.length > 0,
-		);
-		fetch('http://127.0.0.1:7242/ingest/edfe94a8-eb8e-4bce-92a0-b96513a794f5', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
-				location: 'BasicLayout.vue:250',
-				message: 'menuItems changed',
-				data: {
-					oldLength: oldItems?.length || 0,
-					newLength: newItems.length,
-					hasChildren,
-					isUserInfoReady: isUserInfoReady.value,
-				},
-				timestamp: Date.now(),
-				sessionId: 'debug-session',
-				runId: 'run1',
-				hypothesisId: 'A',
-			}),
-		}).catch(() => {});
-		// #endregion
-	},
-	{ immediate: true, deep: true },
-);
 
 // 监听 isUserInfoReady 变化，延迟设置 menuReady 以确保菜单上下文正确初始化
 watch(
 	() => isUserInfoReady.value,
 	async (newVal, oldVal) => {
-		// #region agent log
-		fetch('http://127.0.0.1:7242/ingest/edfe94a8-eb8e-4bce-92a0-b96513a794f5', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
-				location: 'BasicLayout.vue:355',
-				message: 'isUserInfoReady changed',
-				data: {
-					oldVal,
-					newVal,
-					hasUserInfo: !!userStore.userInfo,
-					rolesLength: userStore.roles?.length,
-					menuItemsLength: menuItems.value.length,
-				},
-				timestamp: Date.now(),
-				sessionId: 'debug-session',
-				runId: 'run1',
-				hypothesisId: 'C',
-			}),
-		}).catch(() => {});
-		// #endregion
 		if (newVal && !oldVal) {
-			// #region agent log
-			fetch('http://127.0.0.1:7242/ingest/edfe94a8-eb8e-4bce-92a0-b96513a794f5', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					location: 'BasicLayout.vue:375',
-					message: 'isUserInfoReady changed false->true, waiting for nextTick',
-					data: { menuItemsLength: menuItems.value.length },
-					timestamp: Date.now(),
-					sessionId: 'debug-session',
-					runId: 'run1',
-					hypothesisId: 'C',
-				}),
-			}).catch(() => {});
-			// #endregion
 			// 用户信息刚准备好，等待下一个 tick 确保 menuItems 已更新
 			await nextTick();
 			// 再等待一个 tick 确保菜单组件可以正确初始化上下文
 			await nextTick();
 			menuReady.value = true;
-			// #region agent log
-			fetch('http://127.0.0.1:7242/ingest/edfe94a8-eb8e-4bce-92a0-b96513a794f5', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					location: 'BasicLayout.vue:385',
-					message: 'menuReady set to true (watch)',
-					data: { menuItemsLength: menuItems.value.length },
-					timestamp: Date.now(),
-					sessionId: 'debug-session',
-					runId: 'run1',
-					hypothesisId: 'D',
-				}),
-			}).catch(() => {});
-			// #endregion
 		} else if (!newVal) {
 			menuReady.value = false;
 		}
@@ -400,26 +283,6 @@ watch(
 watch(
 	[() => route.path, isUserInfoReady],
 	([path, ready]) => {
-		// #region agent log
-		try {
-			const menuItemsLength = typeof menuItems !== 'undefined' ? menuItems.value.length : 0;
-			fetch('http://127.0.0.1:7242/ingest/edfe94a8-eb8e-4bce-92a0-b96513a794f5', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					location: 'BasicLayout.vue:241',
-					message: 'Route/watch triggered',
-					data: { path, ready, menuItemsLength },
-					timestamp: Date.now(),
-					sessionId: 'debug-session',
-					runId: 'run1',
-					hypothesisId: 'C',
-				}),
-			}).catch(() => {});
-		} catch (e) {
-			// menuItems 还未定义，忽略日志
-		}
-		// #endregion
 		if (!ready) return;
 		selectedKeys.value = [path];
 		// 设置展开的菜单（如果当前菜单未展开，则自动展开）
@@ -492,48 +355,14 @@ const handleLogout = () => {
 
 // 监听窗口大小变化
 onMounted(async () => {
-	// #region agent log
-	fetch('http://127.0.0.1:7242/ingest/edfe94a8-eb8e-4bce-92a0-b96513a794f5', {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({
-			location: 'BasicLayout.vue:302',
-			message: 'onMounted start',
-			data: { hasUserInfo: !!userStore.userInfo, hasToken: !!userStore.token, rolesLength: userStore.roles?.length },
-			timestamp: Date.now(),
-			sessionId: 'debug-session',
-			runId: 'run1',
-			hypothesisId: 'D',
-		}),
-	}).catch(() => {});
-	// #endregion
 	window.addEventListener('resize', handleResize);
 	// 初始化时检查一次
 	handleResize();
 
-	// 如果用户信息未加载，尝试加载（路由守卫应该已经加载了，但这里作为备用）
-	if (!userStore.userInfo && userStore.token) {
+	// 进入布局时主动刷新用户信息，避免本地缓存里的旧角色/旧权限导致菜单显示不准
+	if (userStore.token) {
 		try {
 			await userStore.getUserInfo();
-			// #region agent log
-			fetch('http://127.0.0.1:7242/ingest/edfe94a8-eb8e-4bce-92a0-b96513a794f5', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					location: 'BasicLayout.vue:310',
-					message: 'getUserInfo completed',
-					data: {
-						hasUserInfo: !!userStore.userInfo,
-						rolesLength: userStore.roles?.length,
-						isUserInfoReady: isUserInfoReady.value,
-					},
-					timestamp: Date.now(),
-					sessionId: 'debug-session',
-					runId: 'run1',
-					hypothesisId: 'C',
-				}),
-			}).catch(() => {});
-			// #endregion
 		} catch (error) {
 			console.error('加载用户信息失败:', error);
 			// 如果加载失败，跳转到登录页
@@ -543,60 +372,11 @@ onMounted(async () => {
 
 	// 初始化 menuReady：如果用户信息已准备好，延迟设置 menuReady
 	if (isUserInfoReady.value) {
-		// #region agent log
-		fetch('http://127.0.0.1:7242/ingest/edfe94a8-eb8e-4bce-92a0-b96513a794f5', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
-				location: 'BasicLayout.vue:513',
-				message: 'isUserInfoReady already true on mount',
-				data: { menuItemsLength: menuItems.value.length },
-				timestamp: Date.now(),
-				sessionId: 'debug-session',
-				runId: 'run1',
-				hypothesisId: 'D',
-			}),
-		}).catch(() => {});
-		// #endregion
 		// 异步设置 menuReady，确保菜单组件在正确的时机渲染
 		await nextTick();
 		await nextTick();
 		menuReady.value = true;
-		// #region agent log
-		fetch('http://127.0.0.1:7242/ingest/edfe94a8-eb8e-4bce-92a0-b96513a794f5', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
-				location: 'BasicLayout.vue:526',
-				message: 'menuReady set to true (onMounted)',
-				data: { menuItemsLength: menuItems.value.length },
-				timestamp: Date.now(),
-				sessionId: 'debug-session',
-				runId: 'run1',
-				hypothesisId: 'D',
-			}),
-		}).catch(() => {});
-		// #endregion
 	}
-	// #region agent log
-	fetch('http://127.0.0.1:7242/ingest/edfe94a8-eb8e-4bce-92a0-b96513a794f5', {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({
-			location: 'BasicLayout.vue:538',
-			message: 'onMounted end',
-			data: {
-				isUserInfoReady: isUserInfoReady.value,
-				menuItemsLength: menuItems.value.length,
-				menuReady: menuReady.value,
-			},
-			timestamp: Date.now(),
-			sessionId: 'debug-session',
-			runId: 'run1',
-			hypothesisId: 'D',
-		}),
-	}).catch(() => {});
-	// #endregion
 });
 
 onUnmounted(() => {

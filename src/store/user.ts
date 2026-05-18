@@ -41,7 +41,7 @@ export const useUserStore = defineStore('user', () => {
 				nickname: adminData.username, // 如果没有 nickname，使用 username
 				avatar: '',
 				roles: [adminData.role], // 后端返回的是 role，转换为数组
-				permissions: [],
+				permissions: adminData.permissions || [],
 			};
 
 			token.value = newToken;
@@ -60,21 +60,6 @@ export const useUserStore = defineStore('user', () => {
 	// 获取用户信息
 	const getUserInfo = async () => {
 		try {
-			// #region agent log
-			fetch('http://127.0.0.1:7242/ingest/edfe94a8-eb8e-4bce-92a0-b96513a794f5', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					location: 'user.ts:62',
-					message: 'getUserInfo start',
-					data: { hasExistingUserInfo: !!userInfo.value },
-					timestamp: Date.now(),
-					sessionId: 'debug-session',
-					runId: 'run1',
-					hypothesisId: 'C',
-				}),
-			}).catch(() => {});
-			// #endregion
 			const res = await fetchUserInfo();
 			const userData = res.data;
 
@@ -88,39 +73,9 @@ export const useUserStore = defineStore('user', () => {
 				permissions: userData.permissions || [],
 			};
 
-			// #region agent log
-			fetch('http://127.0.0.1:7242/ingest/edfe94a8-eb8e-4bce-92a0-b96513a794f5', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					location: 'user.ts:76',
-					message: 'Setting userInfo and roles',
-					data: { role: userData.role, rolesCount: info.roles.length },
-					timestamp: Date.now(),
-					sessionId: 'debug-session',
-					runId: 'run1',
-					hypothesisId: 'C',
-				}),
-			}).catch(() => {});
-			// #endregion
 			userInfo.value = info;
 			roles.value = info.roles;
 			setUserInfo(info);
-			// #region agent log
-			fetch('http://127.0.0.1:7242/ingest/edfe94a8-eb8e-4bce-92a0-b96513a794f5', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					location: 'user.ts:80',
-					message: 'getUserInfo completed',
-					data: { hasUserInfo: !!userInfo.value, rolesLength: roles.value.length },
-					timestamp: Date.now(),
-					sessionId: 'debug-session',
-					runId: 'run1',
-					hypothesisId: 'C',
-				}),
-			}).catch(() => {});
-			// #endregion
 			return info;
 		} catch (error) {
 			console.error('获取用户信息失败:', error);

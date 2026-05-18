@@ -30,7 +30,7 @@ const routes: RouteRecordRaw[] = [
 				component: () => import('@/views/dashboard/index.vue'),
 				meta: {
 					title: '仪表盘',
-					roles: ['super_admin', 'content_admin', 'agent'],
+					roles: ['super_admin'],
 				},
 			},
 			{
@@ -59,6 +59,7 @@ const routes: RouteRecordRaw[] = [
 		meta: {
 			requiresAuth: true,
 			roles: ['super_admin', 'content_admin'],
+			permissions: ['course:view', 'question:view', 'chapter:view'],
 		},
 		children: [
 			{
@@ -67,6 +68,7 @@ const routes: RouteRecordRaw[] = [
 				component: () => import('@/views/question/category/index.vue'),
 				meta: {
 					title: '分类管理',
+					permissions: ['question:view'],
 				},
 			},
 			{
@@ -75,6 +77,7 @@ const routes: RouteRecordRaw[] = [
 				component: () => import('@/views/question/course/index.vue'),
 				meta: {
 					title: '课程管理',
+					permissions: ['course:view'],
 				},
 			},
 			{
@@ -83,6 +86,7 @@ const routes: RouteRecordRaw[] = [
 				component: () => import('@/views/question/chapter/index.vue'),
 				meta: {
 					title: '章节管理',
+					permissions: ['chapter:view'],
 				},
 			},
 			{
@@ -91,6 +95,7 @@ const routes: RouteRecordRaw[] = [
 				component: () => import('@/views/question/list/index.vue'),
 				meta: {
 					title: '试题管理',
+					permissions: ['question:view'],
 				},
 			},
 			{
@@ -99,6 +104,7 @@ const routes: RouteRecordRaw[] = [
 				component: () => import('@/views/question/edit/index.vue'),
 				meta: {
 					title: '编辑题目',
+					permissions: ['question:create', 'question:edit'],
 				},
 			},
 		],
@@ -293,16 +299,18 @@ router.beforeEach(async (to, from, next) => {
 		// 检查角色权限
 		if (to.meta.roles && Array.isArray(to.meta.roles) && to.meta.roles.length > 0) {
 			const userRoles: string[] = userStore.roles || [];
-			const hasPermission = to.meta.roles.some((role: string) => userRoles.includes(role));
+			const hasRolePermission = to.meta.roles.some((role: string) => userRoles.includes(role));
+			const requiredPermissions = Array.isArray(to.meta.permissions) ? (to.meta.permissions as string[]) : [];
+			const hasRoutePermission = requiredPermissions.some((permission) => userStore.hasPermission(permission));
 
-			if (!hasPermission) {
+			if (!hasRolePermission && !hasRoutePermission) {
 				// 避免循环重定向：如果是从403页面跳转过来的，不再重定向
 				if (from.path !== '/403') {
 					next({ path: '/403' });
 					return;
 				} else {
 					// 如果已经在403页面，跳转到用户有权限的默认首页
-					const defaultPath = getDefaultPathByRole(userStore.roles[0]);
+					const defaultPath = getDefaultPathByRole(userStore.roles[0], userStore.userInfo?.permissions || []);
 					next({ path: defaultPath });
 					return;
 				}
@@ -312,7 +320,7 @@ router.beforeEach(async (to, from, next) => {
 
 	// 已登录用户访问登录页，重定向到首页
 	if (to.path === '/login' && token) {
-		const defaultPath = getDefaultPathByRole(userStore.roles?.[0]);
+		const defaultPath = getDefaultPathByRole(userStore.roles?.[0], userStore.userInfo?.permissions || []);
 		next({ path: defaultPath || '/' });
 		return;
 	}
@@ -321,7 +329,7 @@ router.beforeEach(async (to, from, next) => {
 });
 
 // 根据角色获取默认首页路径
-function getDefaultPathByRole(role?: string): string {
+function getDefaultPathByRole(role?: string, permissions: string[] = []): string {
 	switch (role) {
 		case 'super_admin':
 			return '/dashboard/analysis';
@@ -330,7 +338,10 @@ function getDefaultPathByRole(role?: string): string {
 		case 'agent':
 			return '/dashboard/agent-workbench';
 		default:
-			return '/dashboard';
+			if (permissions.includes('course:view')) return '/question/course';
+			if (permissions.includes('question:view')) return '/question/category';
+			if (permissions.includes('chapter:view')) return '/question/chapter';
+			return '/403';
 	}
 }
 
