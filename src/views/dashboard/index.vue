@@ -10,6 +10,7 @@
             :prefix="item.prefix"
             :value-style="{ color: item.color }"
           />
+          <div v-if="item.source" class="stat-source">{{ item.source }}</div>
         </a-card>
       </a-col>
     </a-row>
@@ -18,7 +19,7 @@
       <template #title>
         <div class="chart-title">
           <span>近 7 天数据趋势</span>
-          <span class="chart-subtitle">支持按图表类型快速切换</span>
+          <span class="chart-subtitle">{{ chartSubtitle }}</span>
         </div>
       </template>
       <template #extra>
@@ -104,8 +105,22 @@ interface TrendItem {
   date: string
   newUsers: number
   views: number
+  openCount?: number
+  visitors?: number
   orders: number
   revenue: number
+}
+
+interface WechatAnalytics {
+  enabled: boolean
+  source: 'wechat_datacube' | 'business_fallback'
+  date?: string
+  cumulativeUsers?: number
+  openCount?: number
+  visitPv?: number
+  visitors?: number
+  newUsers?: number
+  error?: string
 }
 
 const chartType = ref<ChartType>('bar')
@@ -113,20 +128,33 @@ const stats = ref({
   totalUsers: 0,
   todayUsers: 0,
   todayViews: 0,
+  todayOpenCount: 0,
+  todayVisitors: 0,
   todayOrders: 0,
   monthOrders: 0,
   monthRevenue: 0,
   todayRevenue: 0,
   totalRevenue: 0,
   trend: [] as TrendItem[],
+  wechatAnalytics: null as WechatAnalytics | null,
 })
 
 const money = (value: unknown) => Number(value || 0)
+const wechatSource = computed(() => {
+  const wechat = stats.value.wechatAnalytics
+  return wechat?.enabled && wechat.date ? `微信后台 ${wechat.date}` : ''
+})
+const chartSubtitle = computed(() => {
+  const source = wechatSource.value
+  return source ? `${source} 数据已合并，订单与交易金额为业务库实时数据` : '支持按图表类型快速切换'
+})
 
 const statCards = computed(() => [
-  { key: 'totalUsers', title: '总用户量', value: stats.value.totalUsers, color: '#3f8600' },
-  { key: 'todayUsers', title: '日新增用户量', value: stats.value.todayUsers, color: '#1890ff' },
-  { key: 'todayViews', title: '日浏览量', value: stats.value.todayViews, color: '#13c2c2' },
+  { key: 'totalUsers', title: '总用户量', value: stats.value.totalUsers, color: '#3f8600', source: wechatSource.value },
+  { key: 'todayUsers', title: '新增用户', value: stats.value.todayUsers, color: '#1890ff', source: wechatSource.value },
+  { key: 'todayOpenCount', title: '打开次数', value: stats.value.todayOpenCount, color: '#2f54eb', source: wechatSource.value },
+  { key: 'todayVisitors', title: '访问人数', value: stats.value.todayVisitors, color: '#52c41a', source: wechatSource.value },
+  { key: 'todayViews', title: '访问次数', value: stats.value.todayViews, color: '#13c2c2', source: wechatSource.value },
   { key: 'todayOrders', title: '日订单量', value: stats.value.todayOrders, color: '#722ed1' },
   { key: 'monthOrders', title: '本月订单量', value: stats.value.monthOrders, color: '#fa8c16' },
   { key: 'monthRevenue', title: '本月交易金额', value: money(stats.value.monthRevenue), prefix: '¥', precision: 2, color: '#cf1322' },
@@ -208,12 +236,15 @@ onMounted(async () => {
       totalUsers: data.totalUsers ?? data.user_count ?? 0,
       todayUsers: data.todayUsers ?? 0,
       todayViews: data.todayViews ?? 0,
+      todayOpenCount: data.todayOpenCount ?? data.wechatAnalytics?.openCount ?? 0,
+      todayVisitors: data.todayVisitors ?? data.wechatAnalytics?.visitors ?? 0,
       todayOrders: data.todayOrders ?? 0,
       monthOrders: data.monthOrders ?? data.order_count ?? 0,
       monthRevenue: money(data.monthRevenue),
       todayRevenue: money(data.todayRevenue),
       totalRevenue: money(data.totalRevenue ?? data.total_revenue),
       trend: data.trend || [],
+      wechatAnalytics: data.wechatAnalytics || null,
     }
   } catch (error: any) {
     message.error(error?.message || '获取统计数据失败')
@@ -230,6 +261,12 @@ onMounted(async () => {
   .stat-card {
     border-radius: 16px;
     box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  }
+
+  .stat-source {
+    margin-top: 8px;
+    color: #94a3b8;
+    font-size: 12px;
   }
 
   .chart-card {
