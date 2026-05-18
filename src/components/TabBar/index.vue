@@ -36,6 +36,7 @@ import { useRouter } from 'vue-router';
 import { CloseOutlined, DownOutlined } from '@ant-design/icons-vue';
 import { useTabsStore } from '@/store/tabs';
 import { useUserStore } from '@/store/user';
+import { getDefaultAdminPath } from '@/utils/admin-navigation';
 
 const router = useRouter();
 const tabsStore = useTabsStore();
@@ -60,18 +61,8 @@ function handleMenuClick({ key }: { key: string }) {
 		router.push(tabsStore.activeKey);
 	} else if (key === 'closeAll') {
 		tabsStore.clearAll();
-		router.push(getDefaultPathByRole(userStore.roles?.[0]));
+		router.push(getDefaultAdminPath(userStore.roles?.[0], userStore.userInfo?.permissions || []));
 	}
-}
-
-function getDefaultPathByRole(role?: string) {
-	if (role === 'super_admin') return '/dashboard/analysis';
-	if (role === 'agent') return '/dashboard/agent-workbench';
-	const permissions = userStore.userInfo?.permissions || [];
-	if (permissions.includes('course:view')) return '/question/course';
-	if (permissions.includes('question:view')) return '/question/category';
-	if (permissions.includes('chapter:view')) return '/question/chapter';
-	return '/question/course';
 }
 </script>
 

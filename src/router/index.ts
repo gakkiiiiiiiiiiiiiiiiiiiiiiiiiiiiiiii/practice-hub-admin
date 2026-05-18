@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router';
 import { useUserStore } from '@/store/user';
-import { getToken } from '@/utils/auth';
+import { getToken, getUserInfo as getStoredUserInfo } from '@/utils/auth';
+import { getDefaultAdminPath } from '@/utils/admin-navigation';
 import NProgress from 'nprogress';
 import 'nprogress/nprogress.css';
 
@@ -19,7 +20,11 @@ const routes: RouteRecordRaw[] = [
 	{
 		path: '/',
 		component: () => import('@/layouts/BasicLayout.vue'),
-		redirect: '/dashboard',
+		redirect: () => {
+			if (!getToken()) return '/login';
+			const storedUser = getStoredUserInfo();
+			return getDefaultAdminPath(storedUser?.roles?.[0], storedUser?.permissions || []);
+		},
 		meta: {
 			requiresAuth: true,
 		},
@@ -258,9 +263,21 @@ router.beforeEach(async (to, from, next) => {
 	const token = getToken();
 	const userStore = useUserStore();
 
+	if (to.path === '/login') {
+		if (!token) {
+			next();
+			return;
+		}
+		if (!userStore.userInfo) {
+			await userStore.getUserInfo();
+		}
+		next({ path: getDefaultAdminPath(userStore.roles?.[0], userStore.userInfo?.permissions || []) });
+		return;
+	}
+
 	// 错误页面和登录页不需要权限检查
 	// 注意：404 路由使用 pathMatch，所以需要检查 name 或 path
-	if (to.path === '/403' || to.path === '/login' || to.name === 'NotFound' || to.path.startsWith('/404')) {
+	if (to.path === '/403' || to.name === 'NotFound' || to.path.startsWith('/404')) {
 		// 如果是在404页面且token已过期，仍然允许跳转到登录页
 		next();
 		return;
@@ -296,6 +313,11 @@ router.beforeEach(async (to, from, next) => {
 			}
 		}
 
+		if (to.path === '/') {
+			next({ path: getDefaultAdminPath(userStore.roles?.[0], userStore.userInfo?.permissions || []) });
+			return;
+		}
+
 		// 检查角色权限
 		if (to.meta.roles && Array.isArray(to.meta.roles) && to.meta.roles.length > 0) {
 			const userRoles: string[] = userStore.roles || [];
@@ -310,7 +332,7 @@ router.beforeEach(async (to, from, next) => {
 					return;
 				} else {
 					// 如果已经在403页面，跳转到用户有权限的默认首页
-					const defaultPath = getDefaultPathByRole(userStore.roles[0], userStore.userInfo?.permissions || []);
+					const defaultPath = getDefaultAdminPath(userStore.roles[0], userStore.userInfo?.permissions || []);
 					next({ path: defaultPath });
 					return;
 				}
@@ -318,32 +340,8 @@ router.beforeEach(async (to, from, next) => {
 		}
 	}
 
-	// 已登录用户访问登录页，重定向到首页
-	if (to.path === '/login' && token) {
-		const defaultPath = getDefaultPathByRole(userStore.roles?.[0], userStore.userInfo?.permissions || []);
-		next({ path: defaultPath || '/' });
-		return;
-	}
-
 	next();
 });
-
-// 根据角色获取默认首页路径
-function getDefaultPathByRole(role?: string, permissions: string[] = []): string {
-	switch (role) {
-		case 'super_admin':
-			return '/dashboard/analysis';
-		case 'content_admin':
-			return '/question/course';
-		case 'agent':
-			return '/dashboard/agent-workbench';
-		default:
-			if (permissions.includes('course:view')) return '/question/course';
-			if (permissions.includes('question:view')) return '/question/category';
-			if (permissions.includes('chapter:view')) return '/question/chapter';
-			return '/403';
-	}
-}
 
 router.afterEach(() => {
 	NProgress.done();

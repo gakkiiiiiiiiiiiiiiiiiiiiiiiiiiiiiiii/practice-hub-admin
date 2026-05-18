@@ -18,27 +18,13 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/store/user'
+import { getDefaultAdminPath } from '@/utils/admin-navigation'
 
 const router = useRouter()
 const userStore = useUserStore()
 
-// 根据角色获取默认首页
-const getDefaultPath = (): string => {
-  const role = userStore.roles?.[0]
-  switch (role) {
-    case 'super_admin':
-      return '/dashboard/analysis'
-    case 'content_admin':
-      return '/question/course'
-    case 'agent':
-      return '/dashboard/agent-workbench'
-    default:
-      return '/dashboard'
-  }
-}
-
 const handleGoHome = () => {
-  const defaultPath = getDefaultPath()
+  const defaultPath = getDefaultAdminPath(userStore.roles?.[0], userStore.userInfo?.permissions || [])
   router.push(defaultPath)
 }
 
@@ -56,4 +42,3 @@ const handleGoLogin = () => {
   min-height: 100vh;
 }
 </style>
-

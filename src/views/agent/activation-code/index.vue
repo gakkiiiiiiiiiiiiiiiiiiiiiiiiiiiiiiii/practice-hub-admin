@@ -48,10 +48,12 @@
       </a-form>
 
       <a-table
+        class="activation-code-table"
         :columns="columns"
         :data-source="dataSource"
         :loading="loading"
         :pagination="pagination"
+        :scroll="{ x: 1360 }"
         @change="handleTableChange"
         row-key="id"
       >
@@ -96,8 +98,13 @@
           <template v-else-if="column.key === 'create_time'">
             <span>{{ dayjs(record.create_time).format('YYYY-MM-DD HH:mm:ss') }}</span>
           </template>
+          <template v-else-if="column.key === 'courseName'">
+            <div class="course-name-cell" :title="record.course?.name || record.courseName || '-'">
+              {{ record.course?.name || record.courseName || '-' }}
+            </div>
+          </template>
           <template v-else-if="column.key === 'action'">
-            <a-space>
+            <div class="activation-code-actions">
               <a-button
                 type="link"
                 size="small"
@@ -135,7 +142,7 @@
                 <template #icon><DeleteOutlined /></template>
                 删除
               </a-button>
-            </a-space>
+            </div>
           </template>
         </template>
       </a-table>
@@ -322,6 +329,7 @@ const columns = [
     title: '关联课程',
     dataIndex: 'courseName',
     key: 'courseName',
+    width: 300,
   },
   {
     title: '状态',
@@ -343,7 +351,8 @@ const columns = [
 	  {
 	    title: '操作',
 	    key: 'action',
-	    width: 190,
+	    width: 110,
+      fixed: 'right',
 	  },
 	]
 
@@ -523,6 +532,32 @@ onMounted(() => {
 .activation-code {
   .search-form {
     margin-bottom: 16px;
+  }
+
+  :deep(.activation-code-table .ant-table-cell) {
+    vertical-align: middle;
+  }
+
+  .course-name-cell {
+    min-width: 260px;
+    max-width: 360px;
+    line-height: 1.6;
+    white-space: normal;
+    word-break: normal;
+    overflow-wrap: break-word;
+  }
+
+  .activation-code-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+
+    :deep(.ant-btn) {
+      height: auto;
+      padding: 0;
+      line-height: 1.4;
+    }
   }
 }
 </style>

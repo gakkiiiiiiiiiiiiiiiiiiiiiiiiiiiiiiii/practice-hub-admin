@@ -50,6 +50,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { UserOutlined, LockOutlined } from '@ant-design/icons-vue'
 import { useUserStore } from '@/store/user'
+import { getDefaultAdminPath, isForbiddenRedirect } from '@/utils/admin-navigation'
 
 const router = useRouter()
 const route = useRoute()
@@ -70,11 +71,13 @@ const handleSubmit = async () => {
   try {
     loading.value = true
     await userStore.loginAction(formState.value.username, formState.value.password)
+    await userStore.getUserInfo()
     message.success('登录成功')
-    
-    // 跳转到重定向页面或默认首页
-    const redirect = (route.query.redirect as string) || '/'
-    router.push(redirect)
+
+    const defaultPath = getDefaultAdminPath(userStore.roles?.[0], userStore.userInfo?.permissions || [])
+    const redirect = route.query.redirect as string | undefined
+    const target = isForbiddenRedirect(redirect, userStore.roles?.[0]) ? defaultPath : redirect
+    router.push(target)
   } catch (error: any) {
     message.error(error.message || '登录失败，请检查用户名和密码')
   } finally {
@@ -123,4 +126,3 @@ const handleSubmit = async () => {
   }
 }
 </style>
-
