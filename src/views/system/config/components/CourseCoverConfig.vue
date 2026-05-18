@@ -292,6 +292,7 @@
 
         <div class="config-action-bar">
           <a-space>
+            <a-button :disabled="!canUndo" @click="handleUndo">撤回</a-button>
             <a-button type="primary" :loading="saving" @click="handleSave">保存配置</a-button>
             <a-button :disabled="!activeFieldId" @click="centerActiveField">一键文字居中</a-button>
             <a-button @click="handleReset">恢复默认</a-button>
@@ -396,6 +397,15 @@ const draggingFieldId = ref('');
 const previewBoardWidth = ref(420);
 const dragOffset = ref({ x: 0, y: 0 });
 const copiedFieldStyle = ref<Partial<CourseCoverFieldConfig> | null>(null);
+type UndoSnapshot = {
+	formState: CourseCoverConfig;
+	templatePack: CourseCoverTemplatePack;
+	activeTemplateId: string;
+	activeFieldId: string;
+};
+const undoStack = ref<UndoSnapshot[]>([]);
+const isRestoringHistory = ref(false);
+let historyTimer: ReturnType<typeof setTimeout> | null = null;
 
 const props = withDefaults(
 	defineProps<{
@@ -426,6 +436,7 @@ const currentTemplate = computed<CourseCoverTemplate>(() => {
 	if (current) return current;
 	return templatePack.value.templates[0];
 });
+const canUndo = computed(() => undoStack.value.length > 1);
 
 const courseFieldOptions = computed(() => {
 	if (props.configType === 'category') {
@@ -512,6 +523,75 @@ const applyTemplateToForm = (templateId: string) => {
 	templatePack.value.activeTemplateId = template.id;
 	updateBackgroundFileList();
 	scheduleFullPreview(0);
+};
+
+const cloneTemplatePack = (pack: CourseCoverTemplatePack): CourseCoverTemplatePack =>
+	JSON.parse(JSON.stringify(pack || { activeTemplateId: 'default', templates: [] }));
+
+const createUndoSnapshot = (): UndoSnapshot => ({
+	formState: cloneCourseCoverConfig(formState.value),
+	templatePack: cloneTemplatePack(templatePack.value),
+	activeTemplateId: activeTemplateId.value,
+	activeFieldId: activeFieldId.value,
+});
+
+const snapshotKey = (snapshot: UndoSnapshot) => JSON.stringify(snapshot);
+
+const pushUndoSnapshot = () => {
+	if (isRestoringHistory.value) return;
+	const snapshot = createUndoSnapshot();
+	const previous = undoStack.value[undoStack.value.length - 1];
+	if (previous && snapshotKey(previous) === snapshotKey(snapshot)) return;
+	undoStack.value.push(snapshot);
+	if (undoStack.value.length > 60) {
+		undoStack.value.shift();
+	}
+};
+
+const scheduleUndoSnapshot = (delay = 360) => {
+	if (isRestoringHistory.value) return;
+	if (historyTimer) {
+		clearTimeout(historyTimer);
+		historyTimer = null;
+	}
+	historyTimer = setTimeout(() => {
+		historyTimer = null;
+		pushUndoSnapshot();
+	}, delay);
+};
+
+const resetUndoHistory = () => {
+	if (historyTimer) {
+		clearTimeout(historyTimer);
+		historyTimer = null;
+	}
+	undoStack.value = [createUndoSnapshot()];
+};
+
+const applyUndoSnapshot = (snapshot: UndoSnapshot) => {
+	templatePack.value = cloneTemplatePack(snapshot.templatePack);
+	activeTemplateId.value = snapshot.activeTemplateId;
+	formState.value = cloneCourseCoverConfig(snapshot.formState);
+	activeFieldId.value = snapshot.activeFieldId;
+	updateBackgroundFileList();
+	scheduleFullPreview(0);
+};
+
+const handleUndo = () => {
+	if (!canUndo.value) return;
+	if (historyTimer) {
+		clearTimeout(historyTimer);
+		historyTimer = null;
+		pushUndoSnapshot();
+	}
+	undoStack.value.pop();
+	const previous = undoStack.value[undoStack.value.length - 1];
+	if (!previous) return;
+	isRestoringHistory.value = true;
+	applyUndoSnapshot(previous);
+	setTimeout(() => {
+		isRestoringHistory.value = false;
+	}, 0);
 };
 const previewScale = computed(() => previewBoardWidth.value / Math.max(formState.value.width || 1, 1));
 const draggingField = computed(() => {
@@ -637,6 +717,7 @@ const fetchConfig = async () => {
 	} finally {
 		updateBackgroundFileList();
 		scheduleFullPreview(0);
+		resetUndoHistory();
 	}
 };
 
@@ -671,6 +752,15 @@ watch(
 	() => formState.value,
 	() => {
 		scheduleFullPreview();
+		scheduleUndoSnapshot();
+	},
+	{ deep: true },
+);
+
+watch(
+	() => templatePack.value,
+	() => {
+		scheduleUndoSnapshot();
 	},
 	{ deep: true },
 );
@@ -839,6 +929,11 @@ const handleKeydown = (event: KeyboardEvent) => {
 		target?.isContentEditable ||
 		target?.closest('.ant-select-dropdown') ||
 		target?.closest('.w-e-text-container');
+	if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z' && !event.shiftKey && !isTypingTarget) {
+		event.preventDefault();
+		handleUndo();
+		return;
+	}
 	if (isTypingTarget || !activeFieldId.value) return;
 
 	const step = event.shiftKey ? 10 : 1;
@@ -971,6 +1066,10 @@ onBeforeUnmount(() => {
 	if (fullPreviewTimer) {
 		clearTimeout(fullPreviewTimer);
 		fullPreviewTimer = null;
+	}
+	if (historyTimer) {
+		clearTimeout(historyTimer);
+		historyTimer = null;
 	}
 	window.removeEventListener('pointermove', updateDraggedField);
 	window.removeEventListener('pointerup', stopDrag);
