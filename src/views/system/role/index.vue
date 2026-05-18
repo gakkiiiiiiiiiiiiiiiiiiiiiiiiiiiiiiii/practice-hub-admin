@@ -39,8 +39,8 @@
           </template>
           <template v-else-if="column.key === 'permissions'">
             <a-space wrap>
-              <a-tag v-for="permission in record.permissions" :key="permission" style="margin: 2px">
-                {{ permission }}
+              <a-tag v-for="permission in record.permissions" :key="permission" :title="permission" style="margin: 2px">
+                {{ getPermissionDisplayName(permission) }}
               </a-tag>
               <span v-if="record.permissions.length === 0" style="color: #999">无权限</span>
             </a-space>
@@ -82,6 +82,7 @@ import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { getRoleList, deleteRole } from '@/api/system'
 import RoleModal from './components/RoleModal.vue'
+import { getPermissionDisplayName } from '@/utils/permission-label'
 
 const loading = ref(false)
 const dataSource = ref([])
@@ -196,4 +197,3 @@ onMounted(() => {
   // 样式
 }
 </style>
-

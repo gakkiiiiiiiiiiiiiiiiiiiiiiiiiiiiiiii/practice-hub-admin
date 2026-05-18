@@ -34,7 +34,7 @@
 						</div>
 						<a-row :gutter="[16, 8]">
 							<a-col :span="8" v-for="permission in group.permissions" :key="permission">
-								<a-checkbox :value="permission">{{ permission }}</a-checkbox>
+								<a-checkbox :value="permission" :title="permission">{{ getPermissionDisplayName(permission) }}</a-checkbox>
 							</a-col>
 						</a-row>
 					</div>
@@ -48,6 +48,7 @@
 import { ref, watch, onMounted } from 'vue';
 import { message } from 'ant-design-vue';
 import { createRole, updateRole, getPermissionGroups } from '@/api/system';
+import { getPermissionDisplayName, getPermissionModuleName } from '@/utils/permission-label';
 
 const props = defineProps<{
 	open: boolean;
@@ -80,16 +81,7 @@ const rules = {
 };
 
 const getModuleName = (module: string) => {
-	const moduleMap: Record<string, string> = {
-		dashboard: '仪表盘',
-		question: '题目管理',
-		course: '课程管理',
-		chapter: '章节管理',
-		agent: '代理商',
-		user: '用户管理',
-		system: '系统管理',
-	};
-	return moduleMap[module] || module;
+	return getPermissionModuleName(module);
 };
 
 const fetchPermissionGroups = async () => {
