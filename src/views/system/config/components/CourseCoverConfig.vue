@@ -12,14 +12,28 @@
 				<a-col :span="14" class="config-layout__left">
 					<div class="config-scroll-panel">
 					<a-card title="封面模板" class="template-card">
+						<a-tabs v-model:activeKey="activeTemplateId" class="template-tabs" type="card">
+							<a-tab-pane
+								v-for="template in templatePack.templates"
+								:key="template.id"
+								:tab="template.name || '未命名模板'"
+							/>
+							<template #rightExtra>
+								<a-space size="small" wrap>
+									<a-button size="small" @click="handleCreateTemplate">新增</a-button>
+									<a-button size="small" @click="handleCopyTemplate">复制</a-button>
+									<a-button
+										size="small"
+										danger
+										:disabled="templatePack.templates.length <= 1"
+										@click="handleDeleteTemplate"
+									>
+										删除
+									</a-button>
+								</a-space>
+							</template>
+						</a-tabs>
 						<a-form :label-col="{ span: 6 }" :wrapper-col="{ span: 18 }">
-							<a-form-item label="当前模板">
-								<a-select
-									v-model:value="activeTemplateId"
-									:options="templateOptions"
-									placeholder="请选择模板"
-								/>
-							</a-form-item>
 							<a-form-item label="模板名称">
 								<a-input v-model:value="currentTemplate.name" placeholder="请输入封面名称" maxlength="30" />
 							</a-form-item>
@@ -33,13 +47,6 @@
 									style="width: 100%"
 								/>
 								<div class="form-tip">绑定后，该分类下新建或编辑课程时会优先使用此封面模板。</div>
-							</a-form-item>
-							<a-form-item label="模板操作">
-								<a-space wrap>
-									<a-button @click="handleCreateTemplate">新增模板</a-button>
-									<a-button @click="handleCopyTemplate">复制当前模板</a-button>
-									<a-button danger :disabled="templatePack.templates.length <= 1" @click="handleDeleteTemplate">删除当前模板</a-button>
-								</a-space>
 							</a-form-item>
 						</a-form>
 					</a-card>
@@ -419,13 +426,6 @@ const currentTemplate = computed<CourseCoverTemplate>(() => {
 	if (current) return current;
 	return templatePack.value.templates[0];
 });
-
-const templateOptions = computed(() =>
-	templatePack.value.templates.map((item) => ({
-		label: item.name || '未命名模板',
-		value: item.id,
-	})),
-);
 
 const courseFieldOptions = computed(() => {
 	if (props.configType === 'category') {
@@ -991,6 +991,24 @@ onBeforeUnmount(() => {
 
 	.template-card {
 		margin-bottom: 16px;
+	}
+
+	.template-tabs {
+		margin-bottom: 16px;
+	}
+
+	.template-tabs :deep(.ant-tabs-nav) {
+		margin-bottom: 12px;
+	}
+
+	.template-tabs :deep(.ant-tabs-tab) {
+		max-width: 180px;
+	}
+
+	.template-tabs :deep(.ant-tabs-tab-btn) {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
   .config-scroll-panel {
