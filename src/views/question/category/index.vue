@@ -262,11 +262,12 @@ import { getCategoryCoverConfig } from '@/api/system';
 import { uploadImage } from '@/api/upload';
 import CourseCoverConfig from '@/views/system/config/components/CourseCoverConfig.vue';
 import {
-	DEFAULT_COURSE_COVER_CONFIG,
-	normalizeCourseCoverConfig,
+	DEFAULT_CATEGORY_COVER_CONFIG,
+	getActiveCourseCoverConfig,
+	normalizeCourseCoverTemplatePack,
 	renderCourseCover,
 } from '@/utils/course-cover';
-import type { CourseCoverConfig as CourseCoverConfigType } from '@/utils/course-cover';
+import type { CourseCoverTemplatePack } from '@/utils/course-cover';
 
 const loading = ref(false);
 const modalVisible = ref(false);
@@ -293,7 +294,7 @@ const currentCategory = ref<{ category: string; sub_category: string } | null>(n
 const courseSelectMode = ref<'bind' | 'unbind'>('bind'); // 'bind' 绑定课程, 'unbind' 移除课程
 let generatedPreviewObjectUrl = '';
 let generatedCoverFile: File | null = null;
-let coverConfigCache: CourseCoverConfigType | null = null;
+let coverConfigCache: CourseCoverTemplatePack | null = null;
 let autoCoverTimer: ReturnType<typeof setTimeout> | null = null;
 
 const autoCoverPreviewSrc = computed(() => generatedCoverPreview.value);
@@ -505,15 +506,15 @@ const generateCategoryCoverFile = async (
 	if (!primaryCategory || !secondaryCategory) {
 		throw new Error('请先填写一级分类和二级分类名称');
 	}
-	let config = coverConfigCache || DEFAULT_COURSE_COVER_CONFIG;
+	let config = DEFAULT_CATEGORY_COVER_CONFIG;
 	try {
 		if (!coverConfigCache) {
 			const res = await getCategoryCoverConfig();
-			coverConfigCache = normalizeCourseCoverConfig(res.data || res);
+			coverConfigCache = normalizeCourseCoverTemplatePack(res.data || res, { configType: 'category' });
 		}
-		config = coverConfigCache;
+		config = getActiveCourseCoverConfig(coverConfigCache, { configType: 'category' });
 	} catch (_) {
-		config = normalizeCourseCoverConfig(DEFAULT_COURSE_COVER_CONFIG);
+		config = DEFAULT_CATEGORY_COVER_CONFIG;
 	}
 	const canvas = await renderCourseCover(config, {
 		category: primaryCategory,

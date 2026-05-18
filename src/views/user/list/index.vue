@@ -51,8 +51,8 @@
             </a-tag>
           </template>
           <template v-else-if="column.key === 'role'">
-            <a-tag :color="record.role === 'admin' ? 'purple' : 'default'">
-              {{ record.role === 'admin' ? '小程序超级管理员' : '普通用户' }}
+            <a-tag :color="getAppUserRoleColor(record.role)">
+              {{ getAppUserRoleName(record.role) }}
             </a-tag>
           </template>
           <template v-else-if="column.key === 'action'">
@@ -69,12 +69,29 @@
                 {{ record.status === 1 ? '封号' : '解封' }}
               </a-button>
               <a-button
+                v-if="record.role !== 'bank_admin'"
                 type="link"
                 size="small"
-                :danger="record.role === 'admin'"
-                @click="handleToggleAppAdmin(record)"
+                @click="handleUpdateAppRole(record, 'bank_admin')"
               >
-                {{ record.role === 'admin' ? '取消超管' : '设为超管' }}
+                设为题库管理员
+              </a-button>
+              <a-button
+                v-if="record.role !== 'admin'"
+                type="link"
+                size="small"
+                @click="handleUpdateAppRole(record, 'admin')"
+              >
+                设为超管
+              </a-button>
+              <a-button
+                v-if="record.role !== 'user'"
+                type="link"
+                size="small"
+                danger
+                @click="handleUpdateAppRole(record, 'user')"
+              >
+                设为普通用户
               </a-button>
             </a-space>
           </template>
@@ -175,10 +192,31 @@ const columns = [
 	{
 		title: '操作',
 		key: 'action',
-		width: 260,
+		width: 380,
 		fixed: 'right',
 	},
 ];
+
+const appRoleMap: Record<string, { name: string; color: string; description: string }> = {
+	user: {
+		name: '普通用户',
+		color: 'default',
+		description: '仅保留普通用户权限。',
+	},
+	bank_admin: {
+		name: '题库管理员',
+		color: 'blue',
+		description: '可在小程序端上传课程，但不能无限制生成激活码。',
+	},
+	admin: {
+		name: '小程序超级管理员',
+		color: 'purple',
+		description: '可在小程序端上传课程，并可无限制生成激活码。',
+	},
+};
+
+const getAppUserRoleName = (role?: string) => appRoleMap[role || 'user']?.name || '普通用户';
+const getAppUserRoleColor = (role?: string) => appRoleMap[role || 'user']?.color || 'default';
 
 const fetchData = async () => {
 	loading.value = true;
@@ -252,16 +290,13 @@ const handleToggleStatus = async (record: any) => {
 	});
 };
 
-const handleToggleAppAdmin = async (record: any) => {
-	const nextRole = record.role === 'admin' ? 'user' : 'admin';
-	const action = nextRole === 'admin' ? '设为小程序超级管理员' : '取消小程序超级管理员';
+const handleUpdateAppRole = async (record: any, nextRole: 'user' | 'bank_admin' | 'admin') => {
+	const roleMeta = appRoleMap[nextRole];
+	const action = `设为${roleMeta.name}`;
 
 	Modal.confirm({
 		title: '确认操作',
-		content:
-			nextRole === 'admin'
-				? `确定要将 "${record.nickname}" ${action}吗？该用户可在小程序端无限制生成激活码。`
-				: `确定要${action} "${record.nickname}" 吗？取消后该用户不能再以管理员身份生成激活码。`,
+		content: `确定要将 "${record.nickname}" ${action}吗？${roleMeta.description}`,
 		onOk: async () => {
 			try {
 				await updateAppUserRole(record.id, { role: nextRole });

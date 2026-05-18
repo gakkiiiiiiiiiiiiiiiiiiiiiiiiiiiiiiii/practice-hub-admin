@@ -20,10 +20,13 @@
 			<a-form-item v-if="formState.content_type === 'file'" label="课程文件" name="file_url">
 				<a-upload
 					v-model:file-list="courseFileList"
+					:class="{ 'course-file-upload--readonly': !canDownloadCourseFile }"
 					:before-upload="beforeCourseFileUpload"
 					:custom-request="handleCourseFileUpload"
+					:show-upload-list="courseFileUploadListOptions"
 					:max-count="1"
 					accept=".pdf,.doc,.docx"
+					@preview="handleCourseFilePreview"
 				>
 					<a-button v-if="courseFileList.length < 1">
 						<upload-outlined />
@@ -167,15 +170,17 @@ import { createCourse, updateCourse } from '@/api/course';
 import { getCourseCoverConfig } from '@/api/system';
 import { getCourseCategoryTree } from '@/api/course-category';
 import { uploadImage, uploadCourseFile } from '@/api/upload';
+import { useUserStore } from '@/store/user';
 import type { UploadProps } from 'ant-design-vue';
 import WangEditor from '@/components/WangEditor/index.vue';
 import CourseCoverConfig from '@/views/system/config/components/CourseCoverConfig.vue';
 import {
 	DEFAULT_COURSE_COVER_CONFIG,
-	normalizeCourseCoverConfig,
+	normalizeCourseCoverTemplatePack,
+	resolveCourseCoverConfigByCategory,
 	renderCourseCover,
 } from '@/utils/course-cover';
-import type { CourseCoverConfig as CourseCoverConfigType } from '@/utils/course-cover';
+import type { CourseCoverTemplatePack } from '@/utils/course-cover';
 
 const props = defineProps<{
 	open: boolean;
@@ -188,6 +193,7 @@ const emit = defineEmits<{
 }>();
 
 const formRef = ref();
+const userStore = useUserStore();
 const loading = ref(false);
 const uploadLoading = ref(false);
 const courseFileUploading = ref(false);
@@ -203,10 +209,16 @@ const coverConfigOpen = ref(false);
 const generatedCoverPreview = ref('');
 let generatedPreviewObjectUrl = '';
 let generatedCoverFile: File | null = null;
-let coverConfigCache: CourseCoverConfigType | null = null;
+let coverConfigCache: CourseCoverTemplatePack | null = null;
 let autoCoverTimer: ReturnType<typeof setTimeout> | null = null;
 
 const autoCoverPreviewSrc = computed(() => generatedCoverPreview.value);
+const canDownloadCourseFile = computed(() => userStore.hasRole('super_admin'));
+const courseFileUploadListOptions = computed(() => ({
+	showRemoveIcon: true,
+	showDownloadIcon: canDownloadCourseFile.value,
+	showPreviewIcon: canDownloadCourseFile.value,
+}));
 
 // 转换为级联选择器需要的格式
 const cascaderOptions = computed(() => {
@@ -319,7 +331,7 @@ watch(
 							uid: '-1',
 							name: formState.value.file_name || '课程文件',
 							status: 'done',
-							url: formState.value.file_url,
+							url: canDownloadCourseFile.value ? formState.value.file_url : undefined,
 						},
 					];
 				} else {
@@ -493,7 +505,12 @@ const handleCourseFileUpload = async (options: any) => {
 		formState.value.file_type = res.fileType;
 		formState.value.file_size = (file as File).size || 0;
 		courseFileList.value = [
-			{ uid: file.uid, name: res.fileName, status: 'done', url: res.url || res.fileUrl },
+			{
+				uid: file.uid,
+				name: res.fileName,
+				status: 'done',
+				url: canDownloadCourseFile.value ? res.url || res.fileUrl : undefined,
+			},
 		];
 		onSuccess?.();
 		message.success('课程文件上传成功');
@@ -505,6 +522,18 @@ const handleCourseFileUpload = async (options: any) => {
 		courseFileUploadProgress.value = 0;
 		courseFileUploadStage.value = '';
 	}
+};
+
+const handleCourseFilePreview = (file: any) => {
+	if (!canDownloadCourseFile.value) {
+		message.warning('当前账号无文件下载权限');
+		return false;
+	}
+	const url = file?.url || formState.value.file_url;
+	if (url) {
+		window.open(url, '_blank');
+	}
+	return false;
 };
 
 const handleUpload = async (options: any) => {
@@ -609,15 +638,18 @@ const generateCourseCoverFile = async (): Promise<File> => {
 	if (!school || !major) {
 		throw new Error('请先填写学校和专业，再自动生成封面');
 	}
-		let config = coverConfigCache || DEFAULT_COURSE_COVER_CONFIG;
+		let config = DEFAULT_COURSE_COVER_CONFIG;
 		try {
 			if (!coverConfigCache) {
 				const res = await getCourseCoverConfig();
-				coverConfigCache = normalizeCourseCoverConfig(res.data || res);
+				coverConfigCache = normalizeCourseCoverTemplatePack(res.data || res, { configType: 'course' });
 			}
-			config = coverConfigCache;
+			config = resolveCourseCoverConfigByCategory(coverConfigCache, {
+				category: formState.value.category?.trim(),
+				sub_category: formState.value.sub_category?.trim(),
+			});
 		} catch (_) {
-			config = normalizeCourseCoverConfig(DEFAULT_COURSE_COVER_CONFIG);
+			config = DEFAULT_COURSE_COVER_CONFIG;
 		}
 	const canvas = await renderCourseCover(config, {
 		name: formState.value.name?.trim(),
@@ -788,5 +820,11 @@ const handleSubmit = async () => {
 
 .course-file-upload-progress {
 	margin-top: 8px;
+}
+
+.course-file-upload--readonly :deep(.ant-upload-list-item-name) {
+	color: rgba(0, 0, 0, 0.88);
+	cursor: default;
+	pointer-events: none;
 }
 </style>

@@ -32,6 +32,18 @@ export interface CourseCoverConfig {
 	fields: CourseCoverFieldConfig[];
 }
 
+export interface CourseCoverTemplate {
+	id: string;
+	name: string;
+	config: CourseCoverConfig;
+	bindCategory?: string[];
+}
+
+export interface CourseCoverTemplatePack {
+	activeTemplateId: string;
+	templates: CourseCoverTemplate[];
+}
+
 export interface CourseCoverPayload {
 	name?: string;
 	subject?: string;
@@ -278,8 +290,11 @@ export function cloneCourseCoverConfig(config: CourseCoverConfig): CourseCoverCo
 	return JSON.parse(JSON.stringify(config));
 }
 
-export function normalizeCourseCoverConfig(input?: Partial<CourseCoverConfig> | null): CourseCoverConfig {
-	const merged = cloneCourseCoverConfig(DEFAULT_COURSE_COVER_CONFIG);
+export function normalizeCourseCoverConfig(
+	input?: Partial<CourseCoverConfig> | null,
+	fallback: CourseCoverConfig = DEFAULT_COURSE_COVER_CONFIG,
+): CourseCoverConfig {
+	const merged = cloneCourseCoverConfig(fallback);
 	if (!input) return merged;
 	merged.width = Number(input.width) || merged.width;
 	merged.height = Number(input.height) || merged.height;
@@ -308,6 +323,97 @@ export function normalizeCourseCoverConfig(input?: Partial<CourseCoverConfig> | 
 		}));
 	}
 	return merged;
+}
+
+const createTemplateId = () => `tpl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+export function createCoverTemplate(
+	name: string,
+	config: CourseCoverConfig,
+	options?: {
+		id?: string;
+		bindCategory?: string[];
+	},
+): CourseCoverTemplate {
+	return {
+		id: options?.id || createTemplateId(),
+		name: String(name || '').trim() || '默认封面',
+		config: normalizeCourseCoverConfig(config),
+		bindCategory: Array.isArray(options?.bindCategory) ? options.bindCategory.filter(Boolean).slice(0, 2) : [],
+	};
+}
+
+export function normalizeCourseCoverTemplatePack(
+	input: any,
+	options?: {
+		configType?: 'course' | 'category';
+	},
+): CourseCoverTemplatePack {
+	const fallbackConfig =
+		options?.configType === 'category' ? DEFAULT_CATEGORY_COVER_CONFIG : DEFAULT_COURSE_COVER_CONFIG;
+	const defaultName = options?.configType === 'category' ? '默认分类封面' : '默认课程封面';
+	const rawTemplates = Array.isArray(input?.templates) ? input.templates : [];
+	const templates = rawTemplates
+		.map((item: any, index: number) => {
+			const config = normalizeCourseCoverConfig(item?.config || item, fallbackConfig);
+			return {
+				id: String(item?.id || `tpl_${index + 1}`),
+				name: String(item?.name || `${defaultName}${index ? index + 1 : ''}`).trim(),
+				config,
+				bindCategory: Array.isArray(item?.bindCategory) ? item.bindCategory.filter(Boolean).slice(0, 2) : [],
+			};
+		})
+		.filter((item: CourseCoverTemplate) => item.id && item.name);
+
+	if (!templates.length) {
+		templates.push(
+			createCoverTemplate(defaultName, normalizeCourseCoverConfig(input, fallbackConfig), {
+				id: 'default',
+			}),
+		);
+	}
+
+	const activeTemplateId = templates.some((item) => item.id === input?.activeTemplateId)
+		? input.activeTemplateId
+		: templates[0].id;
+
+	return {
+		activeTemplateId,
+		templates,
+	};
+}
+
+export function getActiveCourseCoverConfig(
+	input: CourseCoverTemplatePack | CourseCoverConfig | any,
+	options?: {
+		configType?: 'course' | 'category';
+	},
+): CourseCoverConfig {
+	const pack = normalizeCourseCoverTemplatePack(input, options);
+	const active = pack.templates.find((item) => item.id === pack.activeTemplateId) || pack.templates[0];
+	return normalizeCourseCoverConfig(
+		active?.config,
+		options?.configType === 'category' ? DEFAULT_CATEGORY_COVER_CONFIG : DEFAULT_COURSE_COVER_CONFIG,
+	);
+}
+
+export function resolveCourseCoverConfigByCategory(
+	input: CourseCoverTemplatePack | CourseCoverConfig | any,
+	payload: Pick<CourseCoverPayload, 'category' | 'sub_category'>,
+): CourseCoverConfig {
+	const pack = normalizeCourseCoverTemplatePack(input, { configType: 'course' });
+	const category = String(payload.category || '').trim();
+	const subCategory = String(payload.sub_category || '').trim();
+	const exactMatch = pack.templates.find((item) => {
+		const bind = item.bindCategory || [];
+		return bind[0] === category && bind[1] === subCategory;
+	});
+	const primaryMatch = pack.templates.find((item) => {
+		const bind = item.bindCategory || [];
+		return bind[0] === category && !bind[1];
+	});
+	const active = pack.templates.find((item) => item.id === pack.activeTemplateId) || pack.templates[0];
+	return normalizeCourseCoverConfig((exactMatch || primaryMatch || active)?.config, DEFAULT_COURSE_COVER_CONFIG);
 }
 
 export async function renderCourseCover(

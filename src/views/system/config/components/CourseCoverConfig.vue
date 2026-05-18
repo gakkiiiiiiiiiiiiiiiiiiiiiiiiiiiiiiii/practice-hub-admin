@@ -11,6 +11,39 @@
 			<a-row :gutter="16" class="config-layout">
 				<a-col :span="14" class="config-layout__left">
 					<div class="config-scroll-panel">
+					<a-card title="封面模板" class="template-card">
+						<a-form :label-col="{ span: 6 }" :wrapper-col="{ span: 18 }">
+							<a-form-item label="当前模板">
+								<a-select
+									v-model:value="activeTemplateId"
+									:options="templateOptions"
+									placeholder="请选择模板"
+								/>
+							</a-form-item>
+							<a-form-item label="模板名称">
+								<a-input v-model:value="currentTemplate.name" placeholder="请输入封面名称" maxlength="30" />
+							</a-form-item>
+							<a-form-item v-if="props.configType === 'course'" label="绑定分类">
+								<a-cascader
+									v-model:value="currentTemplate.bindCategory"
+									:options="categoryOptions"
+									:show-search="{ filter: cascaderFilter }"
+									allow-clear
+									placeholder="不绑定则作为通用默认模板"
+									style="width: 100%"
+								/>
+								<div class="form-tip">绑定后，该分类下新建或编辑课程时会优先使用此封面模板。</div>
+							</a-form-item>
+							<a-form-item label="模板操作">
+								<a-space wrap>
+									<a-button @click="handleCreateTemplate">新增模板</a-button>
+									<a-button @click="handleCopyTemplate">复制当前模板</a-button>
+									<a-button danger :disabled="templatePack.templates.length <= 1" @click="handleDeleteTemplate">删除当前模板</a-button>
+								</a-space>
+							</a-form-item>
+						</a-form>
+					</a-card>
+
 					<a-card title="基础配置">
 						<a-form :label-col="{ span: 6 }" :wrapper-col="{ span: 18 }">
 							<a-form-item label="画布宽度">
@@ -318,18 +351,24 @@ import { message } from 'ant-design-vue';
 import { PlusOutlined } from '@ant-design/icons-vue';
 import { uploadImage } from '@/api/upload';
 import { getCategoryCoverConfig, getCourseCoverConfig, setCategoryCoverConfig, setCourseCoverConfig } from '@/api/system';
+import { getCourseCategoryTree } from '@/api/course-category';
 import {
 	COURSE_COVER_FIELD_OPTIONS,
 	COURSE_COVER_FONT_PRESETS,
 	DEFAULT_CATEGORY_COVER_CONFIG,
 	DEFAULT_COURSE_COVER_CONFIG,
 	cloneCourseCoverConfig,
+	createCoverTemplate,
 	defaultCourseCoverBackground,
+	getActiveCourseCoverConfig,
 	normalizeCourseCoverConfig,
+	normalizeCourseCoverTemplatePack,
 	normalizeFontFamilyForCover,
 	renderCourseCover,
 	type CourseCoverConfig,
 	type CourseCoverFieldConfig,
+	type CourseCoverTemplate,
+	type CourseCoverTemplatePack,
 } from '@/utils/course-cover';
 
 const saving = ref(false);
@@ -338,6 +377,12 @@ const fullPreviewLoading = ref(false);
 let fullPreviewTimer: ReturnType<typeof setTimeout> | null = null;
 const backgroundFileList = ref<any[]>([]);
 const formState = ref<CourseCoverConfig>(cloneCourseCoverConfig(DEFAULT_COURSE_COVER_CONFIG));
+const templatePack = ref<CourseCoverTemplatePack>({
+	activeTemplateId: 'default',
+	templates: [createCoverTemplate('默认课程封面', DEFAULT_COURSE_COVER_CONFIG, { id: 'default' })],
+});
+const activeTemplateId = ref('default');
+const categoryOptions = ref<any[]>([]);
 const previewBoardRef = ref<HTMLDivElement | null>(null);
 const activeFieldId = ref('');
 const draggingFieldId = ref('');
@@ -368,6 +413,19 @@ const samplePayload = {
 	category: '考研专业课',
 	sub_category: '心理学',
 };
+
+const currentTemplate = computed<CourseCoverTemplate>(() => {
+	const current = templatePack.value.templates.find((item) => item.id === activeTemplateId.value);
+	if (current) return current;
+	return templatePack.value.templates[0];
+});
+
+const templateOptions = computed(() =>
+	templatePack.value.templates.map((item) => ({
+		label: item.name || '未命名模板',
+		value: item.id,
+	})),
+);
 
 const courseFieldOptions = computed(() => {
 	if (props.configType === 'category') {
@@ -403,6 +461,57 @@ const getFontOptionsForField = (field: CourseCoverFieldConfig) => {
 		},
 		...COURSE_COVER_FONT_PRESETS,
 	];
+};
+
+const cascaderFilter = (inputValue: string, path: any[]) => {
+	const keyword = String(inputValue || '').trim().toLowerCase();
+	if (!keyword) return true;
+	return path.some((option) => String(option?.label || '').toLowerCase().includes(keyword));
+};
+
+const loadCategoryOptions = async () => {
+	if (props.configType !== 'course') return;
+	try {
+		const res = await getCourseCategoryTree();
+		const list = res.data || res || [];
+		categoryOptions.value = (Array.isArray(list) ? list : []).map((parent: any) => ({
+			label: parent.status === 0 ? `${parent.name}（已禁用）` : parent.name,
+			value: parent.name,
+			children: Array.isArray(parent.children)
+				? parent.children.map((child: any) => ({
+						label: child.status === 0 ? `${child.name}（已禁用）` : child.name,
+						value: child.name,
+					}))
+				: [],
+		}));
+	} catch (error) {
+		console.error('加载课程分类失败:', error);
+		categoryOptions.value = [];
+	}
+};
+
+const getDefaultTemplateName = () => (props.configType === 'category' ? '默认分类封面' : '默认课程封面');
+
+const getDefaultTemplateConfig = () =>
+	props.configType === 'category' ? DEFAULT_CATEGORY_COVER_CONFIG : DEFAULT_COURSE_COVER_CONFIG;
+
+const syncCurrentTemplateConfig = () => {
+	const current = templatePack.value.templates.find((item) => item.id === activeTemplateId.value);
+	if (!current) return;
+	current.name = String(current.name || '').trim() || getDefaultTemplateName();
+	current.config = normalizeCourseCoverConfig(formState.value, getDefaultTemplateConfig());
+	current.bindCategory = Array.isArray(current.bindCategory) ? current.bindCategory.filter(Boolean).slice(0, 2) : [];
+	templatePack.value.activeTemplateId = activeTemplateId.value;
+};
+
+const applyTemplateToForm = (templateId: string) => {
+	const template = templatePack.value.templates.find((item) => item.id === templateId) || templatePack.value.templates[0];
+	if (!template) return;
+	formState.value = normalizeCourseCoverConfig(template.config, getDefaultTemplateConfig());
+	activeTemplateId.value = template.id;
+	templatePack.value.activeTemplateId = template.id;
+	updateBackgroundFileList();
+	scheduleFullPreview(0);
 };
 const previewScale = computed(() => previewBoardWidth.value / Math.max(formState.value.width || 1, 1));
 const draggingField = computed(() => {
@@ -514,11 +623,17 @@ const updateBackgroundFileList = () => {
 const fetchConfig = async () => {
 	try {
 		const res = props.configType === 'category' ? await getCategoryCoverConfig() : await getCourseCoverConfig();
-		formState.value = normalizeCourseCoverConfig(res.data || res);
+		templatePack.value = normalizeCourseCoverTemplatePack(res.data || res, { configType: props.configType });
+		activeTemplateId.value = templatePack.value.activeTemplateId;
+		formState.value = getActiveCourseCoverConfig(templatePack.value, { configType: props.configType });
 	} catch (error) {
-		formState.value = cloneCourseCoverConfig(
-			props.configType === 'category' ? DEFAULT_CATEGORY_COVER_CONFIG : DEFAULT_COURSE_COVER_CONFIG,
-		);
+		const fallbackConfig = cloneCourseCoverConfig(getDefaultTemplateConfig());
+		templatePack.value = {
+			activeTemplateId: 'default',
+			templates: [createCoverTemplate(getDefaultTemplateName(), fallbackConfig, { id: 'default' })],
+		};
+		activeTemplateId.value = 'default';
+		formState.value = fallbackConfig;
 	} finally {
 		updateBackgroundFileList();
 		scheduleFullPreview(0);
@@ -559,6 +674,17 @@ watch(
 	},
 	{ deep: true },
 );
+
+watch(activeTemplateId, (next, prev) => {
+	if (!next || next === prev) return;
+	if (prev) {
+		const oldTemplate = templatePack.value.templates.find((item) => item.id === prev);
+		if (oldTemplate) {
+			oldTemplate.config = normalizeCourseCoverConfig(formState.value, getDefaultTemplateConfig());
+		}
+	}
+	applyTemplateToForm(next);
+});
 
 watch(
 	() => formState.value.width,
@@ -768,6 +894,35 @@ const applyCopiedStyle = (field: CourseCoverFieldConfig) => {
 	Object.assign(field, copiedFieldStyle.value);
 };
 
+const handleCreateTemplate = () => {
+	syncCurrentTemplateConfig();
+	const template = createCoverTemplate(`新封面模板 ${templatePack.value.templates.length + 1}`, getDefaultTemplateConfig());
+	templatePack.value.templates.push(template);
+	activeTemplateId.value = template.id;
+	message.success('已新增封面模板');
+};
+
+const handleCopyTemplate = () => {
+	syncCurrentTemplateConfig();
+	const source = currentTemplate.value;
+	const template = createCoverTemplate(`${source.name || '封面模板'} 副本`, source.config, {
+		bindCategory: source.bindCategory,
+	});
+	templatePack.value.templates.push(template);
+	activeTemplateId.value = template.id;
+	message.success('已复制当前封面模板');
+};
+
+const handleDeleteTemplate = () => {
+	if (templatePack.value.templates.length <= 1) return;
+	const index = templatePack.value.templates.findIndex((item) => item.id === activeTemplateId.value);
+	if (index < 0) return;
+	templatePack.value.templates.splice(index, 1);
+	const next = templatePack.value.templates[Math.max(0, index - 1)] || templatePack.value.templates[0];
+	activeTemplateId.value = next.id;
+	message.success('已删除当前封面模板');
+};
+
 const handleSave = async () => {
 	saving.value = true;
 	try {
@@ -777,14 +932,17 @@ const handleSave = async () => {
 			message.error(error);
 			return;
 		}
-		const normalizedConfig = normalizeCourseCoverConfig(formState.value);
+		syncCurrentTemplateConfig();
+		const normalizedPack = normalizeCourseCoverTemplatePack(templatePack.value, { configType: props.configType });
 		if (props.configType === 'category') {
-			await setCategoryCoverConfig(normalizedConfig);
+			await setCategoryCoverConfig(normalizedPack);
 		} else {
-			await setCourseCoverConfig(normalizedConfig);
+			await setCourseCoverConfig(normalizedPack);
 		}
+		templatePack.value = normalizedPack;
+		activeTemplateId.value = normalizedPack.activeTemplateId;
 		message.success(props.configType === 'category' ? '分类封面配置已保存' : '课程封面配置已保存');
-		emit('saved', normalizedConfig);
+		emit('saved', getActiveCourseCoverConfig(normalizedPack, { configType: props.configType }));
 	} catch (error: any) {
 		message.error(error?.message || '保存失败');
 	} finally {
@@ -793,9 +951,8 @@ const handleSave = async () => {
 };
 
 const handleReset = async () => {
-	formState.value = cloneCourseCoverConfig(
-		props.configType === 'category' ? DEFAULT_CATEGORY_COVER_CONFIG : DEFAULT_COURSE_COVER_CONFIG,
-	);
+	formState.value = cloneCourseCoverConfig(getDefaultTemplateConfig());
+	syncCurrentTemplateConfig();
 	updateBackgroundFileList();
 	scheduleFullPreview(0);
 	message.success(props.configType === 'category' ? '已恢复分类封面默认配置' : '已恢复课程封面默认配置');
@@ -805,6 +962,7 @@ onMounted(() => {
 	window.addEventListener('pointermove', updateDraggedField);
 	window.addEventListener('pointerup', stopDrag);
 	window.addEventListener('keydown', handleKeydown);
+	loadCategoryOptions();
 	fetchConfig();
 	requestAnimationFrame(() => updatePreviewBoardWidth());
 });
@@ -829,6 +987,10 @@ onBeforeUnmount(() => {
 	.config-layout__left {
 		position: sticky;
 		top: 0;
+	}
+
+	.template-card {
+		margin-bottom: 16px;
 	}
 
   .config-scroll-panel {

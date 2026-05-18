@@ -128,8 +128,18 @@ const handleSubmit = async () => {
     await formRef.value?.validate()
     loading.value = true
 
-    const data = { ...formState.value }
-    if (props.record && !data.password) {
+    const data: any = props.record
+      ? {
+          role: formState.value.role,
+          status: formState.value.status,
+        }
+      : { ...formState.value }
+
+    if (props.record) {
+      if (formState.value.password) {
+        data.password = formState.value.password
+      }
+    } else if (!data.password) {
       delete data.password
     }
 
@@ -153,4 +163,3 @@ const handleSubmit = async () => {
   }
 }
 </script>
-

@@ -30,8 +30,8 @@
 					</a-tag>
 				</a-descriptions-item>
 				<a-descriptions-item label="小程序角色">
-					<a-tag :color="userInfo.role === 'admin' ? 'purple' : 'default'">
-						{{ userInfo.role === 'admin' ? '小程序超级管理员' : '普通用户' }}
+					<a-tag :color="getAppUserRoleColor(userInfo.role)">
+						{{ getAppUserRoleName(userInfo.role) }}
 					</a-tag>
 				</a-descriptions-item>
 				<a-descriptions-item label="注册时间">
@@ -107,6 +107,15 @@ const loading = ref(false);
 const userInfo = ref<any>(null);
 const stats = ref<any>(null);
 const wrongQuestions = ref([]);
+
+const appRoleMap: Record<string, { name: string; color: string }> = {
+	user: { name: '普通用户', color: 'default' },
+	bank_admin: { name: '题库管理员', color: 'blue' },
+	admin: { name: '小程序超级管理员', color: 'purple' },
+};
+
+const getAppUserRoleName = (role?: string) => appRoleMap[role || 'user']?.name || '普通用户';
+const getAppUserRoleColor = (role?: string) => appRoleMap[role || 'user']?.color || 'default';
 
 const columns = [
 	{
