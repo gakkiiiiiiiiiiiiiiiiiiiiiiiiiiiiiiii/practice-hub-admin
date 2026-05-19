@@ -3,7 +3,7 @@
 		<a-card>
 			<template #title>课程管理</template>
 			<template #extra>
-				<a-space>
+				<a-space class="course-toolbar" wrap>
 					<a-button
 						type="primary"
 						danger
@@ -83,11 +83,13 @@
 			</a-form>
 
 			<a-table
+				class="course-table"
 				:columns="columns"
 				:data-source="dataSource"
 				:loading="loading"
 				:pagination="pagination"
 				:row-selection="{ selectedRowKeys, onChange: onSelectChange }"
+				:scroll="{ x: 1780 }"
 				@change="handleTableChange"
 				row-key="id"
 			>
@@ -106,45 +108,45 @@
 							{{ record.is_free === 1 ? '免费' : '付费' }}
 						</a-tag>
 					</template>
-						<template v-else-if="column.key === 'status'">
-							<a-switch
-								:checked="record.status === 1"
-								:checked-children="'启用'"
-								:un-checked-children="'禁用'"
-								:loading="statusUpdatingId === record.id"
-								:disabled="!canToggleCourseStatus"
-								@change="(checked) => handleStatusChange(record, checked)"
-							/>
-						</template>
-						<template v-else-if="column.key === 'sort'">
-							<a-input-number
-								:value="record.sort ?? 0"
-								:min="0"
-								:precision="0"
-								size="small"
-								class="sort-input"
-								:disabled="sortUpdatingId === record.id"
-								@change="(value) => handleSortChange(record, value)"
-							/>
-						</template>
-						<template v-else-if="column.key === 'action'">
-							<a-space>
-								<a-button type="link" size="small" @click="handleEdit(record)"> 编辑 </a-button>
-								<a-dropdown>
-									<a-button type="link" size="small" @click.prevent>
-										设置
-										<down-outlined />
-									</a-button>
-									<template #overlay>
-										<a-menu>
-											<a-menu-item key="exam" @click="handleExamConfig(record)">考试配置</a-menu-item>
-											<a-menu-item key="recommend" @click="handleRecommendConfig(record)">相关推荐</a-menu-item>
-										</a-menu>
-									</template>
-								</a-dropdown>
-								<a-popconfirm title="确定要删除这个课程吗？" @confirm="handleDelete(record)">
-									<a-button type="link" danger size="small">删除</a-button>
-								</a-popconfirm>
+					<template v-else-if="column.key === 'status'">
+						<a-switch
+							:checked="record.status === 1"
+							:checked-children="'启用'"
+							:un-checked-children="'禁用'"
+							:loading="statusUpdatingId === record.id"
+							:disabled="!canToggleCourseStatus"
+							@change="(checked) => handleStatusChange(record, checked)"
+						/>
+					</template>
+					<template v-else-if="column.key === 'sort'">
+						<a-input-number
+							:value="record.sort ?? 0"
+							:min="0"
+							:precision="0"
+							size="small"
+							class="sort-input"
+							:disabled="sortUpdatingId === record.id"
+							@change="(value) => handleSortChange(record, value)"
+						/>
+					</template>
+					<template v-else-if="column.key === 'action'">
+						<a-space class="course-action-space" :size="4" wrap>
+							<a-button type="link" size="small" @click="handleEdit(record)"> 编辑 </a-button>
+							<a-dropdown>
+								<a-button type="link" size="small" @click.prevent>
+									设置
+									<down-outlined />
+								</a-button>
+								<template #overlay>
+									<a-menu>
+										<a-menu-item key="exam" @click="handleExamConfig(record)">考试配置</a-menu-item>
+										<a-menu-item key="recommend" @click="handleRecommendConfig(record)">相关推荐</a-menu-item>
+									</a-menu>
+								</template>
+							</a-dropdown>
+							<a-popconfirm title="确定要删除这个课程吗？" @confirm="handleDelete(record)">
+								<a-button type="link" danger size="small">删除</a-button>
+							</a-popconfirm>
 						</a-space>
 					</template>
 				</template>
@@ -469,52 +471,62 @@ const columns = [
 		title: '课程名称',
 		dataIndex: 'name',
 		key: 'name',
+		width: 220,
 	},
 	{
 		title: '课程',
 		dataIndex: 'subject',
 		key: 'subject',
+		width: 110,
 	},
 	{
 		title: '一级分类',
 		dataIndex: 'category',
 		key: 'category',
+		width: 120,
 	},
 	{
 		title: '二级分类',
 		dataIndex: 'sub_category',
 		key: 'sub_category',
+		width: 120,
 	},
 	{
 		title: '学校',
 		dataIndex: 'school',
 		key: 'school',
+		width: 150,
 	},
 	{
 		title: '专业',
 		dataIndex: 'major',
 		key: 'major',
+		width: 140,
 	},
 	{
 		title: '真题年份',
 		dataIndex: 'exam_year',
 		key: 'exam_year',
+		width: 110,
 	},
 	{
 		title: '答案年份',
 		dataIndex: 'answer_year',
 		key: 'answer_year',
+		width: 110,
 	},
 	{
 		title: '当前价格',
 		dataIndex: 'price',
 		key: 'price',
+		width: 110,
 		customRender: ({ text }: any) => `¥${text}`,
 	},
 	{
 		title: '代理商售价',
 		dataIndex: 'agent_price',
 		key: 'agent_price',
+		width: 120,
 		customRender: ({ text }: any) => `¥${text || 0}`,
 	},
 	{
@@ -527,18 +539,18 @@ const columns = [
 		key: 'status',
 		width: 110,
 	},
-		{
-			title: '排序',
-			dataIndex: 'sort',
-			key: 'sort',
-			width: 110,
-		},
-		{
-			title: '操作',
-			key: 'action',
-			width: 260,
-			fixed: 'right',
-		},
+	{
+		title: '排序',
+		dataIndex: 'sort',
+		key: 'sort',
+		width: 110,
+	},
+	{
+		title: '操作',
+		key: 'action',
+		width: 220,
+		fixed: 'right',
+	},
 ];
 
 const fetchData = async () => {
@@ -1024,14 +1036,54 @@ onBeforeUnmount(() => {
 <style scoped lang="scss">
 	.course-management {
 		padding: 24px;
+
+		:deep(.ant-card-extra) {
+			max-width: 100%;
+		}
 	}
 
 	.sort-input {
 		width: 82px;
 	}
 
+	.course-toolbar {
+		justify-content: flex-end;
+	}
+
 	.course-filter-form {
 		margin-bottom: 16px;
+	}
+
+	.course-table {
+		:deep(.ant-table-container) {
+			overflow-x: auto;
+		}
+
+		:deep(.ant-table-cell) {
+			white-space: nowrap;
+			word-break: keep-all;
+			vertical-align: middle;
+		}
+
+		:deep(.ant-table-thead > tr > th) {
+			text-align: center;
+		}
+
+		:deep(.ant-table-tbody > tr > td) {
+			text-align: center;
+		}
+
+		:deep(.ant-table-tbody > tr > td:nth-child(2)) {
+			text-align: left;
+			white-space: normal;
+			word-break: break-word;
+			line-height: 1.5;
+		}
+	}
+
+	.course-action-space {
+		min-width: 160px;
+		justify-content: center;
 	}
 
 	.preview-cache-progress {

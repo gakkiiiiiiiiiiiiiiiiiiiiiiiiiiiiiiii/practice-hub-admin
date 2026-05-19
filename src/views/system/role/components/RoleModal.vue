@@ -78,6 +78,12 @@ const emit = defineEmits<{
 const formRef = ref();
 const loading = ref(false);
 const permissionGroups = ref<Array<{ module: string; permissions: string[] }>>([]);
+const REQUIRED_PERMISSION_GROUPS = [
+	{
+		module: 'course',
+		permissions: ['course:view', 'course:create', 'course:edit', 'course:status', 'course:delete'],
+	},
+];
 
 const formState = ref({
 	value: '',
@@ -103,10 +109,24 @@ const getModuleName = (module: string) => {
 const fetchPermissionGroups = async () => {
 	try {
 		const res = await getPermissionGroups();
-		permissionGroups.value = res.data || [];
+		permissionGroups.value = normalizePermissionGroups(res.data || []);
 	} catch (error: any) {
 		console.error('获取权限分组失败:', error);
 	}
+};
+
+const normalizePermissionGroups = (groups: Array<{ module: string; permissions: string[] }>) => {
+	const groupMap = new Map(groups.map((group) => [group.module, { ...group, permissions: [...group.permissions] }]));
+	REQUIRED_PERMISSION_GROUPS.forEach((requiredGroup) => {
+		const group = groupMap.get(requiredGroup.module) || { module: requiredGroup.module, permissions: [] };
+		const permissions = new Set(group.permissions);
+		requiredGroup.permissions.forEach((permission) => permissions.add(permission));
+		group.permissions = requiredGroup.permissions
+			.filter((permission) => permissions.has(permission))
+			.concat([...permissions].filter((permission) => !requiredGroup.permissions.includes(permission)));
+		groupMap.set(requiredGroup.module, group);
+	});
+	return [...groupMap.values()];
 };
 
 watch(
