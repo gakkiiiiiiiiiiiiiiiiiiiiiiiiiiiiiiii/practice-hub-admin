@@ -63,16 +63,21 @@ service.interceptors.response.use(
 
 		if (error.response) {
 			const { status } = error.response;
+			const errorData = error.response.data || {};
+			const errorMsg = errorData?.msg || errorData?.message || error.message || '请求失败';
+			error.msg = errorMsg;
+			error.message = errorMsg;
+			error.code = errorData?.code ?? status;
+			error.data = errorData?.data;
 
 			if (status === 401) {
 				handleUnauthorized();
 			} else if (status === 403) {
-				message.error('没有权限访问');
+				message.error(errorMsg);
 			} else if (status === 500) {
-				message.error('服务器错误');
+				message.error(errorMsg || '服务器错误');
 			} else {
-				const errorData = error.response.data;
-				message.error(errorData?.msg || errorData?.message || '请求失败');
+				message.error(errorMsg);
 			}
 		} else {
 			message.error('网络错误，请检查网络连接');

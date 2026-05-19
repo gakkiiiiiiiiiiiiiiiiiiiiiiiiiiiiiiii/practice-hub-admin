@@ -795,7 +795,6 @@ const handleDelete = async (record: any) => {
 			fetchData();
 		} catch (error: any) {
 			record.status = previousStatus;
-			message.error(error?.msg || error?.message || '状态切换失败');
 		} finally {
 			statusUpdatingId.value = null;
 		}

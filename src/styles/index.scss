@@ -17,3 +17,19 @@ body {
   height: 100vh;
 }
 
+.ant-table-wrapper {
+  &::before {
+    content: '➡️ 按住 Shift + 鼠标滚轮 左右滚动查看完整内容';
+    display: flex;
+    align-items: center;
+    min-height: 34px;
+    margin-bottom: 10px;
+    padding: 7px 12px;
+    border: 1px solid #d6e4ff;
+    border-radius: 8px;
+    background: linear-gradient(90deg, #f0f7ff 0%, #ffffff 100%);
+    color: #4b6b9f;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+}
