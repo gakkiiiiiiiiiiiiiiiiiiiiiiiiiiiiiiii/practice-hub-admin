@@ -34,11 +34,26 @@
 						</div>
 						<a-row :gutter="[16, 8]">
 							<a-col :span="8" v-for="permission in group.permissions" :key="permission">
-								<a-checkbox :value="permission" :title="permission">{{ getPermissionDisplayName(permission) }}</a-checkbox>
+								<div class="permission-item">
+									<a-checkbox :value="permission" :title="permission">
+										{{ getPermissionDisplayName(permission) }}
+									</a-checkbox>
+									<a-input-number
+										class="permission-limit-input"
+										:value="formState.permissionLimits[permission] ?? undefined"
+										:min="1"
+										:precision="0"
+										size="small"
+										placeholder="每日不限"
+										:disabled="!formState.permissions.includes(permission)"
+										@change="(value) => handlePermissionLimitChange(permission, value)"
+									/>
+								</div>
 							</a-col>
 						</a-row>
 					</div>
 				</a-checkbox-group>
+				<div class="permission-limit-tip">每日调用次数留空表示无限制；填写后该权限每天最多可调用对应次数。</div>
 			</a-form-item>
 		</a-form>
 	</a-modal>
@@ -69,6 +84,7 @@ const formState = ref({
 	name: '',
 	description: '',
 	permissions: [] as string[],
+	permissionLimits: {} as Record<string, number | null>,
 });
 
 const rules = {
@@ -99,13 +115,14 @@ watch(
 		if (val) {
 			// 打开弹窗时获取权限分组（确保数据是最新的）
 			fetchPermissionGroups();
-			
+
 			if (props.record) {
 				formState.value = {
 					value: props.record.value || '',
 					name: props.record.name || '',
 					description: props.record.description || '',
 					permissions: props.record.permissions || [],
+					permissionLimits: { ...(props.record.permissionLimits || {}) },
 				};
 			} else {
 				formState.value = {
@@ -113,6 +130,7 @@ watch(
 					name: '',
 					description: '',
 					permissions: [],
+					permissionLimits: {},
 				};
 			}
 		}
@@ -126,6 +144,30 @@ onMounted(() => {
 const handleCancel = () => {
 	emit('update:open', false);
 	formRef.value?.resetFields();
+};
+
+const handlePermissionLimitChange = (permission: string, value: number | null) => {
+	if (value === null || value === undefined) {
+		formState.value.permissionLimits[permission] = null;
+		return;
+	}
+	const limit = Number(value);
+	formState.value.permissionLimits[permission] = Number.isInteger(limit) && limit > 0 ? limit : null;
+};
+
+const buildSelectedPermissionLimits = () => {
+	const selected = new Set(formState.value.permissions);
+	const limits: Record<string, number | null> = {};
+	formState.value.permissions.forEach((permission) => {
+		const value = formState.value.permissionLimits[permission];
+		limits[permission] = value && value > 0 ? value : null;
+	});
+	Object.keys(formState.value.permissionLimits).forEach((permission) => {
+		if (!selected.has(permission)) {
+			delete formState.value.permissionLimits[permission];
+		}
+	});
+	return limits;
 };
 
 const handleSubmit = async () => {
@@ -142,6 +184,7 @@ const handleSubmit = async () => {
 			// 编辑角色权限
 			await updateRole(props.record.id, {
 				permissions: formState.value.permissions,
+				permissionLimits: buildSelectedPermissionLimits(),
 			});
 			message.success('更新成功');
 		} else {
@@ -151,6 +194,7 @@ const handleSubmit = async () => {
 				name: formState.value.name,
 				description: formState.value.description,
 				permissions: formState.value.permissions,
+				permissionLimits: buildSelectedPermissionLimits(),
 			});
 			message.success('创建成功');
 		}
@@ -167,3 +211,23 @@ const handleSubmit = async () => {
 	}
 };
 </script>
+
+<style scoped lang="scss">
+.permission-item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 32px;
+}
+
+.permission-limit-input {
+	width: 96px;
+	flex-shrink: 0;
+}
+
+.permission-limit-tip {
+	margin-top: 8px;
+	color: #8c8c8c;
+	font-size: 12px;
+}
+</style>

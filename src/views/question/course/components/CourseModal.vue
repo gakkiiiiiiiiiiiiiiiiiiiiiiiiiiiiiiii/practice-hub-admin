@@ -13,9 +13,12 @@
 			</a-form-item>
 			<a-form-item label="课程类型" name="content_type">
 				<a-radio-group v-model:value="formState.content_type">
-					<a-radio value="normal">普通题库（章节+题目）</a-radio>
+					<a-radio value="normal" :disabled="isEditingExistingFileCourseWithoutAdmin">普通题库（章节+题目）</a-radio>
 					<a-radio value="file">文件课程（PDF/Word 直接查看）</a-radio>
 				</a-radio-group>
+				<div v-if="isEditingExistingFileCourseWithoutAdmin" class="form-tip">
+					当前账号不能删除已有课程文件，因此不能将文件课程改为普通题库。
+				</div>
 			</a-form-item>
 			<a-form-item v-if="formState.content_type === 'file'" label="课程文件" name="file_url">
 				<a-upload
@@ -27,6 +30,7 @@
 					:max-count="1"
 					accept=".pdf,.doc,.docx"
 					@preview="handleCourseFilePreview"
+					@remove="handleCourseFileRemove"
 				>
 					<a-button v-if="courseFileList.length < 1">
 						<upload-outlined />
@@ -214,8 +218,12 @@ let autoCoverTimer: ReturnType<typeof setTimeout> | null = null;
 
 const autoCoverPreviewSrc = computed(() => generatedCoverPreview.value);
 const canDownloadCourseFile = computed(() => userStore.hasRole('super_admin'));
+const canRemoveCourseFile = computed(() => !props.record || userStore.hasRole('super_admin'));
+const isEditingExistingFileCourseWithoutAdmin = computed(
+	() => !!props.record && props.record.content_type === 'file' && !userStore.hasRole('super_admin'),
+);
 const courseFileUploadListOptions = computed(() => ({
-	showRemoveIcon: true,
+	showRemoveIcon: canRemoveCourseFile.value,
 	showDownloadIcon: canDownloadCourseFile.value,
 	showPreviewIcon: canDownloadCourseFile.value,
 }));
@@ -536,6 +544,18 @@ const handleCourseFilePreview = (file: any) => {
 	return false;
 };
 
+const handleCourseFileRemove = () => {
+	if (!canRemoveCourseFile.value) {
+		message.warning('当前账号不能删除已有课程文件');
+		return false;
+	}
+	formState.value.file_url = '';
+	formState.value.file_name = '';
+	formState.value.file_type = '';
+	formState.value.file_size = 0;
+	return true;
+};
+
 const handleUpload = async (options: any) => {
 	const { file, onSuccess, onError } = options;
 	try {
@@ -749,11 +769,21 @@ const handleSubmit = async () => {
 			submitData.introduction = formState.value.introduction;
 		}
 		submitData.content_type = formState.value.content_type || 'normal';
-		if (formState.value.content_type === 'file') {
-			submitData.file_url = formState.value.file_url || null;
-			submitData.file_name = formState.value.file_name || null;
-			submitData.file_type = formState.value.file_type || null;
-			submitData.file_size = Number(formState.value.file_size || 0);
+		if (isEditingExistingFileCourseWithoutAdmin.value) {
+			submitData.content_type = 'file';
+			if (!formState.value.file_url) {
+				submitData.file_url = props.record.file_url;
+				submitData.file_name = props.record.file_name;
+				submitData.file_type = props.record.file_type;
+				submitData.file_size = Number(props.record.file_size || 0);
+			}
+		}
+		if (submitData.content_type === 'file') {
+			const fallbackRecord = isEditingExistingFileCourseWithoutAdmin.value ? props.record : null;
+			submitData.file_url = formState.value.file_url || fallbackRecord?.file_url || null;
+			submitData.file_name = formState.value.file_name || fallbackRecord?.file_name || null;
+			submitData.file_type = formState.value.file_type || fallbackRecord?.file_type || null;
+			submitData.file_size = Number(formState.value.file_size || fallbackRecord?.file_size || 0);
 			submitData.allow_source_file = formState.value.allow_source_file ?? 0;
 		} else {
 			submitData.file_url = null;

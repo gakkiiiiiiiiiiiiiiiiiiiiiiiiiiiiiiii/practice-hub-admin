@@ -14,14 +14,14 @@
 						批量删除 ({{ selectedRowKeys.length || 0 }})
 					</a-button>
 					<a-button
-						:disabled="selectedRowKeys.length === 0"
+						:disabled="selectedRowKeys.length === 0 || !canToggleCourseStatus"
 						@click="handleBatchEnable"
 					>
 						<template #icon><check-outlined /></template>
 						批量启用 ({{ selectedRowKeys.length || 0 }})
 					</a-button>
 					<a-button
-						:disabled="selectedRowKeys.length === 0"
+						:disabled="selectedRowKeys.length === 0 || !canToggleCourseStatus"
 						@click="handleBatchDisable"
 					>
 						<template #icon><close-outlined /></template>
@@ -107,9 +107,14 @@
 						</a-tag>
 					</template>
 						<template v-else-if="column.key === 'status'">
-							<a-tag :color="record.status === 1 ? 'green' : 'red'">
-								{{ record.status === 1 ? '启用' : '禁用' }}
-							</a-tag>
+							<a-switch
+								:checked="record.status === 1"
+								:checked-children="'启用'"
+								:un-checked-children="'禁用'"
+								:loading="statusUpdatingId === record.id"
+								:disabled="!canToggleCourseStatus"
+								@change="(checked) => handleStatusChange(record, checked)"
+							/>
 						</template>
 						<template v-else-if="column.key === 'sort'">
 							<a-input-number
@@ -319,12 +324,14 @@
 	import { getCourseList, deleteCourse, batchDeleteCourses, batchUpdateCourseStatus, updateCourseSort, generateMissingCoursePreviewCaches, retryFailedCoursePreviewCaches, getCoursePreviewCacheProgress, interruptCoursePreviewCacheTask } from '@/api/course';
 	import { getCourseCategoryTree } from '@/api/course-category';
 	import { getToken } from '@/utils/auth';
+	import { useUserStore } from '@/store/user';
 import CourseModal from './components/CourseModal.vue';
 import ExamConfigDrawer from './components/ExamConfigDrawer.vue';
 import RecommendationDrawer from './components/RecommendationDrawer.vue';
 
 const loading = ref(false);
 const dataSource = ref([]);
+const userStore = useUserStore();
 const modalVisible = ref(false);
 const currentRecord = ref(null);
 const examDrawerVisible = ref(false);
@@ -335,6 +342,7 @@ const currentCourseName = ref<string>('');
 	const batchDeleteModalVisible = ref(false);
 	const batchDeleteLoading = ref(false);
 	const sortUpdatingId = ref<number | null>(null);
+	const statusUpdatingId = ref<number | null>(null);
 	const exporting = ref(false);
 	const exportingByCategory = ref(false);
 	const previewCacheGenerating = ref(false);
@@ -395,6 +403,7 @@ const pagination = ref({
 });
 
 const lastPage = computed(() => Math.max(1, Math.ceil((pagination.value.total || 0) / pagination.value.pageSize)));
+const canToggleCourseStatus = computed(() => userStore.hasRole('super_admin') || userStore.hasPermission('course:status'));
 const previewCachePercent = computed(() => {
 	const total = Number(previewCacheProgress.value.totalPages || 0);
 	if (!total) return 0;
@@ -516,7 +525,7 @@ const columns = [
 	{
 		title: '状态',
 		key: 'status',
-		width: 80,
+		width: 110,
 	},
 		{
 			title: '排序',
@@ -755,6 +764,28 @@ const handleDelete = async (record: any) => {
 			message.error(error?.message || '排序更新失败');
 		} finally {
 			sortUpdatingId.value = null;
+		}
+	};
+
+	const handleStatusChange = async (record: any, checked: boolean | string | number) => {
+		if (!canToggleCourseStatus.value) {
+			message.warning('当前账号没有切换课程状态的权限');
+			return;
+		}
+		const nextStatus = checked ? 1 : 0;
+		if (nextStatus === Number(record.status)) return;
+		const previousStatus = record.status;
+		record.status = nextStatus;
+		statusUpdatingId.value = record.id;
+		try {
+			await batchUpdateCourseStatus([record.id], nextStatus);
+			message.success(nextStatus === 1 ? '课程已启用' : '课程已禁用');
+			fetchData();
+		} catch (error: any) {
+			record.status = previousStatus;
+			message.error(error?.msg || error?.message || '状态切换失败');
+		} finally {
+			statusUpdatingId.value = null;
 		}
 	};
 

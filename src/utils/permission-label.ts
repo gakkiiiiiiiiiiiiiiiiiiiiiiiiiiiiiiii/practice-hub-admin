@@ -18,6 +18,7 @@ const permissionNameMap: Record<string, string> = {
 	'course:view': '查看课程',
 	'course:create': '新增课程',
 	'course:edit': '编辑课程',
+	'course:status': '切换课程状态',
 	'course:delete': '删除课程',
 	'chapter:view': '查看章节',
 	'chapter:create': '新增章节',

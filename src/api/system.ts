@@ -30,11 +30,11 @@ export function getPermissionGroups() {
   return request.get('/admin/roles/permissions')
 }
 
-export function createRole(data: { value: string; name: string; description?: string; permissions: string[] }) {
+export function createRole(data: { value: string; name: string; description?: string; permissions: string[]; permissionLimits?: Record<string, number | null> }) {
   return request.post('/admin/roles', data)
 }
 
-export function updateRole(id: number | string, data: { permissions: string[] }) {
+export function updateRole(id: number | string, data: { permissions: string[]; permissionLimits?: Record<string, number | null> }) {
   return request.put(`/admin/roles/${id}/permissions`, data)
 }
 

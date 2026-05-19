@@ -41,6 +41,9 @@
             <a-space wrap>
               <a-tag v-for="permission in record.permissions" :key="permission" :title="permission" style="margin: 2px">
                 {{ getPermissionDisplayName(permission) }}
+                <template v-if="record.permissionLimits?.[permission]">
+                  / 日 {{ record.permissionLimits[permission] }} 次
+                </template>
               </a-tag>
               <span v-if="record.permissions.length === 0" style="color: #999">无权限</span>
             </a-space>
