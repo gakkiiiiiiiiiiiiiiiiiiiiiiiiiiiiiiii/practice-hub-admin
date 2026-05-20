@@ -907,12 +907,7 @@ const fetchPreviewCacheProgress = async () => {
 		const res = await getCoursePreviewCacheProgress();
 		previewCacheProgress.value = res?.data || previewCacheProgress.value;
 		const running = Number(previewCacheProgress.value.runningCourses || 0);
-		const hasProgress = Number(previewCacheProgress.value.totalCourses || 0) > 0
-			|| Number(previewCacheProgress.value.totalPages || 0) > 0
-			|| previewCacheRecords.value.length > 0;
-		if (running > 0 || (previewCacheProgressVisible.value && hasProgress)) {
-			previewCacheProgressVisible.value = true;
-		}
+		// 轮询只更新进度数据，不自动打开弹窗（避免用户关闭后反复弹出）
 		if (running === 0 && previewCachePollTimer) {
 			stopPreviewCachePolling();
 		}
