@@ -132,6 +132,22 @@
 					<template v-else-if="column.key === 'action'">
 						<a-space class="course-action-space" :size="4" wrap>
 							<a-button type="link" size="small" @click="handleEdit(record)"> 编辑 </a-button>
+							<a-dropdown v-if="isPreviewCacheSupportedCourse(record)">
+								<a-button type="link" size="small" :loading="previewCacheUpdatingId === record.id">
+									图片缓存
+									<down-outlined />
+								</a-button>
+								<template #overlay>
+									<a-menu>
+										<a-menu-item key="preview-cache-missing" @click="handleGenerateCoursePreviewCache(record, false)">
+											生成缺失缓存
+										</a-menu-item>
+										<a-menu-item key="preview-cache-force" @click="handleGenerateCoursePreviewCache(record, true)">
+											强制全部重新生成
+										</a-menu-item>
+									</a-menu>
+								</template>
+							</a-dropdown>
 							<a-dropdown>
 								<a-button type="link" size="small" @click.prevent>
 									设置
@@ -323,7 +339,7 @@
 	import { ref, onMounted, watch, computed, onBeforeUnmount } from 'vue';
 	import { message } from 'ant-design-vue';
 	import { PlusOutlined, DeleteOutlined, CheckOutlined, CloseOutlined, DownOutlined } from '@ant-design/icons-vue';
-	import { getCourseList, deleteCourse, batchDeleteCourses, batchUpdateCourseStatus, updateCourseSort, generateMissingCoursePreviewCaches, retryFailedCoursePreviewCaches, getCoursePreviewCacheProgress, interruptCoursePreviewCacheTask } from '@/api/course';
+	import { getCourseList, deleteCourse, batchDeleteCourses, batchUpdateCourseStatus, updateCourseSort, generateCoursePreviewCache, generateMissingCoursePreviewCaches, retryFailedCoursePreviewCaches, getCoursePreviewCacheProgress, interruptCoursePreviewCacheTask } from '@/api/course';
 	import { getCourseCategoryTree } from '@/api/course-category';
 	import { getToken } from '@/utils/auth';
 	import { useUserStore } from '@/store/user';
@@ -348,6 +364,7 @@ const currentCourseName = ref<string>('');
 	const exporting = ref(false);
 	const exportingByCategory = ref(false);
 	const previewCacheGenerating = ref(false);
+	const previewCacheUpdatingId = ref<number | null>(null);
 	const previewCacheRetrying = ref(false);
 	const previewCacheCanceling = ref(false);
 	const previewCacheRefreshing = ref(false);
@@ -549,7 +566,7 @@ const columns = [
 	{
 		title: '操作',
 		key: 'action',
-		width: 220,
+		width: 280,
 		fixed: 'right',
 	},
 ];
@@ -811,6 +828,39 @@ const handleRecommendConfig = (record: any) => {
 	currentCourseId.value = record.id;
 	currentCourseName.value = record.name;
 	recommendDrawerVisible.value = true;
+};
+
+const isPreviewCacheSupportedCourse = (record: any) => {
+	if (record?.content_type !== 'file') return false;
+	const fileType = String(record?.file_type || '').toLowerCase();
+	return ['pdf', 'doc', 'docx'].includes(fileType);
+};
+
+const handleGenerateCoursePreviewCache = async (record: any, force = false) => {
+	if (!record?.id || previewCacheUpdatingId.value === record.id) return;
+	previewCacheUpdatingId.value = record.id;
+	try {
+		const res = await generateCoursePreviewCache(record.id, force);
+		const data = res?.data || res || {};
+		if (data.running) {
+			message.info(`课程「${record.name}」的图片缓存正在生成中`);
+		} else if (data.started === false && data.running) {
+			message.info(`课程「${record.name}」的图片缓存任务已在执行`);
+		} else {
+			message.success(
+				force
+					? `已开始强制重新生成「${record.name}」的图片缓存`
+					: `已开始生成「${record.name}」的缺失图片缓存`,
+			);
+		}
+		previewCacheProgressVisible.value = true;
+		await fetchPreviewCacheProgress();
+		startPreviewCachePolling();
+	} catch (error: any) {
+		message.error(error?.msg || error?.message || '生成图片缓存失败');
+	} finally {
+		previewCacheUpdatingId.value = null;
+	}
 };
 
 const openPreviewCacheModal = async () => {
