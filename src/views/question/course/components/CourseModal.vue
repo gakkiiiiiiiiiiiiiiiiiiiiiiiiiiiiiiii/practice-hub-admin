@@ -22,6 +22,27 @@
 			</a-form-item>
 			<a-form-item v-if="formState.content_type === 'file'" label="课程文件" name="course_files">
 				<div class="course-files-panel">
+					<a-alert
+						v-if="pdfHealthWarnings.length"
+						type="warning"
+						show-icon
+						class="pdf-health-alert"
+					>
+						<template #message>检测到 PDF 文件结构不规范</template>
+						<template #description>
+							<ul class="pdf-health-alert__list">
+								<li v-for="item in pdfHealthWarnings" :key="`${item.fileId || item.fileUrl}`">
+									<strong>{{ item.displayName || '未命名文件' }}</strong>
+									<span v-if="item.pageCount">（约 {{ item.pageCount }} 页）</span>
+									：{{ item.warnings[0] }}
+								</li>
+							</ul>
+							<div class="form-tip">
+								在线预览会使用 Ghostscript 兜底，但建议用 Adobe Acrobat 或 WPS「另存为 PDF」重新导出后上传，以获得最佳兼容性。
+							</div>
+						</template>
+					</a-alert>
+					<a-spin :spinning="pdfHealthLoading" tip="正在检测 PDF 文件结构…">
 					<a-table
 						:data-source="visibleCourseFileRows"
 						:columns="courseFileColumns"
@@ -93,6 +114,7 @@
 						<a-progress :percent="courseFileUploadProgress" size="small" />
 						<div class="form-tip">{{ courseFileUploadStage || '正在上传课程文件，请勿关闭窗口' }}</div>
 					</div>
+					</a-spin>
 				</div>
 			</a-form-item>
 			<a-form-item v-if="formState.content_type === 'file'" label="源文件查看">
@@ -283,6 +305,8 @@ import {
 	createCourseFile,
 	updateCourseFile,
 	deleteCourseFile,
+	getCourseFilesPdfHealth,
+	checkCourseFilePdfHealth,
 	getCoursePreviewSamplePages,
 	fetchCoursePreviewSamplePageBlob,
 } from '@/api/course';
@@ -365,6 +389,9 @@ type PreviewSampleItem = {
 const previewSampleItems = ref<PreviewSampleItem[]>([]);
 let previewSampleObjectUrls: string[] = [];
 let previewSampleLoadTimer: ReturnType<typeof setTimeout> | null = null;
+const pdfHealthLoading = ref(false);
+const pdfHealthWarnings = ref<any[]>([]);
+let pdfHealthRequestId = 0;
 
 const autoCoverPreviewSrc = computed(() => generatedCoverPreview.value);
 const previewableCourseFiles = computed(() =>
@@ -515,6 +542,47 @@ const loadCourseFileRows = async () => {
 	syncPrimaryFromRows();
 	const firstPreviewable = previewableCourseFiles.value.find((row) => row.id);
 	selectedPreviewFileId.value = firstPreviewable?.id;
+	void loadPdfHealthWarnings();
+};
+
+const loadPdfHealthWarnings = async () => {
+	pdfHealthWarnings.value = [];
+	if (formState.value.content_type !== 'file') return;
+
+	const pdfRows = visibleCourseFileRows.value.filter(
+		(row) => row.file_url && (row.file_type || '').toLowerCase() === 'pdf',
+	);
+	if (!pdfRows.length) return;
+
+	const requestId = ++pdfHealthRequestId;
+	pdfHealthLoading.value = true;
+	try {
+		if (props.record?.id) {
+			const res = await getCourseFilesPdfHealth(props.record.id);
+			if (requestId !== pdfHealthRequestId) return;
+			const list = Array.isArray((res as any)?.data) ? (res as any).data : Array.isArray(res) ? res : [];
+			pdfHealthWarnings.value = list.filter((item: any) => item && item.healthy === false);
+			return;
+		}
+
+		const results = await Promise.all(
+			pdfRows.map((row) =>
+				checkCourseFilePdfHealth(row.file_url, row.display_name || row.file_name).then((res) => {
+					const data = (res as any)?.data ?? res;
+					return { ...data, fileUrl: row.file_url };
+				}),
+			),
+		);
+		if (requestId !== pdfHealthRequestId) return;
+		pdfHealthWarnings.value = results.filter((item) => item && item.healthy === false);
+	} catch (error: any) {
+		if (requestId !== pdfHealthRequestId) return;
+		console.warn('PDF 结构检测失败:', error);
+	} finally {
+		if (requestId === pdfHealthRequestId) {
+			pdfHealthLoading.value = false;
+		}
+	}
 };
 
 const syncCourseFilesAfterSave = async (courseId: number) => {
@@ -650,6 +718,9 @@ watch(
 			scheduleLoadPreviewSamples();
 		} else {
 			clearPreviewSampleUrls();
+			pdfHealthWarnings.value = [];
+			pdfHealthRequestId += 1;
+			pdfHealthLoading.value = false;
 		}
 	}
 	);
@@ -914,6 +985,9 @@ const handleCourseFileUpload = async (options: any) => {
 		syncPrimaryFromRows();
 		onSuccess?.();
 		message.success('课程文件上传成功');
+		if ((res.fileType || '').toLowerCase() === 'pdf') {
+			void loadPdfHealthWarnings();
+		}
 		if (props.record?.id) {
 			scheduleLoadPreviewSamples(400);
 		}
@@ -1266,6 +1340,19 @@ const handleSubmit = async () => {
 
 .preview-sample-hint {
 	margin-bottom: 12px;
+}
+
+.pdf-health-alert {
+	margin-bottom: 12px;
+}
+
+.pdf-health-alert__list {
+	margin: 8px 0 0;
+	padding-left: 18px;
+}
+
+.pdf-health-alert__list li + li {
+	margin-top: 4px;
 }
 
 .preview-sample-list {

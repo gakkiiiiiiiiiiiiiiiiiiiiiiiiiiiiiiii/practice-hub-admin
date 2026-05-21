@@ -132,22 +132,6 @@
 					<template v-else-if="column.key === 'action'">
 						<a-space class="course-action-space" :size="4" wrap>
 							<a-button type="link" size="small" @click="handleEdit(record)"> 编辑 </a-button>
-							<a-dropdown v-if="isPreviewCacheSupportedCourse(record)">
-								<a-button type="link" size="small" :loading="previewCacheUpdatingId === record.id">
-									图片缓存
-									<down-outlined />
-								</a-button>
-								<template #overlay>
-									<a-menu>
-										<a-menu-item key="preview-cache-missing" @click="handleGenerateCoursePreviewCache(record, false)">
-											生成缺失缓存
-										</a-menu-item>
-										<a-menu-item key="preview-cache-force" @click="handleGenerateCoursePreviewCache(record, true)">
-											强制全部重新生成
-										</a-menu-item>
-									</a-menu>
-								</template>
-							</a-dropdown>
 							<a-dropdown>
 								<a-button type="link" size="small" @click.prevent>
 									设置
@@ -229,6 +213,13 @@
 					>
 						重新生成失败课程
 					</a-button>
+					<a-button
+						:loading="previewCacheFixingBlank"
+						:disabled="previewCacheTaskRunning"
+						@click="handleFixBlankPreviewCaches"
+					>
+						空白图修复
+					</a-button>
 					<a-popconfirm
 						v-if="previewCacheTaskRunning"
 						title="确定要中断当前图片缓存生成任务吗？已生成的缓存会保留。"
@@ -265,6 +256,18 @@
 					</div>
 					<div class="preview-cache-progress__meta" v-if="previewCacheProgress.taskNo">
 						任务编号：{{ previewCacheProgress.taskNo }}，状态：{{ previewCacheStatusText(previewCacheProgress.status) }}
+					</div>
+					<div v-if="previewCacheBlankDetected.length" class="preview-cache-failed-list">
+						<div class="preview-cache-failed-list__title">检测到空白预览图（{{ previewCacheBlankDetected.length }} 个课程）</div>
+						<div
+							v-for="(item, idx) in previewCacheBlankDetected"
+							:key="`${item.courseId}-${item.fileId}-${idx}`"
+							class="preview-cache-failed-list__item"
+						>
+							<span>课程ID {{ item.courseId }}（{{ item.courseName || '-' }}）</span>
+							<span>文件：{{ item.fileName || item.fileId }}</span>
+							<span>空白页码：第 {{ item.pageNum }} 页</span>
+						</div>
 					</div>
 					<div v-if="previewCacheFailedDetails.length" class="preview-cache-failed-list">
 						<div class="preview-cache-failed-list__title">失败明细（最近 {{ previewCacheFailedDetails.length }} 条）</div>
@@ -339,7 +342,7 @@
 	import { ref, onMounted, watch, computed, onBeforeUnmount } from 'vue';
 	import { message } from 'ant-design-vue';
 	import { PlusOutlined, DeleteOutlined, CheckOutlined, CloseOutlined, DownOutlined } from '@ant-design/icons-vue';
-	import { getCourseList, deleteCourse, batchDeleteCourses, batchUpdateCourseStatus, updateCourseSort, generateCoursePreviewCache, generateMissingCoursePreviewCaches, retryFailedCoursePreviewCaches, getCoursePreviewCacheProgress, interruptCoursePreviewCacheTask } from '@/api/course';
+	import { getCourseList, deleteCourse, batchDeleteCourses, batchUpdateCourseStatus, updateCourseSort, generateMissingCoursePreviewCaches, retryFailedCoursePreviewCaches, getCoursePreviewCacheProgress, interruptCoursePreviewCacheTask, fixBlankCoursePreviewCaches } from '@/api/course';
 	import { getCourseCategoryTree } from '@/api/course-category';
 	import { getToken } from '@/utils/auth';
 	import { useUserStore } from '@/store/user';
@@ -364,11 +367,12 @@ const currentCourseName = ref<string>('');
 	const exporting = ref(false);
 	const exportingByCategory = ref(false);
 	const previewCacheGenerating = ref(false);
-	const previewCacheUpdatingId = ref<number | null>(null);
+	const previewCacheFixingBlank = ref(false);
 	const previewCacheRetrying = ref(false);
 	const previewCacheCanceling = ref(false);
 	const previewCacheRefreshing = ref(false);
 	const previewCacheProgressVisible = ref(false);
+	const previewCacheBlankDetected = ref<any[]>([]);
 	const previewCacheProgress = ref<any>({
 		totalCourses: 0,
 		runningCourses: 0,
@@ -830,39 +834,6 @@ const handleRecommendConfig = (record: any) => {
 	recommendDrawerVisible.value = true;
 };
 
-const isPreviewCacheSupportedCourse = (record: any) => {
-	if (record?.content_type !== 'file') return false;
-	const fileType = String(record?.file_type || '').toLowerCase();
-	return ['pdf', 'doc', 'docx'].includes(fileType);
-};
-
-const handleGenerateCoursePreviewCache = async (record: any, force = false) => {
-	if (!record?.id || previewCacheUpdatingId.value === record.id) return;
-	previewCacheUpdatingId.value = record.id;
-	try {
-		const res = await generateCoursePreviewCache(record.id, force);
-		const data = res?.data || res || {};
-		if (data.running) {
-			message.info(`课程「${record.name}」的图片缓存正在生成中`);
-		} else if (data.started === false && data.running) {
-			message.info(`课程「${record.name}」的图片缓存任务已在执行`);
-		} else {
-			message.success(
-				force
-					? `已开始强制重新生成「${record.name}」的图片缓存`
-					: `已开始生成「${record.name}」的缺失图片缓存`,
-			);
-		}
-		previewCacheProgressVisible.value = true;
-		await fetchPreviewCacheProgress();
-		startPreviewCachePolling();
-	} catch (error: any) {
-		message.error(error?.msg || error?.message || '生成图片缓存失败');
-	} finally {
-		previewCacheUpdatingId.value = null;
-	}
-};
-
 const openPreviewCacheModal = async () => {
 	previewCacheProgressVisible.value = true;
 	await fetchPreviewCacheProgress();
@@ -946,6 +917,31 @@ const handleInterruptPreviewCacheTask = async () => {
 		message.error(error?.msg || error?.message || '中断任务失败');
 	} finally {
 		previewCacheCanceling.value = false;
+	}
+};
+
+const handleFixBlankPreviewCaches = async () => {
+	if (previewCacheFixingBlank.value || previewCacheTaskRunning.value) return;
+	previewCacheFixingBlank.value = true;
+	try {
+		const res = await fixBlankCoursePreviewCaches();
+		const data = res?.data || res || {};
+		previewCacheBlankDetected.value = Array.isArray(data.detected) ? data.detected : [];
+		if (data.alreadyRunning) {
+			message.info('已有图片缓存生成任务正在执行，请稍后查看进度');
+		} else if ((data.total || 0) === 0) {
+			message.info(data.message || '未检测到空白预览图课程');
+		} else {
+			message.success(`检测到 ${previewCacheBlankDetected.value.length} 个空白预览图课程，已开始强制重新生成`);
+		}
+		previewCacheProgressVisible.value = true;
+		previewCacheProgress.value = data;
+		startPreviewCachePolling();
+		await fetchPreviewCacheProgress();
+	} catch (error: any) {
+		message.error(error?.msg || error?.message || '空白图修复失败');
+	} finally {
+		previewCacheFixingBlank.value = false;
 	}
 };
 

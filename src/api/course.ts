@@ -70,6 +70,11 @@ export function interruptCoursePreviewCacheTask() {
   return request.post('/admin/courses/preview-cache/interrupt')
 }
 
+// 检测空白预览图课程并强制重新生成
+export function fixBlankCoursePreviewCaches() {
+  return request.post('/admin/courses/preview-cache/fix-blank')
+}
+
 export function listCourseFiles(courseId: number) {
   return request.get(`/admin/courses/${courseId}/files`)
 }
@@ -84,6 +89,16 @@ export function updateCourseFile(courseId: number, fileId: number, data: Record<
 
 export function deleteCourseFile(courseId: number, fileId: number) {
   return request.delete(`/admin/courses/${courseId}/files/${fileId}`)
+}
+
+// 检测课程 PDF 文件结构是否规范
+export function getCourseFilesPdfHealth(courseId: number) {
+  return request.get(`/admin/courses/${courseId}/files/pdf-health`)
+}
+
+// 检测指定 PDF 文件结构（上传后、尚未保存课程时）
+export function checkCourseFilePdfHealth(fileUrl: string, displayName?: string) {
+  return request.post('/admin/courses/files/pdf-health-check', { fileUrl, displayName })
 }
 
 // 获取课程文件前三页预览图状态（仅编辑已有文件课程）
