@@ -69,3 +69,34 @@ export function getCoursePreviewCacheProgress() {
 export function interruptCoursePreviewCacheTask() {
   return request.post('/admin/courses/preview-cache/interrupt')
 }
+
+export function listCourseFiles(courseId: number) {
+  return request.get(`/admin/courses/${courseId}/files`)
+}
+
+export function createCourseFile(courseId: number, data: Record<string, unknown>) {
+  return request.post(`/admin/courses/${courseId}/files`, data)
+}
+
+export function updateCourseFile(courseId: number, fileId: number, data: Record<string, unknown>) {
+  return request.put(`/admin/courses/${courseId}/files/${fileId}`, data)
+}
+
+export function deleteCourseFile(courseId: number, fileId: number) {
+  return request.delete(`/admin/courses/${courseId}/files/${fileId}`)
+}
+
+// 获取课程文件前三页预览图状态（仅编辑已有文件课程）
+export function getCoursePreviewSamplePages(id: number, fileId?: number) {
+  const params = fileId ? { fileId } : {}
+  return request.get(`/admin/courses/${id}/preview-sample-pages`, { params })
+}
+
+// 获取课程文件指定预览页图片（blob，仅前 3 页）
+export function fetchCoursePreviewSamplePageBlob(id: number, pageNum: number, fileId?: number) {
+  const params = fileId ? { fileId } : undefined
+  return request.get(`/admin/courses/${id}/preview-sample-page/${pageNum}`, {
+    params,
+    responseType: 'blob',
+  })
+}

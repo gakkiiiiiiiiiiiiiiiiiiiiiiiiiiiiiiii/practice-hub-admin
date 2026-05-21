@@ -468,6 +468,13 @@ const columns = [
 	// 	width: 100,
 	// },
 	{
+		title: '排序',
+		dataIndex: 'sort',
+		key: 'sort',
+		width: 90,
+		fixed: 'left',
+	},
+	{
 		title: '课程名称',
 		dataIndex: 'name',
 		key: 'name',
@@ -537,12 +544,6 @@ const columns = [
 	{
 		title: '状态',
 		key: 'status',
-		width: 110,
-	},
-	{
-		title: '排序',
-		dataIndex: 'sort',
-		key: 'sort',
 		width: 110,
 	},
 	{

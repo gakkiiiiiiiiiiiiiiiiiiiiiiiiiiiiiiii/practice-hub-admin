@@ -5,7 +5,7 @@
 		@cancel="handleCancel"
 		@ok="handleSubmit"
 		:confirmLoading="loading"
-		width="600px"
+		width="720px"
 	>
 		<a-form ref="formRef" :model="formState" :rules="rules" :label-col="{ span: 6 }" :wrapper-col="{ span: 18 }">
 			<a-form-item label="课程名称" name="name">
@@ -20,27 +20,79 @@
 					当前账号不能删除已有课程文件，因此不能将文件课程改为普通题库。
 				</div>
 			</a-form-item>
-			<a-form-item v-if="formState.content_type === 'file'" label="课程文件" name="file_url">
-				<a-upload
-					v-model:file-list="courseFileList"
-					:class="{ 'course-file-upload--readonly': !canDownloadCourseFile }"
-					:before-upload="beforeCourseFileUpload"
-					:custom-request="handleCourseFileUpload"
-					:show-upload-list="courseFileUploadListOptions"
-					:max-count="1"
-					accept=".pdf,.doc,.docx"
-					@preview="handleCourseFilePreview"
-					@remove="handleCourseFileRemove"
-				>
-					<a-button v-if="courseFileList.length < 1">
-						<upload-outlined />
-						上传 PDF 或 Word
-					</a-button>
-				</a-upload>
-				<div v-if="formState.file_name" class="form-tip">当前文件：{{ formState.file_name }}</div>
-				<div v-if="courseFileUploading" class="course-file-upload-progress">
-					<a-progress :percent="courseFileUploadProgress" size="small" />
-					<div class="form-tip">{{ courseFileUploadStage || '正在上传课程文件，请勿关闭窗口' }}</div>
+			<a-form-item v-if="formState.content_type === 'file'" label="课程文件" name="course_files">
+				<div class="course-files-panel">
+					<a-table
+						:data-source="visibleCourseFileRows"
+						:columns="courseFileColumns"
+						:pagination="false"
+						size="small"
+						row-key="key"
+					>
+						<template #bodyCell="{ column, record, index }">
+							<template v-if="column.key === 'display_name'">
+								<a-input
+									v-model:value="record.display_name"
+									placeholder="展示名称（必填）"
+									:maxlength="100"
+								/>
+							</template>
+							<template v-else-if="column.key === 'file_name'">
+								<span class="course-file-meta">{{ record.file_name || '—' }}</span>
+							</template>
+							<template v-else-if="column.key === 'file_type'">
+								<span class="course-file-meta">{{ (record.file_type || '').toUpperCase() }}</span>
+							</template>
+							<template v-else-if="column.key === 'sort'">
+								<a-input-number
+									v-model:value="record.sort"
+									:min="0"
+									:precision="0"
+									style="width: 72px"
+								/>
+							</template>
+							<template v-else-if="column.key === 'actions'">
+								<a-space size="small">
+									<a-button
+										v-if="canDownloadCourseFile && record.file_url"
+										type="link"
+										size="small"
+										@click="openCourseFileUrl(record.file_url)"
+									>
+										下载
+									</a-button>
+									<a-button
+										v-if="canRemoveCourseFileRow(record)"
+										type="link"
+										size="small"
+										danger
+										@click="removeCourseFileRow(record.key)"
+									>
+										删除
+									</a-button>
+								</a-space>
+							</template>
+						</template>
+					</a-table>
+					<div class="course-files-panel__toolbar">
+						<a-upload
+							:show-upload-list="false"
+							:before-upload="beforeCourseFileUpload"
+							:custom-request="(opts) => handleCourseFileUpload(opts)"
+							accept=".pdf,.doc,.docx"
+							multiple
+						>
+							<a-button type="dashed">
+								<upload-outlined />
+								添加文件
+							</a-button>
+						</a-upload>
+						<span class="form-tip">可上传多个 PDF/Word；展示名称将显示在小程序资料列表中</span>
+					</div>
+					<div v-if="courseFileUploading" class="course-file-upload-progress">
+						<a-progress :percent="courseFileUploadProgress" size="small" />
+						<div class="form-tip">{{ courseFileUploadStage || '正在上传课程文件，请勿关闭窗口' }}</div>
+					</div>
 				</div>
 			</a-form-item>
 			<a-form-item v-if="formState.content_type === 'file'" label="源文件查看">
@@ -49,6 +101,46 @@
 					<a-radio :value="0">关闭</a-radio>
 				</a-radio-group>
 				<div class="form-tip">关闭后，小程序端不展示“查看完整文件/查看文件”入口，但仍可小程序内在线预览。</div>
+			</a-form-item>
+			<a-form-item v-if="showCoursePreviewSamples" label="前三页预览">
+				<div v-if="previewableCourseFiles.length > 1" class="preview-file-switch">
+					<span class="form-tip">选择文件：</span>
+					<a-select
+						v-model:value="selectedPreviewFileId"
+						style="min-width: 220px"
+						:options="previewableCourseFiles.map((f) => ({ value: f.id, label: f.display_name }))"
+						@change="scheduleLoadPreviewSamples(0)"
+					/>
+				</div>
+				<a-spin :spinning="previewSampleLoading">
+					<div v-if="previewSampleHint" class="form-tip preview-sample-hint">{{ previewSampleHint }}</div>
+					<div v-if="previewSampleItems.length" class="preview-sample-list">
+						<div
+							v-for="item in previewSampleItems"
+							:key="item.pageNum"
+							class="preview-sample-item"
+						>
+							<div class="preview-sample-item__title">第 {{ item.pageNum }} 页</div>
+							<a-spin v-if="item.loading" size="small" />
+							<div v-else-if="item.error" class="form-tip">{{ item.error }}</div>
+							<template v-else>
+								<a-image
+									:src="item.src"
+									:width="168"
+									:height="224"
+									class="preview-sample-item__image"
+									:preview="{ src: item.src }"
+								/>
+								<a-button type="link" size="small" @click="downloadPreviewSample(item.pageNum)">
+									下载
+								</a-button>
+							</template>
+						</div>
+					</div>
+					<div v-else-if="!previewSampleLoading && previewSampleSupported" class="form-tip">
+						暂无可预览页面，请先在课程列表生成图片缓存
+					</div>
+				</a-spin>
 			</a-form-item>
 			<a-form-item label="课程" name="subject">
 				<a-input v-model:value="formState.subject" placeholder="请输入课程（如：数学、英语等）" />
@@ -64,18 +156,32 @@
 					style="width: 100%"
 				/>
 			</a-form-item>
-			<a-form-item label="学校" name="school">
-				<a-input v-model:value="formState.school" placeholder="请输入学校（如：北京大学等）" />
+			<a-form-item :wrapper-col="{ span: 18, offset: 6 }" class="extra-fields-toggle-row">
+				<a-button type="link" class="extra-fields-toggle" @click="extraFieldsExpanded = !extraFieldsExpanded">
+					<template v-if="extraFieldsExpanded">
+						<up-outlined />
+						收起学校 / 专业 / 真题年份 / 答案年份
+					</template>
+					<template v-else>
+						<down-outlined />
+						展开学校 / 专业 / 真题年份 / 答案年份
+					</template>
+				</a-button>
 			</a-form-item>
-			<a-form-item label="专业" name="major">
-				<a-input v-model:value="formState.major" placeholder="请输入专业（如：计算机科学与技术等）" />
-			</a-form-item>
-			<a-form-item label="真题年份" name="exam_year">
-				<a-input v-model:value="formState.exam_year" placeholder="请输入真题年份（如：2024）" />
-			</a-form-item>
-			<a-form-item label="答案年份" name="answer_year">
-				<a-input v-model:value="formState.answer_year" placeholder="请输入答案年份（如：2024）" />
-			</a-form-item>
+			<template v-if="extraFieldsExpanded">
+				<a-form-item label="学校" name="school">
+					<a-input v-model:value="formState.school" placeholder="请输入学校（如：北京大学等）" />
+				</a-form-item>
+				<a-form-item label="专业" name="major">
+					<a-input v-model:value="formState.major" placeholder="请输入专业（如：计算机科学与技术等）" />
+				</a-form-item>
+				<a-form-item label="真题年份" name="exam_year">
+					<a-input v-model:value="formState.exam_year" placeholder="请输入真题年份（如：2024）" />
+				</a-form-item>
+				<a-form-item label="答案年份" name="answer_year">
+					<a-input v-model:value="formState.answer_year" placeholder="请输入答案年份（如：2024）" />
+				</a-form-item>
+			</template>
 			<a-form-item label="封面方式">
 				<a-radio-group v-model:value="coverMode">
 					<a-radio value="manual">手动上传</a-radio>
@@ -169,8 +275,17 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
 import { message } from 'ant-design-vue';
-import { PlusOutlined, UploadOutlined } from '@ant-design/icons-vue';
-import { createCourse, updateCourse } from '@/api/course';
+import { PlusOutlined, UploadOutlined, DownOutlined, UpOutlined } from '@ant-design/icons-vue';
+import {
+	createCourse,
+	updateCourse,
+	listCourseFiles,
+	createCourseFile,
+	updateCourseFile,
+	deleteCourseFile,
+	getCoursePreviewSamplePages,
+	fetchCoursePreviewSamplePageBlob,
+} from '@/api/course';
 import { getCourseCoverConfig } from '@/api/system';
 import { getCourseCategoryTree } from '@/api/course-category';
 import { uploadImage, uploadCourseFile } from '@/api/upload';
@@ -205,7 +320,29 @@ const courseFileUploadProgress = ref(0);
 const courseFileUploadStage = ref('');
 const autoCoverLoading = ref(false);
 const fileList = ref<any[]>([]);
-const courseFileList = ref<any[]>([]);
+type CourseFileRow = {
+	key: string;
+	id?: number;
+	display_name: string;
+	file_url: string;
+	file_name: string;
+	file_type: string;
+	file_size: number;
+	sort: number;
+	removed?: boolean;
+};
+const courseFileRows = ref<CourseFileRow[]>([]);
+const selectedPreviewFileId = ref<number | undefined>(undefined);
+const courseFileColumns = [
+	{ title: '展示名称', key: 'display_name', width: 200 },
+	{ title: '原始文件名', key: 'file_name', width: 160 },
+	{ title: '类型', key: 'file_type', width: 72 },
+	{ title: '排序', key: 'sort', width: 88 },
+	{ title: '操作', key: 'actions', width: 120 },
+];
+const visibleCourseFileRows = computed(() =>
+	courseFileRows.value.filter((row) => !row.removed).sort((a, b) => a.sort - b.sort),
+);
 const categoryTree = ref<any[]>([]);
 const categoryCascaderValue = ref<string[]>([]);
 const coverMode = ref<'manual' | 'auto'>('manual');
@@ -215,18 +352,41 @@ let generatedPreviewObjectUrl = '';
 let generatedCoverFile: File | null = null;
 let coverConfigCache: CourseCoverTemplatePack | null = null;
 let autoCoverTimer: ReturnType<typeof setTimeout> | null = null;
+const extraFieldsExpanded = ref(false);
+const previewSampleLoading = ref(false);
+const previewSampleSupported = ref(true);
+const previewSampleHint = ref('');
+type PreviewSampleItem = {
+	pageNum: number;
+	src: string;
+	loading: boolean;
+	error?: string;
+};
+const previewSampleItems = ref<PreviewSampleItem[]>([]);
+let previewSampleObjectUrls: string[] = [];
+let previewSampleLoadTimer: ReturnType<typeof setTimeout> | null = null;
 
 const autoCoverPreviewSrc = computed(() => generatedCoverPreview.value);
+const previewableCourseFiles = computed(() =>
+	visibleCourseFileRows.value.filter((row) => ['pdf', 'doc', 'docx'].includes((row.file_type || '').toLowerCase())),
+);
+const showCoursePreviewSamples = computed(
+	() =>
+		!!props.record?.id &&
+		formState.value.content_type === 'file' &&
+		previewableCourseFiles.value.some((row) => row.id),
+);
 const canDownloadCourseFile = computed(() => userStore.hasRole('super_admin'));
 const canRemoveCourseFile = computed(() => !props.record || userStore.hasRole('super_admin'));
 const isEditingExistingFileCourseWithoutAdmin = computed(
 	() => !!props.record && props.record.content_type === 'file' && !userStore.hasRole('super_admin'),
 );
-const courseFileUploadListOptions = computed(() => ({
-	showRemoveIcon: canRemoveCourseFile.value,
-	showDownloadIcon: canDownloadCourseFile.value,
-	showPreviewIcon: canDownloadCourseFile.value,
-}));
+const canRemoveCourseFileRow = (row: CourseFileRow) => {
+	if (!canRemoveCourseFile.value) return false;
+	const activeCount = visibleCourseFileRows.value.length;
+	if (props.record && activeCount <= 1) return false;
+	return true;
+};
 
 // 转换为级联选择器需要的格式
 const cascaderOptions = computed(() => {
@@ -277,17 +437,138 @@ const formState = ref({
 const rules = {
 	name: [{ required: true, message: '请输入课程名称', trigger: 'blur' }],
 	price: [{ required: true, message: '请输入价格', trigger: 'blur' }],
-	file_url: [
+	course_files: [
 		{
-			validator: (_rule: any, value: string) => {
-				if (formState.value.content_type === 'file' && !value) {
-					return Promise.reject(new Error('请上传课程文件（PDF 或 Word）'));
+			validator: async () => {
+				if (formState.value.content_type !== 'file') {
+					return Promise.resolve();
+				}
+				const active = visibleCourseFileRows.value;
+				if (active.length === 0) {
+					return Promise.reject(new Error('请至少上传一个课程文件（PDF 或 Word）'));
+				}
+				if (active.some((row) => !String(row.display_name || '').trim())) {
+					return Promise.reject(new Error('请为每个文件填写展示名称'));
 				}
 				return Promise.resolve();
 			},
 			trigger: 'change',
 		},
 	],
+};
+
+const defaultDisplayName = (fileName: string) => {
+	const base = String(fileName || '').trim();
+	return base.replace(/\.(pdf|docx?)$/i, '') || base || '课程文件';
+};
+
+const syncPrimaryFromRows = () => {
+	const primary = visibleCourseFileRows.value[0];
+	if (!primary) {
+		formState.value.file_url = '';
+		formState.value.file_name = '';
+		formState.value.file_type = '';
+		formState.value.file_size = 0;
+		return;
+	}
+	formState.value.file_url = primary.file_url;
+	formState.value.file_name = primary.file_name;
+	formState.value.file_type = primary.file_type;
+	formState.value.file_size = Number(primary.file_size || 0);
+};
+
+const loadCourseFileRows = async () => {
+	courseFileRows.value = [];
+	selectedPreviewFileId.value = undefined;
+	if (formState.value.content_type !== 'file') return;
+	if (props.record?.id) {
+		try {
+			const res = await listCourseFiles(props.record.id);
+			const files = Array.isArray((res as any)?.data) ? (res as any).data : Array.isArray(res) ? res : [];
+			courseFileRows.value = files.map((file: any, index: number) => ({
+				key: `file-${file.id}`,
+				id: file.id,
+				display_name: file.display_name || file.file_name || defaultDisplayName(file.file_name),
+				file_url: file.file_url,
+				file_name: file.file_name || '',
+				file_type: (file.file_type || 'pdf').toLowerCase(),
+				file_size: Number(file.file_size || 0),
+				sort: Number.isInteger(file.sort) ? file.sort : index,
+			}));
+		} catch (error: any) {
+			message.error(error?.message || '加载课程文件失败');
+		}
+	}
+	if (courseFileRows.value.length === 0 && formState.value.file_url) {
+		courseFileRows.value = [
+			{
+				key: 'legacy-0',
+				display_name: defaultDisplayName(formState.value.file_name || formState.value.name),
+				file_url: formState.value.file_url,
+				file_name: formState.value.file_name || '',
+				file_type: (formState.value.file_type || 'pdf').toLowerCase(),
+				file_size: Number(formState.value.file_size || 0),
+				sort: 0,
+			},
+		];
+	}
+	syncPrimaryFromRows();
+	const firstPreviewable = previewableCourseFiles.value.find((row) => row.id);
+	selectedPreviewFileId.value = firstPreviewable?.id;
+};
+
+const syncCourseFilesAfterSave = async (courseId: number) => {
+	const activeRows = [...visibleCourseFileRows.value].sort((a, b) => a.sort - b.sort);
+	const serverRes = await listCourseFiles(courseId);
+	const serverFiles = Array.isArray((serverRes as any)?.data)
+		? (serverRes as any).data
+		: Array.isArray(serverRes)
+			? serverRes
+			: [];
+	const serverByUrl = new Map(serverFiles.map((file: any) => [file.file_url, file]));
+	const keepIds = new Set<number>();
+
+	for (let index = 0; index < activeRows.length; index += 1) {
+		const row = activeRows[index];
+		const payload = {
+			display_name: String(row.display_name || '').trim(),
+			file_url: row.file_url,
+			file_name: row.file_name,
+			file_type: row.file_type,
+			file_size: row.file_size,
+			sort: Number.isInteger(row.sort) ? row.sort : index,
+		};
+		let fileId = row.id;
+		if (!fileId) {
+			const matched = serverByUrl.get(row.file_url);
+			if (matched?.id) {
+				fileId = matched.id;
+			}
+		}
+		if (fileId) {
+			await updateCourseFile(courseId, fileId, payload);
+			keepIds.add(fileId);
+			row.id = fileId;
+			row.key = `file-${fileId}`;
+		} else {
+			const created = await createCourseFile(courseId, payload);
+			const createdData = (created as any)?.data ?? created;
+			if (createdData?.id) {
+				keepIds.add(createdData.id);
+				row.id = createdData.id;
+				row.key = `file-${createdData.id}`;
+				serverByUrl.set(row.file_url, createdData);
+			}
+		}
+	}
+
+	for (const serverFile of serverFiles) {
+		if (!keepIds.has(serverFile.id) && canRemoveCourseFile.value) {
+			await deleteCourseFile(courseId, serverFile.id);
+		}
+	}
+	syncPrimaryFromRows();
+	await loadCourseFileRows();
 };
 
 watch(
@@ -333,18 +614,7 @@ watch(
 					coverMode.value = 'manual';
 					generatedCoverPreview.value = '';
 					generatedCoverFile = null;
-					if (formState.value.content_type === 'file' && formState.value.file_url) {
-					courseFileList.value = [
-						{
-							uid: '-1',
-							name: formState.value.file_name || '课程文件',
-							status: 'done',
-							url: canDownloadCourseFile.value ? formState.value.file_url : undefined,
-						},
-					];
-				} else {
-					courseFileList.value = [];
-				}
+					void loadCourseFileRows();
 			} else {
 				formState.value = {
 					name: '',
@@ -369,15 +639,28 @@ watch(
 					allow_source_file: 0,
 				};
 				fileList.value = [];
-				courseFileList.value = [];
+				courseFileRows.value = [];
+				selectedPreviewFileId.value = undefined;
 					coverMode.value = 'manual';
 					generatedCoverPreview.value = '';
 					generatedCoverFile = null;
 				}
+			extraFieldsExpanded.value = false;
 			fetchCategoryTree();
+			scheduleLoadPreviewSamples();
+		} else {
+			clearPreviewSampleUrls();
 		}
 	}
 	);
+
+watch(
+	() => [props.record?.id, selectedPreviewFileId.value, formState.value.content_type],
+	() => {
+		if (!props.open) return;
+		scheduleLoadPreviewSamples();
+	},
+);
 
 	watch(
 		coverMode,
@@ -459,6 +742,114 @@ watch(
 	{ immediate: true },
 );
 
+const clearPreviewSampleUrls = () => {
+	if (previewSampleLoadTimer) {
+		clearTimeout(previewSampleLoadTimer);
+		previewSampleLoadTimer = null;
+	}
+	previewSampleObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+	previewSampleObjectUrls = [];
+	previewSampleItems.value = [];
+	previewSampleHint.value = '';
+};
+
+const scheduleLoadPreviewSamples = (delay = 240) => {
+	if (previewSampleLoadTimer) {
+		clearTimeout(previewSampleLoadTimer);
+	}
+	previewSampleLoadTimer = setTimeout(() => {
+		previewSampleLoadTimer = null;
+		if (!props.open || !showCoursePreviewSamples.value) {
+			clearPreviewSampleUrls();
+			return;
+		}
+		loadPreviewSamples();
+	}, delay);
+};
+
+const loadPreviewSamples = async () => {
+	const courseId = props.record?.id;
+	if (!courseId || !showCoursePreviewSamples.value) {
+		clearPreviewSampleUrls();
+		return;
+	}
+	previewSampleLoading.value = true;
+	clearPreviewSampleUrls();
+	try {
+		const res = await getCoursePreviewSamplePages(courseId, selectedPreviewFileId.value);
+		const data = res?.data || res;
+		if (!data?.supported) {
+			previewSampleSupported.value = false;
+			previewSampleHint.value = '当前课程文件类型不支持图片预览';
+			return;
+		}
+		previewSampleSupported.value = true;
+		const pages = Array.isArray(data.samplePages) ? data.samplePages : [];
+		if (pages.length === 0) {
+			previewSampleHint.value = '课程文件暂无可预览页面';
+			return;
+		}
+		previewSampleItems.value = pages.map((page: { pageNum: number }) => ({
+			pageNum: page.pageNum,
+			src: '',
+			loading: true,
+		}));
+		const hasUncached = pages.some((page: { ready?: boolean }) => !page.ready);
+		if (hasUncached) {
+			previewSampleHint.value =
+				'部分页面缓存尚未生成，已尝试实时渲染；也可在课程列表点击「图片缓存」批量生成';
+		}
+		await Promise.all(
+			pages.map(async (page: { pageNum: number }) => {
+				try {
+					const blob = (await fetchCoursePreviewSamplePageBlob(
+						courseId,
+						page.pageNum,
+						selectedPreviewFileId.value,
+					)) as Blob;
+					const url = URL.createObjectURL(blob);
+					previewSampleObjectUrls.push(url);
+					const target = previewSampleItems.value.find((item) => item.pageNum === page.pageNum);
+					if (target) {
+						target.src = url;
+						target.loading = false;
+					}
+				} catch (error: any) {
+					const target = previewSampleItems.value.find((item) => item.pageNum === page.pageNum);
+					if (target) {
+						target.loading = false;
+						target.error = error?.message || '加载失败';
+					}
+				}
+			}),
+		);
+	} catch (error: any) {
+		previewSampleSupported.value = false;
+		previewSampleHint.value = error?.message || '加载预览图失败';
+	} finally {
+		previewSampleLoading.value = false;
+	}
+};
+
+const downloadPreviewSample = async (pageNum: number) => {
+	const courseId = props.record?.id;
+	if (!courseId) return;
+	try {
+		const blob = (await fetchCoursePreviewSamplePageBlob(courseId, pageNum, selectedPreviewFileId.value)) as Blob;
+		const url = URL.createObjectURL(blob);
+		const link = document.createElement('a');
+		const safeName = (formState.value.name || '课程').replace(/[\\/:*?"<>|]+/g, '-').slice(0, 40);
+		link.href = url;
+		link.download = `${safeName}-第${pageNum}页.jpg`;
+		document.body.appendChild(link);
+		link.click();
+		document.body.removeChild(link);
+		URL.revokeObjectURL(url);
+	} catch (error: any) {
+		message.error(error?.message || '下载失败');
+	}
+};
+
 const fetchCategoryTree = async () => {
 	try {
 		const res = await getCourseCategoryTree();
@@ -508,20 +899,24 @@ const handleCourseFileUpload = async (options: any) => {
 				courseFileUploadStage.value = stage || '';
 			},
 		});
-		formState.value.file_url = res.url || res.fileUrl;
-		formState.value.file_name = res.fileName;
-		formState.value.file_type = res.fileType;
-		formState.value.file_size = (file as File).size || 0;
-		courseFileList.value = [
-			{
-				uid: file.uid,
-				name: res.fileName,
-				status: 'done',
-				url: canDownloadCourseFile.value ? res.url || res.fileUrl : undefined,
-			},
-		];
+		const fileName = res.fileName || (file as File).name;
+		const nextSort =
+			courseFileRows.value.reduce((max, row) => Math.max(max, Number(row.sort) || 0), -1) + 1;
+		courseFileRows.value.push({
+			key: `new-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+			display_name: defaultDisplayName(fileName),
+			file_url: res.url || res.fileUrl,
+			file_name: fileName,
+			file_type: (res.fileType || '').toLowerCase(),
+			file_size: (file as File).size || 0,
+			sort: nextSort,
+		});
+		syncPrimaryFromRows();
 		onSuccess?.();
 		message.success('课程文件上传成功');
+		if (props.record?.id) {
+			scheduleLoadPreviewSamples(400);
+		}
 	} catch (e: any) {
 		message.error(e?.message || '上传失败');
 		onError?.(e);
@@ -532,28 +927,19 @@ const handleCourseFileUpload = async (options: any) => {
 	}
 };
 
-const handleCourseFilePreview = (file: any) => {
-	if (!canDownloadCourseFile.value) {
-		message.warning('当前账号无文件下载权限');
-		return false;
-	}
-	const url = file?.url || formState.value.file_url;
-	if (url) {
-		window.open(url, '_blank');
-	}
-	return false;
+const openCourseFileUrl = (url: string) => {
+	if (!url) return;
+	window.open(url, '_blank');
 };
 
-const handleCourseFileRemove = () => {
-	if (!canRemoveCourseFile.value) {
-		message.warning('当前账号不能删除已有课程文件');
-		return false;
+const removeCourseFileRow = (key: string) => {
+	const target = courseFileRows.value.find((row) => row.key === key);
+	if (!target || !canRemoveCourseFileRow(target)) {
+		message.warning('当前账号不能删除该文件');
+		return;
 	}
-	formState.value.file_url = '';
-	formState.value.file_name = '';
-	formState.value.file_type = '';
-	formState.value.file_size = 0;
-	return true;
+	target.removed = true;
+	syncPrimaryFromRows();
 };
 
 const handleUpload = async (options: any) => {
@@ -706,6 +1092,8 @@ const handleOpenCoverConfig = () => {
 			autoCoverTimer = null;
 		}
 		clearGeneratedCoverPreview();
+		clearPreviewSampleUrls();
+		extraFieldsExpanded.value = false;
 	};
 
 const handleSubmit = async () => {
@@ -779,6 +1167,7 @@ const handleSubmit = async () => {
 			}
 		}
 		if (submitData.content_type === 'file') {
+			syncPrimaryFromRows();
 			const fallbackRecord = isEditingExistingFileCourseWithoutAdmin.value ? props.record : null;
 			submitData.file_url = formState.value.file_url || fallbackRecord?.file_url || null;
 			submitData.file_name = formState.value.file_name || fallbackRecord?.file_name || null;
@@ -793,12 +1182,20 @@ const handleSubmit = async () => {
 			submitData.allow_source_file = 0;
 		}
 
+		let courseId = props.record?.id as number | undefined;
 		if (props.record) {
 			await updateCourse(props.record.id, submitData);
+			courseId = props.record.id;
 			message.success('更新成功');
 		} else {
-			await createCourse(submitData);
+			const createdRes = await createCourse(submitData);
+			const created = (createdRes as any)?.data ?? createdRes;
+			courseId = Number(created?.id);
 			message.success('创建成功');
+		}
+
+		if (submitData.content_type === 'file' && courseId) {
+			await syncCourseFilesAfterSave(courseId);
 		}
 
 		emit('success');
@@ -856,5 +1253,72 @@ const handleSubmit = async () => {
 	color: rgba(0, 0, 0, 0.88);
 	cursor: default;
 	pointer-events: none;
+}
+
+.extra-fields-toggle-row {
+	margin-bottom: 0;
+}
+
+.extra-fields-toggle {
+	padding-left: 0;
+	height: auto;
+}
+
+.preview-sample-hint {
+	margin-bottom: 12px;
+}
+
+.preview-sample-list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 16px;
+}
+
+.preview-sample-item {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 8px;
+	padding: 10px;
+	border: 1px solid #f0f0f0;
+	border-radius: 10px;
+	background: #fafafa;
+}
+
+.course-files-panel {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.course-files-panel__toolbar {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 12px;
+}
+
+.course-file-meta {
+	font-size: 12px;
+	color: #666;
+	word-break: break-all;
+}
+
+.preview-file-switch {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 12px;
+}
+
+.preview-sample-item__title {
+	font-size: 13px;
+	color: #595959;
+}
+
+.preview-sample-item__image :deep(.ant-image-img) {
+	object-fit: contain;
+	background: #fff;
+	border-radius: 6px;
 }
 </style>
