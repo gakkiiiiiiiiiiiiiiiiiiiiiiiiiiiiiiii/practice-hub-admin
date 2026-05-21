@@ -247,7 +247,17 @@
 				<template #description>
 					<a-progress
 						:percent="previewCachePercent"
-						:status="previewCacheProgressStatus === 'error' ? 'exception' : previewCachePercent >= 100 ? 'success' : 'active'"
+						:status="
+							previewCacheProgressStatus === 'error'
+								? 'exception'
+								: previewCacheTaskRunning
+									? 'active'
+									: previewCachePercent >= 100
+										? 'success'
+										: previewCacheProgressStatus === 'warning'
+											? 'normal'
+											: 'success'
+						"
 					/>
 					<div class="preview-cache-progress__meta">
 						已处理 {{ previewCacheProgress.processed || 0 }} / {{ previewCacheProgress.totalPages || 0 }} 页，
@@ -433,11 +443,30 @@ const pagination = ref({
 const lastPage = computed(() => Math.max(1, Math.ceil((pagination.value.total || 0) / pagination.value.pageSize)));
 const canToggleCourseStatus = computed(() => userStore.hasRole('super_admin') || userStore.hasPermission('course:status'));
 const previewCachePercent = computed(() => {
-	const total = Number(previewCacheProgress.value.totalPages || 0);
-	if (!total) return 0;
-	return Math.min(100, Math.round((Number(previewCacheProgress.value.processed || 0) / total) * 100));
+	const totalPages = Number(previewCacheProgress.value.totalPages || 0);
+	if (totalPages > 0) {
+		return Math.min(100, Math.round((Number(previewCacheProgress.value.processed || 0) / totalPages) * 100));
+	}
+	const totalCourses = Number(previewCacheProgress.value.totalCourses || 0);
+	if (totalCourses > 0) {
+		return Math.min(
+			100,
+			Math.round((Number(previewCacheProgress.value.processedCourses || 0) / totalCourses) * 100),
+		);
+	}
+	if (previewCacheTaskRunning.value) {
+		return 0;
+	}
+	return 0;
 });
-const previewCacheTaskRunning = computed(() => Number(previewCacheProgress.value.runningCourses || 0) > 0);
+const previewCacheTaskRunning = computed(() => {
+	const status = String(previewCacheProgress.value.status || '');
+	return (
+		Number(previewCacheProgress.value.runningCourses || 0) > 0 ||
+		status === 'pending' ||
+		status === 'running'
+	);
+});
 const previewCacheRecords = computed(() => Array.isArray(previewCacheProgress.value.records) ? previewCacheProgress.value.records : []);
 const previewCacheFailedDetails = computed(() => {
 	const list = previewCacheProgress.value.failedDetails;
@@ -445,18 +474,26 @@ const previewCacheFailedDetails = computed(() => {
 });
 const canRetryPreviewCacheFailures = computed(() => previewCacheFailedDetails.value.length > 0);
 const previewCacheProgressStatus = computed(() => {
+	const status = String(previewCacheProgress.value.status || '');
 	if (previewCacheProgress.value.failedCourses > 0 || previewCacheProgress.value.failed > 0) return 'error';
-	if (previewCacheProgress.value.runningCourses > 0) return 'info';
+	if (status === 'interrupted') return 'warning';
+	if (previewCacheTaskRunning.value) return 'info';
 	return 'success';
 });
 const previewCacheProgressTitle = computed(() => {
-	if (previewCacheProgress.value.runningCourses > 0) {
-		return `正在生成图片缓存：${previewCacheProgress.value.runningCourses} 个课程进行中`;
+	const status = String(previewCacheProgress.value.status || '');
+	const message = String(previewCacheProgress.value.message || '').trim();
+	if (previewCacheTaskRunning.value) {
+		if (message) return message;
+		return `正在生成图片缓存：${previewCacheProgress.value.runningCourses || 1} 个课程进行中`;
+	}
+	if (status === 'interrupted') {
+		return message || '图片缓存生成已中断';
 	}
 	if (previewCacheProgress.value.failedCourses > 0 || previewCacheProgress.value.failed > 0) {
-		return '图片缓存生成完成，但存在失败页面';
+		return message || '图片缓存生成完成，但存在失败页面';
 	}
-	return '图片缓存生成完成';
+	return message || '图片缓存生成完成';
 });
 
 const previewCacheStatusText = (status?: string) => {
@@ -929,26 +966,64 @@ const handleInterruptPreviewCacheTask = async () => {
 	}
 };
 
+const resetPreviewCacheProgressForAction = (actionMessage: string) => {
+	previewCacheProgress.value = {
+		taskId: null,
+		taskNo: '',
+		status: 'pending',
+		message: actionMessage,
+		totalCourses: 0,
+		processedCourses: 0,
+		runningCourses: 1,
+		completedCourses: 0,
+		failedCourses: 0,
+		currentCourseId: null,
+		currentCourseName: '',
+		currentPage: 0,
+		totalPages: 0,
+		processed: 0,
+		generated: 0,
+		skipped: 0,
+		failed: 0,
+		failedDetails: [],
+		courses: [],
+		records: previewCacheRecords.value,
+	};
+};
+
 const handleFixBlankPreviewCaches = async () => {
 	if (previewCacheFixingBlank.value || previewCacheTaskRunning.value) return;
 	previewCacheFixingBlank.value = true;
+	previewCacheBlankDetected.value = [];
+	previewCacheProgressVisible.value = true;
+	resetPreviewCacheProgressForAction('正在检测空白预览图课程，请稍候…');
+	startPreviewCachePolling();
 	try {
 		const res = await fixBlankCoursePreviewCaches();
 		const data = res?.data || res || {};
 		previewCacheBlankDetected.value = Array.isArray(data.detected) ? data.detected : [];
 		if (data.alreadyRunning) {
 			message.info('已有图片缓存生成任务正在执行，请稍后查看进度');
-		} else if ((data.total || 0) === 0) {
-			message.info(data.message || '未检测到空白预览图课程');
-		} else {
-			message.success(`检测到 ${previewCacheBlankDetected.value.length} 个空白预览图课程，已开始强制重新生成`);
+		} else if (data.started > 0) {
+			message.success('已开始空白图检测与修复，请查看下方进度');
 		}
-		previewCacheProgressVisible.value = true;
-		previewCacheProgress.value = data;
-		startPreviewCachePolling();
+		previewCacheProgress.value = {
+			...previewCacheProgress.value,
+			...data,
+			runningCourses: data.runningCourses ?? (data.status === 'pending' || data.status === 'running' ? 1 : 0),
+		};
 		await fetchPreviewCacheProgress();
+		if (!previewCacheTaskRunning.value) {
+			const latestMessage = String(previewCacheProgress.value.message || '');
+			if (latestMessage.includes('未检测到')) {
+				message.info(latestMessage);
+			}
+			stopPreviewCachePolling();
+		}
 	} catch (error: any) {
 		message.error(error?.msg || error?.message || '空白图修复失败');
+		await fetchPreviewCacheProgress();
+		stopPreviewCachePolling();
 	} finally {
 		previewCacheFixingBlank.value = false;
 	}
