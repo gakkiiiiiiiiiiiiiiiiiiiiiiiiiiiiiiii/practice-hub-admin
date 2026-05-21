@@ -129,6 +129,11 @@
 							@change="(value) => handleSortChange(record, value)"
 						/>
 					</template>
+					<template v-else-if="column.key === 'name'">
+						<a-tooltip :title="record.name" placement="topLeft">
+							<span class="course-name-text">{{ record.name }}</span>
+						</a-tooltip>
+					</template>
 					<template v-else-if="column.key === 'action'">
 						<a-space class="course-action-space" :size="4" wrap>
 							<a-button type="link" size="small" @click="handleEdit(record)"> 编辑 </a-button>
@@ -499,7 +504,11 @@ const columns = [
 		title: '课程名称',
 		dataIndex: 'name',
 		key: 'name',
-		width: 220,
+		width: 280,
+		ellipsis: true,
+		customCell: () => ({
+			class: 'course-name-cell',
+		}),
 	},
 	{
 		title: '课程',
@@ -1114,12 +1123,18 @@ onBeforeUnmount(() => {
 			text-align: center;
 		}
 
-		:deep(.ant-table-tbody > tr > td:nth-child(2)) {
-			text-align: left;
-			white-space: normal;
-			word-break: break-word;
-			line-height: 1.5;
+		:deep(.course-name-cell) {
+			text-align: left !important;
+			max-width: 280px;
 		}
+	}
+
+	.course-name-text {
+		display: block;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		line-height: 1.5;
 	}
 
 	.course-action-space {
