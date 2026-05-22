@@ -27,8 +27,8 @@
 						<template #icon><close-outlined /></template>
 						批量禁用 ({{ selectedRowKeys.length || 0 }})
 					</a-button>
-					<a-button :disabled="selectedRowKeys.length === 0" @click="openBatchAdjustPriceModal">
-						批量调价 ({{ selectedRowKeys.length || 0 }})
+					<a-button :disabled="dataSource.length === 0" @click="openBatchAdjustPriceModal">
+						批量调价
 					</a-button>
 					<a-button :loading="exporting" @click="handleExportCourses">批量导出课程</a-button>
 					<a-button :loading="exportingByCategory" @click="openExportByCategoryModal">按分类导出</a-button>
@@ -91,7 +91,7 @@
 				:data-source="dataSource"
 				:loading="loading"
 				:pagination="pagination"
-				:row-selection="{ selectedRowKeys, onChange: onSelectChange }"
+				:row-selection="courseRowSelection"
 				:scroll="{ x: 1780 }"
 				@change="handleTableChange"
 				row-key="id"
@@ -207,8 +207,18 @@
 			@cancel="closeBatchAdjustPriceModal"
 		>
 			<a-form :label-col="{ span: 6 }" :wrapper-col="{ span: 18 }">
-				<a-form-item label="已选课程">
-					<span>{{ selectedRowKeys.length }} 个</span>
+				<a-form-item label="调价范围" required>
+					<a-radio-group v-model:value="batchAdjustPriceForm.scope">
+						<a-radio value="selected" :disabled="selectedRowKeys.length === 0">
+							已勾选课程（{{ selectedRowKeys.length }} 个）
+						</a-radio>
+						<a-radio value="all">
+							当前筛选全部课程（{{ dataSource.length }} 个）
+						</a-radio>
+					</a-radio-group>
+				</a-form-item>
+				<a-form-item label="将调整">
+					<span>{{ batchAdjustTargetCount }} 个课程</span>
 				</a-form-item>
 				<a-form-item label="调价方式" required>
 					<a-radio-group v-model:value="batchAdjustPriceForm.mode">
@@ -479,10 +489,12 @@ const currentCourseName = ref<string>('');
 	const batchAdjustPriceVisible = ref(false);
 	const batchAdjustPriceLoading = ref(false);
 	const batchAdjustPriceForm = ref<{
+		scope: 'selected' | 'all';
 		mode: 'delta' | 'percent' | 'fixed';
 		value: number;
 		fields: 'price' | 'agent_price' | 'both';
 	}>({
+		scope: 'selected',
 		mode: 'delta',
 		value: 0,
 		fields: 'both',
@@ -580,6 +592,32 @@ const pagination = ref({
 
 const lastPage = computed(() => Math.max(1, Math.ceil((pagination.value.total || 0) / pagination.value.pageSize)));
 const canToggleCourseStatus = computed(() => userStore.hasRole('super_admin') || userStore.hasPermission('course:status'));
+const courseRowSelection = computed(() => ({
+	selectedRowKeys: selectedRowKeys.value,
+	onChange: (keys: (string | number)[]) => {
+		selectedRowKeys.value = keys.map((key) => Number(key)).filter((id) => id > 0);
+	},
+	preserveSelectedRowKeys: true,
+	selections: [
+		{
+			key: 'select-all-filtered',
+			text: '选择当前筛选全部',
+			onSelect: () => {
+				selectedRowKeys.value = dataSource.value.map((item: any) => item.id).filter((id: number) => id > 0);
+			},
+		},
+		{
+			key: 'clear-all',
+			text: '清空选择',
+			onSelect: () => {
+				selectedRowKeys.value = [];
+			},
+		},
+	],
+}));
+const batchAdjustTargetCount = computed(() =>
+	batchAdjustPriceForm.value.scope === 'all' ? dataSource.value.length : selectedRowKeys.value.length,
+);
 const batchAdjustPriceValueLabel = computed(() => {
 	if (batchAdjustPriceForm.value.mode === 'delta') return '加减金额';
 	if (batchAdjustPriceForm.value.mode === 'percent') return '百分比(%)';
@@ -1308,11 +1346,6 @@ const handleGlobalRecommend = () => {
 	recommendDrawerVisible.value = true;
 };
 
-// 选择变化
-const onSelectChange = (keys: number[]) => {
-	selectedRowKeys.value = keys;
-};
-
 // 显示批量删除确认弹窗
 const showBatchDeleteModal = () => {
 	if (selectedRowKeys.value.length === 0) {
@@ -1379,12 +1412,32 @@ const handleBatchDisable = async () => {
 	}
 };
 
+const buildBatchAdjustPricePayload = () => {
+	const { scope, mode, value, fields } = batchAdjustPriceForm.value;
+	const payload: Parameters<typeof batchAdjustCoursePrice>[0] = {
+		mode,
+		value: Number(value),
+		fields,
+	};
+	if (scope === 'all') {
+		payload.selectAll = true;
+		payload.name = searchForm.value.name || undefined;
+		payload.subject = searchForm.value.subject || undefined;
+		payload.category = searchForm.value.category || undefined;
+		payload.subCategory = searchForm.value.subCategory || undefined;
+	} else {
+		payload.ids = [...selectedRowKeys.value];
+	}
+	return payload;
+};
+
 const openBatchAdjustPriceModal = () => {
-	if (selectedRowKeys.value.length === 0) {
-		message.warning('请先选择要调价的课程');
+	if (dataSource.value.length === 0) {
+		message.warning('当前没有可调价的课程');
 		return;
 	}
 	batchAdjustPriceForm.value = {
+		scope: selectedRowKeys.value.length > 0 ? 'selected' : 'all',
 		mode: 'delta',
 		value: 0,
 		fields: 'both',
@@ -1397,11 +1450,15 @@ const closeBatchAdjustPriceModal = () => {
 };
 
 const confirmBatchAdjustPrice = async () => {
-	if (selectedRowKeys.value.length === 0) {
-		message.warning('请先选择要调价的课程');
+	if (batchAdjustPriceForm.value.scope === 'selected' && selectedRowKeys.value.length === 0) {
+		message.warning('请先勾选要调价的课程，或选择「当前筛选全部课程」');
 		throw new Error('未选择课程');
 	}
-	const { mode, value, fields } = batchAdjustPriceForm.value;
+	if (batchAdjustPriceForm.value.scope === 'all' && dataSource.value.length === 0) {
+		message.warning('当前筛选条件下没有课程');
+		throw new Error('没有课程');
+	}
+	const { mode, value } = batchAdjustPriceForm.value;
 	if (value === null || value === undefined || Number.isNaN(Number(value))) {
 		message.warning('请输入有效的调价值');
 		throw new Error('调价值无效');
@@ -1410,19 +1467,15 @@ const confirmBatchAdjustPrice = async () => {
 		message.warning('固定价格不能小于 0');
 		throw new Error('固定价格无效');
 	}
+	const targetCount = batchAdjustTargetCount.value;
 	batchAdjustPriceLoading.value = true;
 	try {
-		await batchAdjustCoursePrice({
-			ids: selectedRowKeys.value,
-			mode,
-			value: Number(value),
-			fields,
-		});
-		message.success(`成功调整 ${selectedRowKeys.value.length} 个课程价格`);
+		await batchAdjustCoursePrice(buildBatchAdjustPricePayload());
+		message.success(`成功调整 ${targetCount} 个课程价格`);
 		selectedRowKeys.value = [];
 		fetchData();
 	} catch (error: any) {
-		if (error?.message !== '未选择课程' && error?.message !== '调价值无效' && error?.message !== '固定价格无效') {
+		if (error?.message !== '未选择课程' && error?.message !== '没有课程' && error?.message !== '调价值无效' && error?.message !== '固定价格无效') {
 			message.error(error?.msg || error?.message || '批量调价失败');
 		}
 		throw error;

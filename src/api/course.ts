@@ -47,7 +47,12 @@ export function batchUpdateCourseStatus(ids: number[], status: number) {
 
 // 批量调整课程价格
 export function batchAdjustCoursePrice(data: {
-  ids: number[]
+  ids?: number[]
+  selectAll?: boolean
+  name?: string
+  subject?: string
+  category?: string
+  subCategory?: string
   mode: 'delta' | 'percent' | 'fixed'
   value: number
   fields?: 'price' | 'agent_price' | 'both'
