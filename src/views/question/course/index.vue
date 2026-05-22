@@ -27,6 +27,9 @@
 						<template #icon><close-outlined /></template>
 						批量禁用 ({{ selectedRowKeys.length || 0 }})
 					</a-button>
+					<a-button :disabled="selectedRowKeys.length === 0" @click="openBatchAdjustPriceModal">
+						批量调价 ({{ selectedRowKeys.length || 0 }})
+					</a-button>
 					<a-button :loading="exporting" @click="handleExportCourses">批量导出课程</a-button>
 					<a-button :loading="exportingByCategory" @click="openExportByCategoryModal">按分类导出</a-button>
 					<a-button
@@ -193,6 +196,46 @@
 		>
 			<p>确定要删除选中的 {{ selectedRowKeys.length }} 个课程吗？</p>
 			<p style="color: #ff4d4f; font-size: 12px; margin-top: 8px">此操作不可恢复，请谨慎操作！</p>
+		</a-modal>
+
+		<a-modal
+			v-model:open="batchAdjustPriceVisible"
+			title="批量调价"
+			:confirm-loading="batchAdjustPriceLoading"
+			ok-text="确认调价"
+			@ok="confirmBatchAdjustPrice"
+			@cancel="closeBatchAdjustPriceModal"
+		>
+			<a-form :label-col="{ span: 6 }" :wrapper-col="{ span: 18 }">
+				<a-form-item label="已选课程">
+					<span>{{ selectedRowKeys.length }} 个</span>
+				</a-form-item>
+				<a-form-item label="调价方式" required>
+					<a-radio-group v-model:value="batchAdjustPriceForm.mode">
+						<a-radio value="delta">加减金额</a-radio>
+						<a-radio value="percent">百分比</a-radio>
+						<a-radio value="fixed">固定价格</a-radio>
+					</a-radio-group>
+				</a-form-item>
+				<a-form-item label="调价字段" required>
+					<a-radio-group v-model:value="batchAdjustPriceForm.fields">
+						<a-radio value="both">用户售价 + 代理商售价</a-radio>
+						<a-radio value="price">仅用户售价</a-radio>
+						<a-radio value="agent_price">仅代理商售价</a-radio>
+					</a-radio-group>
+				</a-form-item>
+				<a-form-item :label="batchAdjustPriceValueLabel" required>
+					<a-input-number
+						v-model:value="batchAdjustPriceForm.value"
+						:precision="batchAdjustPriceForm.mode === 'percent' ? 2 : 2"
+						:step="batchAdjustPriceForm.mode === 'percent' ? 1 : 0.1"
+						style="width: 100%"
+					/>
+				</a-form-item>
+				<a-form-item label="说明">
+					<div class="form-tip">{{ batchAdjustPriceHint }}</div>
+				</a-form-item>
+			</a-form>
 		</a-modal>
 
 		<a-modal
@@ -413,7 +456,7 @@
 	import { ref, onMounted, watch, computed, onBeforeUnmount } from 'vue';
 	import { message } from 'ant-design-vue';
 	import { PlusOutlined, DeleteOutlined, CheckOutlined, CloseOutlined, DownOutlined } from '@ant-design/icons-vue';
-	import { getCourseList, deleteCourse, batchDeleteCourses, batchUpdateCourseStatus, updateCourseSort, generateMissingCoursePreviewCaches, retryFailedCoursePreviewCaches, getCoursePreviewCacheProgress, interruptCoursePreviewCacheTask, fixBlankCoursePreviewCaches, getPreviewCacheTargetCourses, forceSelectedCoursePreviewCaches } from '@/api/course';
+	import { getCourseList, deleteCourse, batchDeleteCourses, batchUpdateCourseStatus, batchAdjustCoursePrice, updateCourseSort, generateMissingCoursePreviewCaches, retryFailedCoursePreviewCaches, getCoursePreviewCacheProgress, interruptCoursePreviewCacheTask, fixBlankCoursePreviewCaches, getPreviewCacheTargetCourses, forceSelectedCoursePreviewCaches } from '@/api/course';
 	import { getCourseCategoryTree } from '@/api/course-category';
 	import { getToken } from '@/utils/auth';
 	import { useUserStore } from '@/store/user';
@@ -433,6 +476,17 @@ const currentCourseName = ref<string>('');
 	const selectedRowKeys = ref<number[]>([]);
 	const batchDeleteModalVisible = ref(false);
 	const batchDeleteLoading = ref(false);
+	const batchAdjustPriceVisible = ref(false);
+	const batchAdjustPriceLoading = ref(false);
+	const batchAdjustPriceForm = ref<{
+		mode: 'delta' | 'percent' | 'fixed';
+		value: number;
+		fields: 'price' | 'agent_price' | 'both';
+	}>({
+		mode: 'delta',
+		value: 0,
+		fields: 'both',
+	});
 	const sortUpdatingId = ref<number | null>(null);
 	const statusUpdatingId = ref<number | null>(null);
 	const exporting = ref(false);
@@ -526,6 +580,26 @@ const pagination = ref({
 
 const lastPage = computed(() => Math.max(1, Math.ceil((pagination.value.total || 0) / pagination.value.pageSize)));
 const canToggleCourseStatus = computed(() => userStore.hasRole('super_admin') || userStore.hasPermission('course:status'));
+const batchAdjustPriceValueLabel = computed(() => {
+	if (batchAdjustPriceForm.value.mode === 'delta') return '加减金额';
+	if (batchAdjustPriceForm.value.mode === 'percent') return '百分比(%)';
+	return '固定价格';
+});
+const batchAdjustPriceHint = computed(() => {
+	const fieldsText =
+		batchAdjustPriceForm.value.fields === 'both'
+			? '用户售价与代理商售价'
+			: batchAdjustPriceForm.value.fields === 'price'
+				? '用户售价'
+				: '代理商售价';
+	if (batchAdjustPriceForm.value.mode === 'delta') {
+		return `在${fieldsText}原基础上加减指定金额。例如填 1 表示涨价 1 元，填 -0.5 表示降价 0.5 元；结果不会低于 0。`;
+	}
+	if (batchAdjustPriceForm.value.mode === 'percent') {
+		return `按百分比调整${fieldsText}。例如填 10 表示涨价 10%，填 -20 表示降价 20%；结果不会低于 0。`;
+	}
+	return `将${fieldsText}统一设置为指定价格；结果不会低于 0。`;
+});
 const previewCachePercent = computed(() => {
 	const totalPages = Number(previewCacheProgress.value.totalPages || 0);
 	if (totalPages > 0) {
@@ -1302,6 +1376,58 @@ const handleBatchDisable = async () => {
 		fetchData();
 	} catch (error: any) {
 		message.error(error?.msg || error?.message || '批量禁用失败');
+	}
+};
+
+const openBatchAdjustPriceModal = () => {
+	if (selectedRowKeys.value.length === 0) {
+		message.warning('请先选择要调价的课程');
+		return;
+	}
+	batchAdjustPriceForm.value = {
+		mode: 'delta',
+		value: 0,
+		fields: 'both',
+	};
+	batchAdjustPriceVisible.value = true;
+};
+
+const closeBatchAdjustPriceModal = () => {
+	batchAdjustPriceVisible.value = false;
+};
+
+const confirmBatchAdjustPrice = async () => {
+	if (selectedRowKeys.value.length === 0) {
+		message.warning('请先选择要调价的课程');
+		throw new Error('未选择课程');
+	}
+	const { mode, value, fields } = batchAdjustPriceForm.value;
+	if (value === null || value === undefined || Number.isNaN(Number(value))) {
+		message.warning('请输入有效的调价值');
+		throw new Error('调价值无效');
+	}
+	if (mode === 'fixed' && Number(value) < 0) {
+		message.warning('固定价格不能小于 0');
+		throw new Error('固定价格无效');
+	}
+	batchAdjustPriceLoading.value = true;
+	try {
+		await batchAdjustCoursePrice({
+			ids: selectedRowKeys.value,
+			mode,
+			value: Number(value),
+			fields,
+		});
+		message.success(`成功调整 ${selectedRowKeys.value.length} 个课程价格`);
+		selectedRowKeys.value = [];
+		fetchData();
+	} catch (error: any) {
+		if (error?.message !== '未选择课程' && error?.message !== '调价值无效' && error?.message !== '固定价格无效') {
+			message.error(error?.msg || error?.message || '批量调价失败');
+		}
+		throw error;
+	} finally {
+		batchAdjustPriceLoading.value = false;
 	}
 };
 

@@ -45,6 +45,16 @@ export function batchUpdateCourseStatus(ids: number[], status: number) {
   return request.post('/admin/courses/batch-update-status', { ids, status })
 }
 
+// 批量调整课程价格
+export function batchAdjustCoursePrice(data: {
+  ids: number[]
+  mode: 'delta' | 'percent' | 'fixed'
+  value: number
+  fields?: 'price' | 'agent_price' | 'both'
+}) {
+  return request.post('/admin/courses/batch-adjust-price', data)
+}
+
 // 生成课程 PDF 图片预览缓存
 export function generateCoursePreviewCache(id: number, force = true) {
   return request.post(`/admin/courses/${id}/preview-cache`, { force })
