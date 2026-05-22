@@ -305,6 +305,7 @@ import {
 	createCourseFile,
 	updateCourseFile,
 	deleteCourseFile,
+	warmupCoursePreviewCacheAfterSave,
 	getCourseFilesPdfHealth,
 	checkCourseFilePdfHealth,
 	getCoursePreviewSamplePages,
@@ -1270,6 +1271,11 @@ const handleSubmit = async () => {
 
 		if (submitData.content_type === 'file' && courseId) {
 			await syncCourseFilesAfterSave(courseId);
+			try {
+				await warmupCoursePreviewCacheAfterSave(courseId, false);
+			} catch (error) {
+				console.warn('课程图片缓存后台生成触发失败:', error);
+			}
 		}
 
 		emit('success');

@@ -50,6 +50,11 @@ export function generateCoursePreviewCache(id: number, force = true) {
   return request.post(`/admin/courses/${id}/preview-cache`, { force })
 }
 
+// 课程文件保存完成后统一生成缺失图片预览缓存
+export function warmupCoursePreviewCacheAfterSave(id: number, force = false) {
+  return request.post(`/admin/courses/${id}/preview-cache/warmup-after-save`, { force })
+}
+
 // 生成所有文件类 PDF 课程缺失的图片预览缓存
 export function generateMissingCoursePreviewCaches() {
   return request.post('/admin/courses/preview-cache/missing')
@@ -73,6 +78,18 @@ export function interruptCoursePreviewCacheTask() {
 // 检测空白预览图课程并强制重新生成
 export function fixBlankCoursePreviewCaches() {
   return request.post('/admin/courses/preview-cache/fix-blank')
+}
+
+// 获取支持图片缓存的文件类课程列表
+export function getPreviewCacheTargetCourses(keyword?: string) {
+  return request.get('/admin/courses/preview-cache/targets', {
+    params: keyword ? { keyword } : {},
+  })
+}
+
+// 强制重新生成指定课程的图片预览缓存
+export function forceSelectedCoursePreviewCaches(courseIds: number[]) {
+  return request.post('/admin/courses/preview-cache/force-selected', { courseIds })
 }
 
 export function listCourseFiles(courseId: number) {

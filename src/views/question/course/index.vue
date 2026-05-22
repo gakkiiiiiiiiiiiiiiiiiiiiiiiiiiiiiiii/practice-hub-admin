@@ -198,9 +198,12 @@
 		<a-modal
 			v-model:open="previewCacheProgressVisible"
 			title="图片缓存生成"
-			width="920px"
+			width="960px"
 			:footer="null"
+			@after-open-change="handlePreviewCacheModalOpenChange"
 		>
+			<a-tabs v-model:activeKey="previewCacheActiveTab">
+				<a-tab-pane key="batch" tab="批量任务">
 			<div class="preview-cache-modal-actions">
 				<a-space wrap>
 					<a-button
@@ -325,6 +328,59 @@
 				</div>
 			</div>
 			<a-empty v-else description="暂无生成记录" />
+				</a-tab-pane>
+
+				<a-tab-pane key="selected" tab="指定课程">
+					<div class="preview-cache-selected-panel">
+						<div class="preview-cache-selected-toolbar">
+							<a-input-search
+								v-model:value="previewCacheTargetKeyword"
+								placeholder="搜索课程名称"
+								allow-clear
+								style="width: 260px"
+								@search="loadPreviewCacheTargets"
+							/>
+							<a-button :loading="previewCacheTargetLoading" @click="loadPreviewCacheTargets">刷新列表</a-button>
+							<a-popconfirm
+								:title="`确定要强制重新生成已选 ${previewCacheSelectedCourseIds.length} 个课程的图片缓存吗？`"
+								ok-text="确定生成"
+								cancel-text="取消"
+								:disabled="!previewCacheSelectedCourseIds.length || previewCacheTaskRunning"
+								@confirm="handleForceSelectedPreviewCaches"
+							>
+								<a-button
+									type="primary"
+									:loading="previewCacheForceSelectedLoading"
+									:disabled="!previewCacheSelectedCourseIds.length || previewCacheTaskRunning"
+								>
+									强制重新生成（已选 {{ previewCacheSelectedCourseIds.length }}）
+								</a-button>
+							</a-popconfirm>
+							<span class="form-tip">仅展示支持图片缓存的文件类 PDF/Word 课程</span>
+						</div>
+						<a-table
+							class="preview-cache-target-table"
+							size="small"
+							row-key="id"
+							:columns="previewCacheTargetColumns"
+							:data-source="previewCacheTargetList"
+							:loading="previewCacheTargetLoading"
+							:row-selection="previewCacheTargetRowSelection"
+							:pagination="previewCacheTargetPagination"
+							:scroll="{ y: 360 }"
+							@change="handlePreviewCacheTargetTableChange"
+						>
+							<template #bodyCell="{ column, record }">
+								<template v-if="column.key === 'name'">
+									<a-tooltip :title="record.name" placement="topLeft">
+										<span class="preview-cache-target-name">{{ record.name }}</span>
+									</a-tooltip>
+								</template>
+							</template>
+						</a-table>
+					</div>
+				</a-tab-pane>
+			</a-tabs>
 		</a-modal>
 
 		<a-modal
@@ -357,7 +413,7 @@
 	import { ref, onMounted, watch, computed, onBeforeUnmount } from 'vue';
 	import { message } from 'ant-design-vue';
 	import { PlusOutlined, DeleteOutlined, CheckOutlined, CloseOutlined, DownOutlined } from '@ant-design/icons-vue';
-	import { getCourseList, deleteCourse, batchDeleteCourses, batchUpdateCourseStatus, updateCourseSort, generateMissingCoursePreviewCaches, retryFailedCoursePreviewCaches, getCoursePreviewCacheProgress, interruptCoursePreviewCacheTask, fixBlankCoursePreviewCaches } from '@/api/course';
+	import { getCourseList, deleteCourse, batchDeleteCourses, batchUpdateCourseStatus, updateCourseSort, generateMissingCoursePreviewCaches, retryFailedCoursePreviewCaches, getCoursePreviewCacheProgress, interruptCoursePreviewCacheTask, fixBlankCoursePreviewCaches, getPreviewCacheTargetCourses, forceSelectedCoursePreviewCaches } from '@/api/course';
 	import { getCourseCategoryTree } from '@/api/course-category';
 	import { getToken } from '@/utils/auth';
 	import { useUserStore } from '@/store/user';
@@ -383,6 +439,34 @@ const currentCourseName = ref<string>('');
 	const exportingByCategory = ref(false);
 	const previewCacheGenerating = ref(false);
 	const previewCacheFixingBlank = ref(false);
+	const previewCacheForceSelectedLoading = ref(false);
+	const previewCacheActiveTab = ref('batch');
+	const previewCacheTargetKeyword = ref('');
+	const previewCacheTargetLoading = ref(false);
+	const previewCacheTargetList = ref<any[]>([]);
+	const previewCacheSelectedCourseIds = ref<number[]>([]);
+	const previewCacheTargetPagination = ref({
+		current: 1,
+		pageSize: 10,
+		total: 0,
+		showSizeChanger: true,
+		pageSizeOptions: ['10', '20', '50', '100'],
+		showTotal: (total: number) => `共 ${total} 条`,
+	});
+	const previewCacheTargetColumns = [
+		{ title: 'ID', dataIndex: 'id', key: 'id', width: 72 },
+		{ title: '课程名称', dataIndex: 'name', key: 'name', ellipsis: true },
+		{ title: '课程', dataIndex: 'subject', key: 'subject', width: 110, ellipsis: true },
+		{ title: '一级分类', dataIndex: 'category', key: 'category', width: 120, ellipsis: true },
+		{ title: '二级分类', dataIndex: 'subCategory', key: 'subCategory', width: 120, ellipsis: true },
+	];
+	const previewCacheTargetRowSelection = computed(() => ({
+		selectedRowKeys: previewCacheSelectedCourseIds.value,
+		onChange: (keys: (string | number)[]) => {
+			previewCacheSelectedCourseIds.value = keys.map((key) => Number(key)).filter((id) => id > 0);
+		},
+		preserveSelectedRowKeys: true,
+	}));
 	const previewCacheRetrying = ref(false);
 	const previewCacheCanceling = ref(false);
 	const previewCacheRefreshing = ref(false);
@@ -882,9 +966,89 @@ const handleRecommendConfig = (record: any) => {
 
 const openPreviewCacheModal = async () => {
 	previewCacheProgressVisible.value = true;
+	previewCacheActiveTab.value = 'batch';
+	if (selectedRowKeys.value.length) {
+		previewCacheSelectedCourseIds.value = [...selectedRowKeys.value];
+	}
 	await fetchPreviewCacheProgress();
 	if (previewCacheTaskRunning.value) {
 		startPreviewCachePolling();
+	}
+};
+
+const handlePreviewCacheModalOpenChange = (open: boolean) => {
+	if (open && previewCacheActiveTab.value === 'selected') {
+		void loadPreviewCacheTargets();
+	}
+};
+
+watch(previewCacheActiveTab, (tab) => {
+	if (tab === 'selected' && previewCacheProgressVisible.value) {
+		void loadPreviewCacheTargets();
+	}
+});
+
+const loadPreviewCacheTargets = async () => {
+	previewCacheTargetLoading.value = true;
+	try {
+		const res = await getPreviewCacheTargetCourses(previewCacheTargetKeyword.value.trim() || undefined);
+		const data = res?.data || res || {};
+		previewCacheTargetList.value = Array.isArray(data.list) ? data.list : [];
+		previewCacheTargetPagination.value = {
+			...previewCacheTargetPagination.value,
+			total: Number(data.total || previewCacheTargetList.value.length || 0),
+		};
+		const availableIds = new Set(previewCacheTargetList.value.map((item) => item.id));
+		previewCacheSelectedCourseIds.value = previewCacheSelectedCourseIds.value.filter((id) => availableIds.has(id));
+	} catch (error: any) {
+		message.error(error?.msg || error?.message || '加载可缓存课程列表失败');
+	} finally {
+		previewCacheTargetLoading.value = false;
+	}
+};
+
+const handlePreviewCacheTargetTableChange = (pagination: any) => {
+	previewCacheTargetPagination.value = {
+		...previewCacheTargetPagination.value,
+		current: pagination.current,
+		pageSize: pagination.pageSize,
+	};
+};
+
+const handleForceSelectedPreviewCaches = async () => {
+	if (previewCacheForceSelectedLoading.value || previewCacheTaskRunning.value) return;
+	if (!previewCacheSelectedCourseIds.value.length) {
+		message.warning('请先选择要重新生成的课程');
+		return;
+	}
+	previewCacheForceSelectedLoading.value = true;
+	previewCacheActiveTab.value = 'batch';
+	previewCacheProgressVisible.value = true;
+	resetPreviewCacheProgressForAction(`正在创建任务，准备强制重新生成 ${previewCacheSelectedCourseIds.value.length} 个课程…`);
+	startPreviewCachePolling();
+	try {
+		const res = await forceSelectedCoursePreviewCaches(previewCacheSelectedCourseIds.value);
+		const data = res?.data || res || {};
+		if (data.alreadyRunning) {
+			message.info('已有图片缓存生成任务正在执行，请稍后查看进度');
+		} else {
+			message.success(`已开始强制重新生成 ${data.started || data.total || previewCacheSelectedCourseIds.value.length} 个课程的图片缓存`);
+		}
+		previewCacheProgress.value = {
+			...previewCacheProgress.value,
+			...data,
+			runningCourses: data.runningCourses ?? (data.status === 'pending' || data.status === 'running' ? 1 : 0),
+		};
+		await fetchPreviewCacheProgress();
+		if (!previewCacheTaskRunning.value) {
+			stopPreviewCachePolling();
+		}
+	} catch (error: any) {
+		message.error(error?.msg || error?.message || '强制重新生成失败');
+		await fetchPreviewCacheProgress();
+		stopPreviewCachePolling();
+	} finally {
+		previewCacheForceSelectedLoading.value = false;
 	}
 };
 
@@ -1298,5 +1462,28 @@ onBeforeUnmount(() => {
 		display: flex;
 		justify-content: flex-end;
 		margin-top: 12px;
+	}
+
+	.preview-cache-selected-panel {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+	}
+
+	.preview-cache-selected-toolbar {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 8px 12px;
+	}
+
+	.preview-cache-target-table {
+		:deep(.preview-cache-target-name) {
+			display: block;
+			max-width: 100%;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
 	}
 	</style>
