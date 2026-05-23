@@ -31,14 +31,17 @@
 			<a-tab-pane key="filename" tab="按文件名解析">
 				<a-form :label-col="{ span: 5 }" :wrapper-col="{ span: 18 }">
 					<a-form-item label="命名模板" required>
-						<a-input
-							v-model:value="filenameTemplate"
-							placeholder="{category}-{course}"
-							allow-clear
-						/>
+						<a-input :value="filenameTemplate" readonly placeholder="{category}-{course}">
+							<template #addonAfter>
+								<a-button type="link" size="small" :disabled="!filenameTemplate" @click="clearFilenameTemplate">
+									清空
+								</a-button>
+							</template>
+						</a-input>
 						<div class="form-tip">
-							模板需包含 <code>{category}</code> 与 <code>{course}</code>。例如文件
-							<code>考研政治-2024真题.pdf</code> 在模板 <code>{category}-{course}</code> 下解析为分类「考研政治」、课程名「2024真题」。
+							点击下方参数前的 <strong>+</strong> 添加变量；模板必须包含 <code>{category}</code> 与 <code>{course}</code>。
+							<code>{category}</code> 使用「一级分类/二级分类」格式，例如文件
+							<code>考研政治/真题-2024.pdf</code> 对应模板 <code>{category}-{course}</code>。
 						</div>
 					</a-form-item>
 				</a-form>
@@ -81,28 +84,101 @@
 			<a-collapse-panel key="defaults" header="默认参数（可修改，将应用于全部新课程）">
 				<a-form :label-col="{ span: 6 }" :wrapper-col="{ span: 16 }">
 					<a-row :gutter="16">
+						<template v-if="activeMode === 'filename'">
+							<a-col :span="12">
+								<a-form-item>
+									<template #label>
+										<span class="template-variable-label">
+											<a-button type="link" size="small" class="template-variable-add" @click="appendTemplateVariable('category')">
+												<plus-outlined />
+											</a-button>
+											分类
+										</span>
+									</template>
+									<span class="form-tip">从文件名解析，格式为「一级分类/二级分类」，如 考研政治/真题</span>
+								</a-form-item>
+							</a-col>
+							<a-col :span="12">
+								<a-form-item>
+									<template #label>
+										<span class="template-variable-label">
+											<a-button type="link" size="small" class="template-variable-add" @click="appendTemplateVariable('course')">
+												<plus-outlined />
+											</a-button>
+											课程名
+										</span>
+									</template>
+									<span class="form-tip">从文件名解析为课程名称</span>
+								</a-form-item>
+							</a-col>
+						</template>
 						<a-col :span="12">
-							<a-form-item label="课程">
+							<a-form-item>
+								<template #label>
+									<span v-if="activeMode === 'filename'" class="template-variable-label">
+										<a-button type="link" size="small" class="template-variable-add" @click="appendTemplateVariable('subject')">
+											<plus-outlined />
+										</a-button>
+										课程
+									</span>
+									<span v-else>课程</span>
+								</template>
 								<a-input v-model:value="defaults.subject" allow-clear placeholder="可选" />
 							</a-form-item>
 						</a-col>
 						<a-col :span="12">
-							<a-form-item label="学校">
+							<a-form-item>
+								<template #label>
+									<span v-if="activeMode === 'filename'" class="template-variable-label">
+										<a-button type="link" size="small" class="template-variable-add" @click="appendTemplateVariable('school')">
+											<plus-outlined />
+										</a-button>
+										学校
+									</span>
+									<span v-else>学校</span>
+								</template>
 								<a-input v-model:value="defaults.school" allow-clear placeholder="可选" />
 							</a-form-item>
 						</a-col>
 						<a-col :span="12">
-							<a-form-item label="专业">
+							<a-form-item>
+								<template #label>
+									<span v-if="activeMode === 'filename'" class="template-variable-label">
+										<a-button type="link" size="small" class="template-variable-add" @click="appendTemplateVariable('major')">
+											<plus-outlined />
+										</a-button>
+										专业
+									</span>
+									<span v-else>专业</span>
+								</template>
 								<a-input v-model:value="defaults.major" allow-clear placeholder="可选" />
 							</a-form-item>
 						</a-col>
 						<a-col :span="12">
-							<a-form-item label="真题年份">
+							<a-form-item>
+								<template #label>
+									<span v-if="activeMode === 'filename'" class="template-variable-label">
+										<a-button type="link" size="small" class="template-variable-add" @click="appendTemplateVariable('exam_year')">
+											<plus-outlined />
+										</a-button>
+										真题年份
+									</span>
+									<span v-else>真题年份</span>
+								</template>
 								<a-input v-model:value="defaults.exam_year" allow-clear placeholder="可选" />
 							</a-form-item>
 						</a-col>
 						<a-col :span="12">
-							<a-form-item label="答案年份">
+							<a-form-item>
+								<template #label>
+									<span v-if="activeMode === 'filename'" class="template-variable-label">
+										<a-button type="link" size="small" class="template-variable-add" @click="appendTemplateVariable('answer_year')">
+											<plus-outlined />
+										</a-button>
+										答案年份
+									</span>
+									<span v-else>答案年份</span>
+								</template>
 								<a-input v-model:value="defaults.answer_year" allow-clear placeholder="可选" />
 							</a-form-item>
 						</a-col>
@@ -205,17 +281,19 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { message } from 'ant-design-vue';
-import { FolderOpenOutlined, UploadOutlined } from '@ant-design/icons-vue';
+import { FolderOpenOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons-vue';
 import { createCourse, createCourseFile, warmupCoursePreviewCacheAfterSave } from '@/api/course';
 import { uploadCourseFile } from '@/api/upload';
 import {
 	DEFAULT_BATCH_COURSE_DEFAULTS,
 	DEFAULT_FILENAME_TEMPLATE,
+	appendFilenameTemplateVariable,
 	buildBatchGroupsByCategory,
 	buildBatchGroupsByFilenameTemplate,
 	mergeSelectedFiles,
 	type BatchCoursePreviewGroup,
 	type BatchCourseUploadItem,
+	type FilenameTemplateField,
 } from '@/utils/batch-course-upload';
 
 const props = defineProps<{
@@ -269,11 +347,26 @@ const canStartUpload = computed(() => {
 	if (selectedFiles.value.length === 0) return false;
 	if (validPreviewGroups.value.length === 0) return false;
 	if (activeMode.value === 'category' && categoryValue.value.length === 0) return false;
+	if (
+		activeMode.value === 'filename' &&
+		(!filenameTemplate.value.includes('{category}') || !filenameTemplate.value.includes('{course}'))
+	) {
+		return false;
+	}
 	return validPreviewGroups.value.every((item) => String(item.courseName || '').trim());
 });
 
 const cascaderFilter = (inputValue: string, path: any[]) =>
 	path.some((option) => String(option.label || '').toLowerCase().includes(inputValue.toLowerCase()));
+
+const appendTemplateVariable = (field: FilenameTemplateField) => {
+	if (activeMode.value !== 'filename') return;
+	filenameTemplate.value = appendFilenameTemplateVariable(filenameTemplate.value, field);
+};
+
+const clearFilenameTemplate = () => {
+	filenameTemplate.value = '';
+};
 
 const rebuildPreview = () => {
 	if (selectedFiles.value.length === 0) {
@@ -391,11 +484,16 @@ const buildSubmitPayload = (
 
 	if (group.category) payload.category = group.category;
 	if (group.sub_category) payload.sub_category = group.sub_category;
-	if (defaults.value.subject) payload.subject = defaults.value.subject;
-	if (defaults.value.school) payload.school = defaults.value.school;
-	if (defaults.value.major) payload.major = defaults.value.major;
-	if (defaults.value.exam_year) payload.exam_year = defaults.value.exam_year;
-	if (defaults.value.answer_year) payload.answer_year = defaults.value.answer_year;
+	const subject = group.subject || defaults.value.subject;
+	const school = group.school || defaults.value.school;
+	const major = group.major || defaults.value.major;
+	const examYear = group.exam_year || defaults.value.exam_year;
+	const answerYear = group.answer_year || defaults.value.answer_year;
+	if (subject) payload.subject = subject;
+	if (school) payload.school = school;
+	if (major) payload.major = major;
+	if (examYear) payload.exam_year = examYear;
+	if (answerYear) payload.answer_year = answerYear;
 	if (defaults.value.introduction) payload.introduction = defaults.value.introduction;
 	payload.validity_days = defaults.value.is_free === 1 ? null : defaults.value.validity_days ?? 365;
 	return payload;
@@ -590,5 +688,17 @@ watch(
 	padding: 0 4px;
 	background: rgba(0, 0, 0, 0.04);
 	border-radius: 4px;
+}
+
+.template-variable-label {
+	display: inline-flex;
+	align-items: center;
+	gap: 2px;
+}
+
+.template-variable-add {
+	padding: 0 4px;
+	height: 22px;
+	line-height: 22px;
 }
 </style>

@@ -16,6 +16,31 @@ export const DEFAULT_BATCH_COURSE_DEFAULTS = {
 
 export const DEFAULT_FILENAME_TEMPLATE = '{category}-{course}';
 
+export const FILENAME_TEMPLATE_FIELDS = [
+	'category',
+	'course',
+	'subject',
+	'school',
+	'major',
+	'exam_year',
+	'answer_year',
+] as const;
+
+export type FilenameTemplateField = (typeof FILENAME_TEMPLATE_FIELDS)[number];
+
+export const FILENAME_TEMPLATE_FIELD_LABELS: Record<FilenameTemplateField, string> = {
+	category: '分类',
+	course: '课程名',
+	subject: '课程',
+	school: '学校',
+	major: '专业',
+	exam_year: '真题年份',
+	answer_year: '答案年份',
+};
+
+/** 文件名中 {category} 的命名规则：一级分类/二级分类 */
+export const CATEGORY_FILENAME_RULE = '一级分类/二级分类';
+
 export type BatchCourseDefaults = typeof DEFAULT_BATCH_COURSE_DEFAULTS;
 
 export type BatchCourseFileItem = {
@@ -30,6 +55,11 @@ export type BatchCoursePreviewGroup = {
 	courseName: string;
 	category: string;
 	sub_category: string;
+	subject?: string;
+	school?: string;
+	major?: string;
+	exam_year?: string;
+	answer_year?: string;
 	files: BatchCourseFileItem[];
 	parseError?: string;
 };
@@ -62,23 +92,46 @@ function escapeRegExp(value: string) {
 	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+export function appendFilenameTemplateVariable(template: string, field: FilenameTemplateField) {
+	const token = `{${field}}`;
+	const current = String(template || '').trim();
+	if (!current) {
+		return token;
+	}
+	if (current.includes(token)) {
+		return current;
+	}
+	if (current.endsWith('-') || current.endsWith('_')) {
+		return `${current}${token}`;
+	}
+	return `${current}-${token}`;
+}
+
 export function buildFilenameParser(template: string) {
 	const normalized = String(template || '').trim() || DEFAULT_FILENAME_TEMPLATE;
 	if (!normalized.includes('{category}') || !normalized.includes('{course}')) {
 		throw new Error('命名模板必须同时包含 {category} 和 {course}');
 	}
 
-	const tokens = normalized.split(/(\{category\}|\{course\})/).filter((token) => token !== '');
-	let regex = '^';
-	const fields: Array<'category' | 'course'> = [];
+	const placeholderPattern = FILENAME_TEMPLATE_FIELDS.map((field) => `\\{${field}\\}`).join('|');
+	const splitRegex = new RegExp(`(${placeholderPattern})`, 'g');
+	const tokens = normalized.split(splitRegex).filter((token) => token !== '');
+	const fields: FilenameTemplateField[] = [];
 
 	for (const token of tokens) {
-		if (token === '{category}') {
-			regex += '(.+?)';
-			fields.push('category');
-		} else if (token === '{course}') {
-			regex += '(.+)';
-			fields.push('course');
+		const matched = token.match(/^\{(\w+)\}$/);
+		if (matched && FILENAME_TEMPLATE_FIELDS.includes(matched[1] as FilenameTemplateField)) {
+			fields.push(matched[1] as FilenameTemplateField);
+		}
+	}
+
+	let regex = '^';
+	const placeholderCount = fields.length;
+	for (const token of tokens) {
+		const matched = token.match(/^\{(\w+)\}$/);
+		if (matched && FILENAME_TEMPLATE_FIELDS.includes(matched[1] as FilenameTemplateField)) {
+			const fieldIndex = fields.indexOf(matched[1] as FilenameTemplateField);
+			regex += fieldIndex === placeholderCount - 1 ? '(.+)' : '(.+?)';
 		} else {
 			regex += escapeRegExp(token);
 		}
@@ -100,17 +153,14 @@ export function parseFilenameByTemplate(fileStem: string, template: string) {
 			return null;
 		}
 
-		const result: Record<'category' | 'course', string> = {
-			category: '',
-			course: '',
-		};
+		const result: Partial<Record<FilenameTemplateField, string>> = {};
 		parser.fields.forEach((field, index) => {
 			result[field] = String(match[index + 1] || '').trim();
 		});
 		if (!result.category || !result.course) {
 			return null;
 		}
-		return result;
+		return result as Record<FilenameTemplateField, string> & { category: string; course: string };
 	} catch {
 		return null;
 	}
@@ -120,6 +170,17 @@ export function resolveCategoryFromTree(parsedCategory: string, categoryTree: an
 	const text = String(parsedCategory || '').trim();
 	if (!text) {
 		return { category: '', sub_category: '' };
+	}
+
+	// {category} 命名规则：一级分类/二级分类
+	const slashIndex = text.indexOf('/');
+	if (slashIndex > 0) {
+		const category = text.slice(0, slashIndex).trim();
+		const sub_category = text.slice(slashIndex + 1).trim();
+		return {
+			category,
+			sub_category: sub_category || '',
+		};
 	}
 
 	for (const parent of categoryTree || []) {
@@ -167,8 +228,15 @@ function getRelativeFolderName(file: File) {
 	return parts.length >= 2 ? parts[parts.length - 2] : '';
 }
 
-function createGroupKey(category: string, subCategory: string, courseName: string) {
-	return [category, subCategory, courseName].join('::');
+function createGroupKey(
+	category: string,
+	subCategory: string,
+	courseName: string,
+	extra?: Partial<Pick<BatchCoursePreviewGroup, 'subject' | 'school' | 'major' | 'exam_year' | 'answer_year'>>,
+) {
+	return [category, subCategory, courseName, extra?.subject, extra?.school, extra?.major, extra?.exam_year, extra?.answer_year]
+		.filter((item) => item !== undefined && item !== '')
+		.join('::');
 }
 
 export function buildBatchGroupsByCategory(
@@ -242,7 +310,14 @@ export function buildBatchGroupsByFilenameTemplate(
 
 		const resolved = resolveCategoryFromTree(parsed.category, categoryTree);
 		const courseName = parsed.course;
-		const key = createGroupKey(resolved.category, resolved.sub_category, courseName);
+		const parsedMeta = {
+			subject: parsed.subject || '',
+			school: parsed.school || '',
+			major: parsed.major || '',
+			exam_year: parsed.exam_year || '',
+			answer_year: parsed.answer_year || '',
+		};
+		const key = createGroupKey(resolved.category, resolved.sub_category, courseName, parsedMeta);
 
 		if (!groupMap.has(key)) {
 			groupMap.set(key, {
@@ -250,6 +325,11 @@ export function buildBatchGroupsByFilenameTemplate(
 				courseName,
 				category: resolved.category,
 				sub_category: resolved.sub_category,
+				subject: parsedMeta.subject,
+				school: parsedMeta.school,
+				major: parsedMeta.major,
+				exam_year: parsedMeta.exam_year,
+				answer_year: parsedMeta.answer_year,
 				files: [],
 			});
 		}
