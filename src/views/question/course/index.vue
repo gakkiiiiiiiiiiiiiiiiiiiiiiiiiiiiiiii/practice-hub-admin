@@ -39,6 +39,7 @@
 						{{ previewCacheTaskRunning ? '图片缓存生成中' : '图片缓存' }}
 					</a-button>
 					<a-button @click="handleGlobalRecommend">公共推荐配置</a-button>
+					<a-button @click="openBatchUploadModal">批量上传课程</a-button>
 					<a-button type="primary" @click="handleAdd">
 						<template #icon><plus-outlined /></template>
 						新增课程
@@ -172,6 +173,11 @@
 		</a-card>
 
 		<course-modal v-model:open="modalVisible" :record="currentRecord" @success="handleRefresh" />
+		<batch-upload-course-modal
+			v-model:open="batchUploadVisible"
+			:category-tree="categoryTree"
+			@success="handleRefresh"
+		/>
 		<exam-config-drawer
 			:open="examDrawerVisible"
 			:course-id="currentCourseId"
@@ -471,11 +477,13 @@
 	import { getToken } from '@/utils/auth';
 	import { useUserStore } from '@/store/user';
 import CourseModal from './components/CourseModal.vue';
+import BatchUploadCourseModal from './components/BatchUploadCourseModal.vue';
 import ExamConfigDrawer from './components/ExamConfigDrawer.vue';
 import RecommendationDrawer from './components/RecommendationDrawer.vue';
 
 const loading = ref(false);
 const dataSource = ref([]);
+const batchUploadVisible = ref(false);
 const userStore = useUserStore();
 const modalVisible = ref(false);
 const currentRecord = ref(null);
@@ -993,6 +1001,10 @@ const handleExportByCategory = async () => {
 	} finally {
 		exportingByCategory.value = false;
 	}
+};
+
+const openBatchUploadModal = () => {
+	batchUploadVisible.value = true;
 };
 
 const handleAdd = () => {
