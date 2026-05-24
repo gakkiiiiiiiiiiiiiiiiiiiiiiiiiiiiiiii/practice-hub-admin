@@ -311,6 +311,7 @@ import {
 	checkCourseFilePdfHealth,
 	getCoursePreviewSamplePages,
 	fetchCoursePreviewSamplePageBlob,
+	getCourseDefaultParams,
 } from '@/api/course';
 import { getCourseCoverConfig } from '@/api/system';
 import { getCourseCategoryTree } from '@/api/course-category';
@@ -327,6 +328,11 @@ import {
 } from '@/utils/course-cover';
 import type { CourseCoverTemplatePack } from '@/utils/course-cover';
 import { notifyVirtualPayGoodsPriceSync } from '@/utils/virtual-pay-goods';
+import {
+	buildNewCourseFormDefaults,
+	FALLBACK_COURSE_DEFAULT_PARAMS,
+	normalizeCourseDefaultParams,
+} from '@/utils/course-default-params';
 
 const props = defineProps<{
 	open: boolean;
@@ -440,28 +446,7 @@ const cascaderFilter = (inputValue: string, path: any[]) => {
 	return path.some((option) => option.label.toLowerCase().indexOf(inputValue.toLowerCase()) > -1);
 };
 
-const formState = ref({
-	name: '',
-	subject: '',
-	category: '',
-	sub_category: '',
-	school: '',
-	major: '',
-	exam_year: '',
-	answer_year: '',
-	cover_img: '',
-	price: 0.5,
-	agent_price: 0.1,
-		is_free: 0,
-		validity_days: 365 as number | null,
-		introduction: '',
-	content_type: 'normal',
-	file_url: '',
-	file_name: '',
-	file_type: '',
-	file_size: 0,
-	allow_source_file: 0,
-});
+const formState = ref(buildNewCourseFormDefaults(FALLBACK_COURSE_DEFAULT_PARAMS));
 
 
 const rules = {
@@ -642,9 +627,26 @@ const syncCourseFilesAfterSave = async (courseId: number) => {
 	await loadCourseFileRows();
 };
 
+const resetNewCourseForm = async () => {
+	try {
+		const res = await getCourseDefaultParams();
+		const params = normalizeCourseDefaultParams((res as any)?.data ?? res);
+		formState.value = buildNewCourseFormDefaults(params);
+	} catch (error) {
+		console.warn('加载课程默认参数失败，使用内置默认值', error);
+		formState.value = buildNewCourseFormDefaults(FALLBACK_COURSE_DEFAULT_PARAMS);
+	}
+	fileList.value = [];
+	courseFileRows.value = [];
+	selectedPreviewFileId.value = undefined;
+	coverMode.value = 'manual';
+	generatedCoverPreview.value = '';
+	generatedCoverFile = null;
+};
+
 watch(
 	() => props.open,
-	(val) => {
+	async (val) => {
 		if (val) {
 			if (props.record) {
 				// 映射后端字段到前端表单
@@ -687,35 +689,8 @@ watch(
 					generatedCoverFile = null;
 					void loadCourseFileRows();
 			} else {
-				formState.value = {
-					name: '',
-					subject: '',
-					category: '',
-					sub_category: '',
-					school: '',
-					major: '',
-					exam_year: '',
-					answer_year: '',
-					cover_img: '',
-					price: 0.5,
-					agent_price: 0.1,
-						is_free: 0,
-						validity_days: 365,
-						introduction: '',
-					content_type: 'normal',
-					file_url: '',
-					file_name: '',
-					file_type: '',
-					file_size: 0,
-					allow_source_file: 0,
-				};
-				fileList.value = [];
-				courseFileRows.value = [];
-				selectedPreviewFileId.value = undefined;
-					coverMode.value = 'manual';
-					generatedCoverPreview.value = '';
-					generatedCoverFile = null;
-				}
+				await resetNewCourseForm();
+			}
 			extraFieldsExpanded.value = false;
 			fetchCategoryTree();
 			scheduleLoadPreviewSamples();

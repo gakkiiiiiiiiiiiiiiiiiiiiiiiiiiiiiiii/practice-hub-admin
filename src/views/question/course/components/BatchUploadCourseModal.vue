@@ -282,7 +282,7 @@
 import { computed, ref, watch } from 'vue';
 import { message } from 'ant-design-vue';
 import { FolderOpenOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons-vue';
-import { createCourse, createCourseFile, warmupCoursePreviewCacheAfterSave } from '@/api/course';
+import { createCourse, createCourseFile, warmupCoursePreviewCacheAfterSave, getCourseDefaultParams } from '@/api/course';
 import { uploadCourseFile } from '@/api/upload';
 import {
 	DEFAULT_BATCH_COURSE_DEFAULTS,
@@ -294,11 +294,17 @@ import {
 	type BatchCoursePreviewGroup,
 	type BatchCourseUploadItem,
 	type FilenameTemplateField,
+	type BatchCourseDefaults,
 } from '@/utils/batch-course-upload';
+import {
+	FALLBACK_COURSE_DEFAULT_PARAMS,
+	normalizeCourseDefaultParams,
+} from '@/utils/course-default-params';
 
 const props = defineProps<{
 	open: boolean;
 	categoryTree: any[];
+	defaultParamsKey?: number;
 }>();
 
 const emit = defineEmits<{
@@ -311,7 +317,7 @@ const categoryValue = ref<string[]>([]);
 const filenameTemplate = ref(DEFAULT_FILENAME_TEMPLATE);
 const selectedFiles = ref<File[]>([]);
 const previewGroups = ref<BatchCourseUploadItem[]>([]);
-const defaults = ref({ ...DEFAULT_BATCH_COURSE_DEFAULTS });
+const defaults = ref<BatchCourseDefaults>({ ...DEFAULT_BATCH_COURSE_DEFAULTS, introduction: '' });
 const defaultsExpanded = ref<string[]>([]);
 const uploading = ref(false);
 const uploadPercent = ref(0);
@@ -607,13 +613,24 @@ const handleStartUpload = async () => {
 	}
 };
 
+const loadBatchDefaults = async () => {
+	try {
+		const res = await getCourseDefaultParams();
+		const params = normalizeCourseDefaultParams((res as any)?.data ?? res);
+		defaults.value = { ...params, introduction: '' };
+	} catch (error) {
+		console.warn('加载课程默认参数失败，使用内置默认值', error);
+		defaults.value = { ...FALLBACK_COURSE_DEFAULT_PARAMS, introduction: '' };
+	}
+};
+
 const resetState = () => {
 	activeMode.value = 'category';
 	categoryValue.value = [];
 	filenameTemplate.value = DEFAULT_FILENAME_TEMPLATE;
 	selectedFiles.value = [];
 	previewGroups.value = [];
-	defaults.value = { ...DEFAULT_BATCH_COURSE_DEFAULTS };
+	defaults.value = { ...DEFAULT_BATCH_COURSE_DEFAULTS, introduction: '' };
 	defaultsExpanded.value = [];
 	uploading.value = false;
 	uploadPercent.value = 0;
@@ -631,10 +648,20 @@ const handleCancel = () => {
 
 watch(
 	() => props.open,
-	(value) => {
-		if (!value) {
+	async (value) => {
+		if (value) {
+			await loadBatchDefaults();
+		} else {
 			resetState();
 		}
+	},
+);
+
+watch(
+	() => props.defaultParamsKey,
+	async (value, oldValue) => {
+		if (value === oldValue || !props.open) return;
+		await loadBatchDefaults();
 	},
 );
 </script>

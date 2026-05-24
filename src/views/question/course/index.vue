@@ -41,6 +41,7 @@
 					</a-button>
 					<a-button @click="handleGlobalRecommend">公共推荐配置</a-button>
 					<a-button @click="openBatchUploadModal">批量上传课程</a-button>
+					<a-button @click="openDefaultParamsModal">默认参数</a-button>
 					<a-button type="primary" @click="handleAdd">
 						<template #icon><plus-outlined /></template>
 						新增课程
@@ -177,7 +178,12 @@
 		<batch-upload-course-modal
 			v-model:open="batchUploadVisible"
 			:category-tree="categoryTree"
+			:default-params-key="courseDefaultParamsKey"
 			@success="handleRefresh"
+		/>
+		<course-default-params-modal
+			v-model:open="defaultParamsVisible"
+			@saved="handleCourseDefaultParamsSaved"
 		/>
 		<exam-config-drawer
 			:open="examDrawerVisible"
@@ -480,6 +486,7 @@
 	import { useUserStore } from '@/store/user';
 import CourseModal from './components/CourseModal.vue';
 import BatchUploadCourseModal from './components/BatchUploadCourseModal.vue';
+import CourseDefaultParamsModal from './components/CourseDefaultParamsModal.vue';
 import ExamConfigDrawer from './components/ExamConfigDrawer.vue';
 import RecommendationDrawer from './components/RecommendationDrawer.vue';
 import { notifyVirtualPayGoodsPriceSync } from '@/utils/virtual-pay-goods';
@@ -487,6 +494,8 @@ import { notifyVirtualPayGoodsPriceSync } from '@/utils/virtual-pay-goods';
 const loading = ref(false);
 const dataSource = ref([]);
 const batchUploadVisible = ref(false);
+const defaultParamsVisible = ref(false);
+const courseDefaultParamsKey = ref(0);
 const syncingVirtualPayGoods = ref(false);
 const userStore = useUserStore();
 const modalVisible = ref(false);
@@ -1009,6 +1018,14 @@ const handleExportByCategory = async () => {
 
 const openBatchUploadModal = () => {
 	batchUploadVisible.value = true;
+};
+
+const openDefaultParamsModal = () => {
+	defaultParamsVisible.value = true;
+};
+
+const handleCourseDefaultParamsSaved = () => {
+	courseDefaultParamsKey.value += 1;
 };
 
 const handleSyncAllVirtualPayGoods = async () => {

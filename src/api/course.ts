@@ -65,6 +65,16 @@ export function syncAllCourseVirtualPayGoods() {
   return request.post('/admin/courses/virtual-pay-goods/sync-all')
 }
 
+// 获取新增课程默认参数
+export function getCourseDefaultParams() {
+  return request.get('/admin/courses/default-params')
+}
+
+// 设置新增课程默认参数
+export function setCourseDefaultParams(data: Record<string, unknown>) {
+  return request.put('/admin/courses/default-params', data)
+}
+
 // 生成课程 PDF 图片预览缓存
 export function generateCoursePreviewCache(id: number, force = true) {
   return request.post(`/admin/courses/${id}/preview-cache`, { force })

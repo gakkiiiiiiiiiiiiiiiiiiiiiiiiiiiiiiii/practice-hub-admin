@@ -1,18 +1,12 @@
 const SUPPORTED_EXT = /\.(pdf|doc|docx)$/i;
 
-export const DEFAULT_BATCH_COURSE_DEFAULTS = {
-	subject: '',
-	school: '',
-	major: '',
-	exam_year: '',
-	answer_year: '',
-	price: 0.5,
-	agent_price: 0.1,
-	is_free: 0,
-	validity_days: 365 as number | null,
-	allow_source_file: 0,
-	introduction: '',
-};
+import {
+	FALLBACK_COURSE_DEFAULT_PARAMS,
+	normalizeCourseDefaultParams,
+	type CourseDefaultParams,
+} from '@/utils/course-default-params';
+
+export const DEFAULT_BATCH_COURSE_DEFAULTS: CourseDefaultParams = { ...FALLBACK_COURSE_DEFAULT_PARAMS };
 
 export const DEFAULT_FILENAME_TEMPLATE = '{category}-{course}';
 
@@ -41,7 +35,9 @@ export const FILENAME_TEMPLATE_FIELD_LABELS: Record<FilenameTemplateField, strin
 /** 文件名中 {category} 的命名规则：一级分类/二级分类 */
 export const CATEGORY_FILENAME_RULE = '一级分类/二级分类';
 
-export type BatchCourseDefaults = typeof DEFAULT_BATCH_COURSE_DEFAULTS;
+export type BatchCourseDefaults = CourseDefaultParams & {
+	introduction?: string;
+};
 
 export type BatchCourseFileItem = {
 	file: File;
