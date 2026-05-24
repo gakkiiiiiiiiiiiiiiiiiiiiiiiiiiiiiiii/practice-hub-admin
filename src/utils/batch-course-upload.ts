@@ -141,10 +141,48 @@ export function buildFilenameParser(template: string) {
 	};
 }
 
+function emptyFilenameFields(): Record<FilenameTemplateField, string> {
+	return {
+		category: '',
+		course: '',
+		subject: '',
+		school: '',
+		major: '',
+		exam_year: '',
+		answer_year: '',
+	};
+}
+
+/** {category}-{course} 从最后一个 `-` 拆分，避免「一级-二级-课程名」被截断 */
+function parseCategoryCourseByLastDash(fileStem: string) {
+	const stem = String(fileStem || '').trim();
+	const lastDash = stem.lastIndexOf('-');
+	if (lastDash <= 0) {
+		return null;
+	}
+	const category = stem.slice(0, lastDash).trim();
+	const course = stem.slice(lastDash + 1).trim();
+	if (!category || !course) {
+		return null;
+	}
+	return { ...emptyFilenameFields(), category, course };
+}
+
 export function parseFilenameByTemplate(fileStem: string, template: string) {
 	try {
 		const parser = buildFilenameParser(template);
-		const match = String(fileStem || '').trim().match(parser.regex);
+		const stem = String(fileStem || '').trim();
+
+		if (
+			parser.fields.length === 2 &&
+			parser.fields[0] === 'category' &&
+			parser.fields[1] === 'course' &&
+			parser.template === DEFAULT_FILENAME_TEMPLATE
+		) {
+			return parseCategoryCourseByLastDash(stem);
+		}
+
+		const match = stem.match(parser.regex);
 		if (!match) {
 			return null;
 		}
@@ -162,13 +200,18 @@ export function parseFilenameByTemplate(fileStem: string, template: string) {
 	}
 }
 
+/** macOS 文件名中 `/` 会显示为 `:`，解析分类时统一归一化 */
+function normalizeCategoryPathText(text: string) {
+	return String(text || '').trim().replace(/:/g, '/');
+}
+
 export function resolveCategoryFromTree(parsedCategory: string, categoryTree: any[]) {
-	const text = String(parsedCategory || '').trim();
+	const text = normalizeCategoryPathText(parsedCategory);
 	if (!text) {
 		return { category: '', sub_category: '' };
 	}
 
-	// {category} 命名规则：一级分类/二级分类
+	// {category} 命名规则：一级分类/二级分类，或 一级分类-二级分类
 	const slashIndex = text.indexOf('/');
 	if (slashIndex > 0) {
 		const category = text.slice(0, slashIndex).trim();
@@ -177,6 +220,24 @@ export function resolveCategoryFromTree(parsedCategory: string, categoryTree: an
 			category,
 			sub_category: sub_category || '',
 		};
+	}
+
+	const dashIndex = text.indexOf('-');
+	if (dashIndex > 0) {
+		const parentName = text.slice(0, dashIndex).trim();
+		const childName = text.slice(dashIndex + 1).trim();
+		for (const parent of categoryTree || []) {
+			if (String(parent?.name || '').trim() !== parentName) {
+				continue;
+			}
+			const children = Array.isArray(parent?.children) ? parent.children : [];
+			if (children.some((child) => String(child?.name || '').trim() === childName)) {
+				return {
+					category: parentName,
+					sub_category: childName,
+				};
+			}
+		}
 	}
 
 	for (const parent of categoryTree || []) {
@@ -215,13 +276,67 @@ function buildDisplayName(courseName: string, fileStem: string, multiFile: boole
 	return `${course}-${stem}`;
 }
 
-function getRelativeFolderName(file: File) {
+function getRelativePathParts(file: File) {
 	const relativePath = String((file as File & { webkitRelativePath?: string }).webkitRelativePath || '').trim();
 	if (!relativePath || !relativePath.includes('/')) {
-		return '';
+		return [] as string[];
 	}
-	const parts = relativePath.split('/').filter(Boolean);
-	return parts.length >= 2 ? parts[parts.length - 2] : '';
+	return relativePath.split('/').filter(Boolean);
+}
+
+/** 选择文件夹时：仅当路径为「根/子目录/文件」时才用子目录名作课程名 */
+function getRelativeFolderName(file: File) {
+	const parts = getRelativePathParts(file);
+	if (parts.length >= 3) {
+		return parts[parts.length - 2];
+	}
+	return '';
+}
+
+function matchCategoryPathFromParts(folderParts: string[], categoryTree: any[]) {
+	if (!folderParts.length) {
+		return null;
+	}
+
+	const normalizedParts = folderParts.map((part) => normalizeCategoryPathText(part));
+
+	for (let start = 0; start < normalizedParts.length; start += 1) {
+		const slice = normalizedParts.slice(start);
+		if (slice.length === 1) {
+			const [parentName] = slice;
+			for (const parent of categoryTree || []) {
+				if (String(parent?.name || '').trim() === parentName) {
+					return { category: parentName, sub_category: '' };
+				}
+			}
+			continue;
+		}
+
+		const parentName = slice[0];
+		const subCategory = slice.slice(1).join('/');
+		for (const parent of categoryTree || []) {
+			if (String(parent?.name || '').trim() !== parentName) {
+				continue;
+			}
+			const children = Array.isArray(parent?.children) ? parent.children : [];
+			if (children.some((child) => String(child?.name || '').trim() === subCategory)) {
+				return { category: parentName, sub_category: subCategory };
+			}
+			if (slice.length === 2 && children.some((child) => String(child?.name || '').trim() === slice[1])) {
+				return { category: parentName, sub_category: slice[1] };
+			}
+		}
+	}
+
+	return null;
+}
+
+function getCategoryFromRelativePath(file: File, categoryTree: any[]) {
+	const parts = getRelativePathParts(file);
+	if (parts.length < 2) {
+		return null;
+	}
+	return matchCategoryPathFromParts(parts.slice(0, -1), categoryTree);
 }
 
 function createGroupKey(
@@ -285,7 +400,9 @@ export function buildBatchGroupsByFilenameTemplate(
 
 		const fileStem = getFileStem(file.name);
 		const parsed = parseFilenameByTemplate(fileStem, template);
-		if (!parsed) {
+		const pathCategory = !parsed ? getCategoryFromRelativePath(file, categoryTree) : null;
+
+		if (!parsed && !pathCategory?.category) {
 			invalidFiles.push({
 				key: `invalid-${file.name}`,
 				courseName: fileStem,
@@ -299,19 +416,19 @@ export function buildBatchGroupsByFilenameTemplate(
 						displayName: fileStem,
 					},
 				],
-				parseError: `无法按模板解析：${file.name}`,
+				parseError: `无法按模板解析：${file.name}（文件名需符合模板，或将文件放入「一级分类/二级分类/」目录）`,
 			});
 			continue;
 		}
 
-		const resolved = resolveCategoryFromTree(parsed.category, categoryTree);
-		const courseName = parsed.course;
+		const resolved = pathCategory || resolveCategoryFromTree(parsed!.category, categoryTree);
+		const courseName = pathCategory ? fileStem : parsed!.course;
 		const parsedMeta = {
-			subject: parsed.subject || '',
-			school: parsed.school || '',
-			major: parsed.major || '',
-			exam_year: parsed.exam_year || '',
-			answer_year: parsed.answer_year || '',
+			subject: parsed?.subject || '',
+			school: parsed?.school || '',
+			major: parsed?.major || '',
+			exam_year: parsed?.exam_year || '',
+			answer_year: parsed?.answer_year || '',
 		};
 		const key = createGroupKey(resolved.category, resolved.sub_category, courseName, parsedMeta);
 

@@ -251,6 +251,7 @@
 					<template v-else-if="column.key === 'category'">
 						<span>{{ record.category || '—' }}</span>
 						<span v-if="record.sub_category"> / {{ record.sub_category }}</span>
+						<span v-if="activeMode === 'category' && record.category" class="form-tip">（手动选择）</span>
 					</template>
 					<template v-else-if="column.key === 'files'">
 						<a-tooltip :title="getFileListText(record)">
@@ -650,8 +651,11 @@ watch(
 	() => props.open,
 	async (value) => {
 		if (value) {
+			resetState();
 			await loadBatchDefaults();
-		} else {
+			return;
+		}
+		if (!uploading.value) {
 			resetState();
 		}
 	},
