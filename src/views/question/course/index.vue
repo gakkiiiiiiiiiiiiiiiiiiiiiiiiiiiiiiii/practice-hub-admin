@@ -32,6 +32,7 @@
 					</a-button>
 					<a-button :loading="exporting" @click="handleExportCourses">批量导出课程</a-button>
 					<a-button :loading="exportingByCategory" @click="openExportByCategoryModal">按分类导出</a-button>
+					<a-button :loading="syncingVirtualPayGoods" @click="handleSyncAllVirtualPayGoods">同步虚拟道具价格</a-button>
 					<a-button
 						:type="previewCacheTaskRunning ? 'primary' : 'default'"
 						@click="openPreviewCacheModal"
@@ -250,6 +251,7 @@
 				</a-form-item>
 				<a-form-item label="说明">
 					<div class="form-tip">{{ batchAdjustPriceHint }}</div>
+					<div class="form-tip">调价后将自动同步微信虚拟道具价格，约 10 分钟后生效。</div>
 				</a-form-item>
 			</a-form>
 		</a-modal>
@@ -472,7 +474,7 @@
 	import { ref, onMounted, watch, computed, onBeforeUnmount } from 'vue';
 	import { message } from 'ant-design-vue';
 	import { PlusOutlined, DeleteOutlined, CheckOutlined, CloseOutlined, DownOutlined } from '@ant-design/icons-vue';
-	import { getCourseList, deleteCourse, batchDeleteCourses, batchUpdateCourseStatus, batchAdjustCoursePrice, updateCourseSort, generateMissingCoursePreviewCaches, retryFailedCoursePreviewCaches, getCoursePreviewCacheProgress, interruptCoursePreviewCacheTask, fixBlankCoursePreviewCaches, getPreviewCacheTargetCourses, forceSelectedCoursePreviewCaches } from '@/api/course';
+	import { getCourseList, deleteCourse, batchDeleteCourses, batchUpdateCourseStatus, batchAdjustCoursePrice, syncAllCourseVirtualPayGoods, updateCourseSort, generateMissingCoursePreviewCaches, retryFailedCoursePreviewCaches, getCoursePreviewCacheProgress, interruptCoursePreviewCacheTask, fixBlankCoursePreviewCaches, getPreviewCacheTargetCourses, forceSelectedCoursePreviewCaches } from '@/api/course';
 	import { getCourseCategoryTree } from '@/api/course-category';
 	import { getToken } from '@/utils/auth';
 	import { useUserStore } from '@/store/user';
@@ -480,10 +482,12 @@ import CourseModal from './components/CourseModal.vue';
 import BatchUploadCourseModal from './components/BatchUploadCourseModal.vue';
 import ExamConfigDrawer from './components/ExamConfigDrawer.vue';
 import RecommendationDrawer from './components/RecommendationDrawer.vue';
+import { notifyVirtualPayGoodsPriceSync } from '@/utils/virtual-pay-goods';
 
 const loading = ref(false);
 const dataSource = ref([]);
 const batchUploadVisible = ref(false);
+const syncingVirtualPayGoods = ref(false);
 const userStore = useUserStore();
 const modalVisible = ref(false);
 const currentRecord = ref(null);
@@ -1007,6 +1011,21 @@ const openBatchUploadModal = () => {
 	batchUploadVisible.value = true;
 };
 
+const handleSyncAllVirtualPayGoods = async () => {
+	syncingVirtualPayGoods.value = true;
+	try {
+		const res = await syncAllCourseVirtualPayGoods();
+		const result = (res as any)?.data ?? res;
+		const total = Number(result?.total || 0);
+		message.success(`已提交 ${total} 门课程的虚拟道具价格同步`);
+		notifyVirtualPayGoodsPriceSync(result);
+	} catch (error: any) {
+		message.error(error?.msg || error?.message || '同步虚拟道具价格失败');
+	} finally {
+		syncingVirtualPayGoods.value = false;
+	}
+};
+
 const handleAdd = () => {
 	currentRecord.value = null;
 	modalVisible.value = true;
@@ -1482,8 +1501,10 @@ const confirmBatchAdjustPrice = async () => {
 	const targetCount = batchAdjustTargetCount.value;
 	batchAdjustPriceLoading.value = true;
 	try {
-		await batchAdjustCoursePrice(buildBatchAdjustPricePayload());
+		const res = await batchAdjustCoursePrice(buildBatchAdjustPricePayload());
+		const result = (res as any)?.data ?? res;
 		message.success(`成功调整 ${targetCount} 个课程价格`);
+		notifyVirtualPayGoodsPriceSync(result);
 		selectedRowKeys.value = [];
 		fetchData();
 	} catch (error: any) {

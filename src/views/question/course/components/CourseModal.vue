@@ -259,6 +259,7 @@
 					style="width: 100%"
 					placeholder="请输入代理商售价"
 				/>
+				<div class="form-tip">修改价格或免费状态后，将自动同步微信虚拟道具价格，约 10 分钟后生效。</div>
 			</a-form-item>
 			<a-form-item label="是否免费" name="is_free">
 				<a-radio-group v-model:value="formState.is_free">
@@ -325,6 +326,7 @@ import {
 	renderCourseCover,
 } from '@/utils/course-cover';
 import type { CourseCoverTemplatePack } from '@/utils/course-cover';
+import { notifyVirtualPayGoodsPriceSync } from '@/utils/virtual-pay-goods';
 
 const props = defineProps<{
 	open: boolean;
@@ -1258,16 +1260,19 @@ const handleSubmit = async () => {
 		}
 
 		let courseId = props.record?.id as number | undefined;
+		let saveResponse: any = null;
 		if (props.record) {
-			await updateCourse(props.record.id, submitData);
+			const updatedRes = await updateCourse(props.record.id, submitData);
+			saveResponse = (updatedRes as any)?.data ?? updatedRes;
 			courseId = props.record.id;
 			message.success('更新成功');
 		} else {
 			const createdRes = await createCourse(submitData);
-			const created = (createdRes as any)?.data ?? createdRes;
-			courseId = Number(created?.id);
+			saveResponse = (createdRes as any)?.data ?? createdRes;
+			courseId = Number(saveResponse?.id);
 			message.success('创建成功');
 		}
+		notifyVirtualPayGoodsPriceSync(saveResponse);
 
 		if (submitData.content_type === 'file' && courseId) {
 			await syncCourseFilesAfterSave(courseId);
