@@ -479,6 +479,7 @@ const buildSubmitPayload = (
 	const payload: Record<string, unknown> = {
 		name: String(group.courseName || '').trim(),
 		content_type: 'file',
+		status: 0,
 		price: defaults.value.price,
 		agent_price: defaults.value.agent_price,
 		is_free: defaults.value.is_free,
