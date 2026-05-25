@@ -80,6 +80,51 @@
 			/>
 		</div>
 
+		<a-collapse v-model:activeKey="coverSettingsExpanded" class="batch-upload-cover">
+			<a-collapse-panel key="cover" header="封面设置（自动生成）">
+				<a-row :gutter="16">
+					<a-col :xs="24" :md="14">
+						<a-form :label-col="{ span: 6 }" :wrapper-col="{ span: 18 }">
+							<a-form-item label="封面模板">
+								<a-select
+									v-model:value="selectedCoverTemplateId"
+									:options="coverTemplateOptions"
+									:loading="coverTemplateLoading"
+									placeholder="请选择封面模板"
+									style="width: 100%"
+								/>
+								<div class="form-tip">
+									选择「按分类自动匹配」时，将根据每门课程的分类绑定对应模板；指定模板则全部课程统一使用该模板。
+								</div>
+							</a-form-item>
+							<a-form-item label="预览课程">
+								<a-select
+									v-model:value="coverPreviewGroupKey"
+									:options="coverPreviewCourseOptions"
+									:disabled="coverPreviewCourseOptions.length === 0"
+									placeholder="请先选择文件并解析预览"
+									style="width: 100%"
+								/>
+							</a-form-item>
+						</a-form>
+					</a-col>
+					<a-col :xs="24" :md="10">
+						<div class="batch-upload-cover-preview">
+							<div class="batch-upload-cover-preview__title">封面预览</div>
+							<a-spin :spinning="coverPreviewLoading">
+								<div v-if="coverPreviewSrc" class="batch-upload-cover-preview__image">
+									<img :src="coverPreviewSrc" alt="封面预览" />
+								</div>
+								<div v-else class="batch-upload-cover-preview__empty">
+									{{ coverPreviewHint }}
+								</div>
+							</a-spin>
+						</div>
+					</a-col>
+				</a-row>
+			</a-collapse-panel>
+		</a-collapse>
+
 		<a-collapse v-model:activeKey="defaultsExpanded" class="batch-upload-defaults">
 			<a-collapse-panel key="defaults" header="默认参数（可修改，将应用于全部新课程）">
 				<a-form :label-col="{ span: 6 }" :wrapper-col="{ span: 16 }">
@@ -280,12 +325,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, onBeforeUnmount } from 'vue';
 import { message } from 'ant-design-vue';
 import { FolderOpenOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons-vue';
 import { createCourse, createCourseFile, warmupCoursePreviewCacheAfterSave, getCourseDefaultParams } from '@/api/course';
 import { uploadCourseFile } from '@/api/upload';
-import { generateAndUploadCourseCover } from '@/utils/course-auto-cover';
+import {
+	fetchCourseCoverTemplatePack,
+	generateAndUploadCourseCover,
+	generateCourseCoverFile,
+	resetCourseCoverConfigCache,
+	type CourseCoverGenerateInput,
+} from '@/utils/course-auto-cover';
+import type { CourseCoverTemplatePack } from '@/utils/course-cover';
 import {
 	DEFAULT_BATCH_COURSE_DEFAULTS,
 	DEFAULT_FILENAME_TEMPLATE,
@@ -321,10 +373,31 @@ const selectedFiles = ref<File[]>([]);
 const previewGroups = ref<BatchCourseUploadItem[]>([]);
 const defaults = ref<BatchCourseDefaults>({ ...DEFAULT_BATCH_COURSE_DEFAULTS, introduction: '' });
 const defaultsExpanded = ref<string[]>([]);
+const coverSettingsExpanded = ref<string[]>(['cover']);
+const selectedCoverTemplateId = ref('auto');
+const coverTemplatePack = ref<CourseCoverTemplatePack | null>(null);
+const coverTemplateLoading = ref(false);
+const coverPreviewGroupKey = ref('');
+const coverPreviewSrc = ref('');
+const coverPreviewLoading = ref(false);
+const coverPreviewHint = ref('选择预览课程后将显示封面效果');
 const uploading = ref(false);
 const uploadPercent = ref(0);
 const uploadStage = ref('');
 const folderInputRef = ref<HTMLInputElement | null>(null);
+let coverPreviewTimer: ReturnType<typeof setTimeout> | null = null;
+let coverPreviewObjectUrl = '';
+
+const coverTemplateOptions = computed(() => {
+	const templates = coverTemplatePack.value?.templates || [];
+	return [
+		{ label: '按分类自动匹配', value: 'auto' },
+		...templates.map((item) => ({
+			label: item.name || '未命名模板',
+			value: item.id,
+		})),
+	];
+});
 
 const categoryOptions = computed(() =>
 	(props.categoryTree || []).map((parent) => ({
@@ -350,6 +423,13 @@ const previewColumns = [
 const invalidPreviewCount = computed(() => previewGroups.value.filter((item) => item.parseError).length);
 const validPreviewGroups = computed(() => previewGroups.value.filter((item) => !item.parseError));
 
+const coverPreviewCourseOptions = computed(() =>
+	validPreviewGroups.value.map((item) => ({
+		label: String(item.courseName || item.key || '未命名课程'),
+		value: item.key,
+	})),
+);
+
 const canStartUpload = computed(() => {
 	if (uploading.value) return false;
 	if (selectedFiles.value.length === 0) return false;
@@ -366,6 +446,108 @@ const canStartUpload = computed(() => {
 
 const cascaderFilter = (inputValue: string, path: any[]) =>
 	path.some((option) => String(option.label || '').toLowerCase().includes(inputValue.toLowerCase()));
+
+const getCoverTemplateIdForUpload = () => {
+	const templateId = String(selectedCoverTemplateId.value || '').trim();
+	return templateId === 'auto' ? undefined : templateId;
+};
+
+const buildCoverGenerateInput = (group: BatchCourseUploadItem): CourseCoverGenerateInput => {
+	const templateId = getCoverTemplateIdForUpload();
+	return {
+		name: String(group.courseName || '').trim(),
+		subject: group.subject || defaults.value.subject,
+		category: group.category,
+		sub_category: group.sub_category,
+		school: group.school || defaults.value.school,
+		major: group.major || defaults.value.major,
+		exam_year: group.exam_year || defaults.value.exam_year,
+		answer_year: group.answer_year || defaults.value.answer_year,
+		...(templateId ? { templateId } : {}),
+	};
+};
+
+const clearCoverPreview = () => {
+	coverPreviewSrc.value = '';
+	if (coverPreviewObjectUrl) {
+		URL.revokeObjectURL(coverPreviewObjectUrl);
+		coverPreviewObjectUrl = '';
+	}
+};
+
+const scheduleCoverPreviewRefresh = (delay = 360) => {
+	if (coverPreviewTimer) {
+		clearTimeout(coverPreviewTimer);
+	}
+	coverPreviewTimer = setTimeout(() => {
+		refreshCoverPreview();
+	}, delay);
+};
+
+const refreshCoverPreview = async () => {
+	if (!props.open) return;
+	const group = validPreviewGroups.value.find((item) => item.key === coverPreviewGroupKey.value);
+	if (!group) {
+		clearCoverPreview();
+		coverPreviewHint.value = '选择预览课程后将显示封面效果';
+		return;
+	}
+
+	const input = buildCoverGenerateInput(group);
+	const school = String(input.school || input.category || input.name || '').trim();
+	const major = String(input.major || input.sub_category || input.name || '').trim();
+	if (!school || !major) {
+		clearCoverPreview();
+		coverPreviewHint.value = '请填写学校/专业，或确保课程名称/分类可用于生成封面';
+		return;
+	}
+
+	coverPreviewLoading.value = true;
+	try {
+		const coverFile = await generateCourseCoverFile(input);
+		if (!coverFile) {
+			clearCoverPreview();
+			coverPreviewHint.value = '封面生成失败，请检查默认参数或预览课程信息';
+			return;
+		}
+		clearCoverPreview();
+		coverPreviewObjectUrl = URL.createObjectURL(coverFile);
+		coverPreviewSrc.value = coverPreviewObjectUrl;
+		coverPreviewHint.value = '';
+	} catch (error: any) {
+		clearCoverPreview();
+		coverPreviewHint.value = error?.message || '封面预览生成失败';
+	} finally {
+		coverPreviewLoading.value = false;
+	}
+};
+
+const syncCoverPreviewGroupKey = () => {
+	const options = coverPreviewCourseOptions.value;
+	if (options.length === 0) {
+		coverPreviewGroupKey.value = '';
+		clearCoverPreview();
+		coverPreviewHint.value = '选择预览课程后将显示封面效果';
+		return;
+	}
+	if (!options.some((item) => item.value === coverPreviewGroupKey.value)) {
+		coverPreviewGroupKey.value = String(options[0].value);
+	}
+	scheduleCoverPreviewRefresh(0);
+};
+
+const loadCoverTemplates = async () => {
+	coverTemplateLoading.value = true;
+	try {
+		resetCourseCoverConfigCache();
+		coverTemplatePack.value = await fetchCourseCoverTemplatePack();
+	} catch (error) {
+		console.warn('加载封面模板失败:', error);
+		coverTemplatePack.value = null;
+	} finally {
+		coverTemplateLoading.value = false;
+	}
+};
 
 const appendTemplateVariable = (field: FilenameTemplateField) => {
 	if (activeMode.value !== 'filename') return;
@@ -407,6 +589,7 @@ const rebuildPreview = () => {
 		error: '',
 		courseId: undefined,
 	}));
+	syncCoverPreviewGroupKey();
 };
 
 watch(
@@ -429,6 +612,27 @@ watch(
 	},
 );
 
+watch(
+	() => [
+		selectedCoverTemplateId.value,
+		coverPreviewGroupKey.value,
+		defaults.value.subject,
+		defaults.value.school,
+		defaults.value.major,
+		defaults.value.exam_year,
+		defaults.value.answer_year,
+	],
+	() => {
+		if (!props.open) return;
+		scheduleCoverPreviewRefresh();
+	},
+);
+
+watch(coverPreviewGroupKey, () => {
+	if (!props.open) return;
+	scheduleCoverPreviewRefresh(0);
+});
+
 const beforeSelectFiles = (file: File) => {
 	selectedFiles.value = mergeSelectedFiles(selectedFiles.value, [file]);
 	return false;
@@ -449,6 +653,7 @@ const handleFolderSelect = (event: Event) => {
 const clearSelectedFiles = () => {
 	selectedFiles.value = [];
 	previewGroups.value = [];
+	syncCoverPreviewGroupKey();
 };
 
 const handleModeChange = () => {
@@ -463,6 +668,9 @@ const handleCourseNameChange = (record: BatchCourseUploadItem) => {
 			? `${String(record.courseName || '').trim()}-${item.fileStem}`
 			: String(record.courseName || '').trim() || item.fileStem,
 	}));
+	if (record.key === coverPreviewGroupKey.value) {
+		scheduleCoverPreviewRefresh();
+	}
 };
 
 const getFileListText = (record: BatchCourseUploadItem) =>
@@ -532,16 +740,7 @@ const uploadSingleGroup = async (group: BatchCourseUploadItem) => {
 
 	const primary = uploadedFiles[0];
 	uploadStage.value = `正在生成封面：${group.courseName}`;
-	const coverImg = await generateAndUploadCourseCover({
-		name: String(group.courseName || '').trim(),
-		subject: group.subject || defaults.value.subject,
-		category: group.category,
-		sub_category: group.sub_category,
-		school: group.school || defaults.value.school,
-		major: group.major || defaults.value.major,
-		exam_year: group.exam_year || defaults.value.exam_year,
-		answer_year: group.answer_year || defaults.value.answer_year,
-	});
+	const coverImg = await generateAndUploadCourseCover(buildCoverGenerateInput(group));
 
 	uploadStage.value = `正在创建课程：${group.courseName}`;
 	const payload = buildSubmitPayload(group, primary);
@@ -651,6 +850,16 @@ const resetState = () => {
 	previewGroups.value = [];
 	defaults.value = { ...DEFAULT_BATCH_COURSE_DEFAULTS, introduction: '' };
 	defaultsExpanded.value = [];
+	coverSettingsExpanded.value = ['cover'];
+	selectedCoverTemplateId.value = 'auto';
+	coverPreviewGroupKey.value = '';
+	clearCoverPreview();
+	coverPreviewHint.value = '选择预览课程后将显示封面效果';
+	coverPreviewLoading.value = false;
+	if (coverPreviewTimer) {
+		clearTimeout(coverPreviewTimer);
+		coverPreviewTimer = null;
+	}
 	uploading.value = false;
 	uploadPercent.value = 0;
 	uploadStage.value = '';
@@ -670,7 +879,7 @@ watch(
 	async (value) => {
 		if (value) {
 			resetState();
-			await loadBatchDefaults();
+			await Promise.all([loadBatchDefaults(), loadCoverTemplates()]);
 			return;
 		}
 		if (!uploading.value) {
@@ -678,6 +887,13 @@ watch(
 		}
 	},
 );
+
+onBeforeUnmount(() => {
+	if (coverPreviewTimer) {
+		clearTimeout(coverPreviewTimer);
+	}
+	clearCoverPreview();
+});
 
 watch(
 	() => props.defaultParamsKey,
@@ -703,6 +919,51 @@ watch(
 
 .batch-upload-defaults {
 	margin-bottom: 16px;
+}
+
+.batch-upload-cover {
+	margin-bottom: 16px;
+}
+
+.batch-upload-cover-preview {
+	border: 1px solid #f0f0f0;
+	border-radius: 8px;
+	padding: 12px;
+	background: #fafafa;
+	min-height: 220px;
+}
+
+.batch-upload-cover-preview__title {
+	margin-bottom: 8px;
+	font-weight: 500;
+	color: #1f2937;
+}
+
+.batch-upload-cover-preview__image {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	min-height: 180px;
+
+	img {
+		max-width: 100%;
+		max-height: 240px;
+		border-radius: 6px;
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+		object-fit: contain;
+	}
+}
+
+.batch-upload-cover-preview__empty {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 180px;
+	padding: 12px;
+	color: rgba(0, 0, 0, 0.45);
+	font-size: 12px;
+	text-align: center;
+	line-height: 1.6;
 }
 
 .batch-upload-preview__header {
