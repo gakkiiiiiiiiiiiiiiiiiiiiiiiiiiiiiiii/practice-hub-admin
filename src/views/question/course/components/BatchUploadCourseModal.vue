@@ -285,6 +285,7 @@ import { message } from 'ant-design-vue';
 import { FolderOpenOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons-vue';
 import { createCourse, createCourseFile, warmupCoursePreviewCacheAfterSave, getCourseDefaultParams } from '@/api/course';
 import { uploadCourseFile } from '@/api/upload';
+import { generateAndUploadCourseCover } from '@/utils/course-auto-cover';
 import {
 	DEFAULT_BATCH_COURSE_DEFAULTS,
 	DEFAULT_FILENAME_TEMPLATE,
@@ -530,8 +531,24 @@ const uploadSingleGroup = async (group: BatchCourseUploadItem) => {
 	}
 
 	const primary = uploadedFiles[0];
+	uploadStage.value = `正在生成封面：${group.courseName}`;
+	const coverImg = await generateAndUploadCourseCover({
+		name: String(group.courseName || '').trim(),
+		subject: group.subject || defaults.value.subject,
+		category: group.category,
+		sub_category: group.sub_category,
+		school: group.school || defaults.value.school,
+		major: group.major || defaults.value.major,
+		exam_year: group.exam_year || defaults.value.exam_year,
+		answer_year: group.answer_year || defaults.value.answer_year,
+	});
+
 	uploadStage.value = `正在创建课程：${group.courseName}`;
-	const createdRes = await createCourse(buildSubmitPayload(group, primary));
+	const payload = buildSubmitPayload(group, primary);
+	if (coverImg) {
+		payload.cover_img = coverImg;
+	}
+	const createdRes = await createCourse(payload);
 	const created = (createdRes as any)?.data ?? createdRes;
 	const courseId = Number(created?.id);
 	if (!courseId) {

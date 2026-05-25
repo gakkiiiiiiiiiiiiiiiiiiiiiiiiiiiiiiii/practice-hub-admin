@@ -53,7 +53,7 @@
         :data-source="dataSource"
         :loading="loading"
         :pagination="pagination"
-        :scroll="{ x: 1360 }"
+        :scroll="{ x: 1280 }"
         @change="handleTableChange"
         row-key="id"
       >
@@ -90,13 +90,13 @@
             </a-tag>
           </template>
           <template v-else-if="column.key === 'used_time'">
-            <span v-if="record.used_time">
+            <span v-if="record.used_time" class="time-cell">
               {{ dayjs(record.used_time).format('YYYY-MM-DD HH:mm:ss') }}
             </span>
             <span v-else>-</span>
           </template>
           <template v-else-if="column.key === 'create_time'">
-            <span>{{ dayjs(record.create_time).format('YYYY-MM-DD HH:mm:ss') }}</span>
+            <span class="time-cell">{{ dayjs(record.create_time).format('YYYY-MM-DD HH:mm:ss') }}</span>
           </template>
           <template v-else-if="column.key === 'courseName'">
             <div class="course-name-cell" :title="record.course?.name || record.courseName || '-'">
@@ -210,6 +210,9 @@
         </a-descriptions-item>
         <a-descriptions-item label="生成来源">
           {{ currentDetail.source_text || getSourceText(currentDetail) }}
+        </a-descriptions-item>
+        <a-descriptions-item label="生成用户">
+          {{ currentDetail.generator_user || '-' }}
         </a-descriptions-item>
         <a-descriptions-item label="关联课程">
           {{ currentDetail.course?.name || '-' }}
@@ -325,6 +328,12 @@ const columns = [
 	    key: 'source_text',
 	    width: 130,
 	  },
+	  {
+	    title: '生成用户',
+	    dataIndex: 'generator_user',
+	    key: 'generator_user',
+	    width: 120,
+	  },
   {
     title: '关联课程',
     dataIndex: 'courseName',
@@ -340,13 +349,13 @@ const columns = [
     title: '激活时间',
     dataIndex: 'used_time',
     key: 'used_time',
-    width: 180,
+    width: 90,
   },
   {
     title: '创建时间',
     dataIndex: 'create_time',
     key: 'create_time',
-    width: 180,
+    width: 90,
   },
 	  {
 	    title: '操作',
@@ -545,6 +554,15 @@ onMounted(() => {
     white-space: normal;
     word-break: normal;
     overflow-wrap: break-word;
+  }
+
+  .time-cell {
+    display: inline-block;
+    max-width: 90px;
+    font-size: 12px;
+    line-height: 1.4;
+    white-space: normal;
+    word-break: break-all;
   }
 
   .activation-code-actions {

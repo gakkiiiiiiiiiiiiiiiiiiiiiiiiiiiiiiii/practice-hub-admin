@@ -37,16 +37,23 @@
 							<a-form-item label="模板名称">
 								<a-input v-model:value="currentTemplate.name" placeholder="请输入封面名称" maxlength="30" />
 							</a-form-item>
-							<a-form-item v-if="props.configType === 'course'" label="绑定分类">
+							<a-form-item label="绑定分类">
 								<a-cascader
 									v-model:value="currentTemplate.bindCategory"
 									:options="categoryOptions"
 									:show-search="{ filter: cascaderFilter }"
+									change-on-select
 									allow-clear
-									placeholder="不绑定则作为通用默认模板"
+									:placeholder="props.configType === 'category' ? '不绑定则作为通用默认模板；可只选一级分类' : '不绑定则作为通用默认模板'"
 									style="width: 100%"
 								/>
-								<div class="form-tip">绑定后，该分类下新建或编辑课程时会优先使用此封面模板。</div>
+								<div class="form-tip">
+									{{
+										props.configType === 'category'
+											? '绑定一级分类后，该分类下所有二级分类将优先使用此封面模板；也可继续选择二级分类做精确绑定。'
+											: '绑定后，该分类下新建或编辑课程时会优先使用此封面模板。'
+									}}
+								</div>
 							</a-form-item>
 						</a-form>
 					</a-card>
@@ -481,7 +488,6 @@ const cascaderFilter = (inputValue: string, path: any[]) => {
 };
 
 const loadCategoryOptions = async () => {
-	if (props.configType !== 'course') return;
 	try {
 		const res = await getCourseCategoryTree();
 		const list = res.data || res || [];

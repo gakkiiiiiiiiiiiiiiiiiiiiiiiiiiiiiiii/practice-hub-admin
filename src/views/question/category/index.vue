@@ -263,7 +263,7 @@ import { uploadImage } from '@/api/upload';
 import CourseCoverConfig from '@/views/system/config/components/CourseCoverConfig.vue';
 import {
 	DEFAULT_CATEGORY_COVER_CONFIG,
-	getActiveCourseCoverConfig,
+	resolveCategoryCoverConfigByCategory,
 	normalizeCourseCoverTemplatePack,
 	renderCourseCover,
 } from '@/utils/course-cover';
@@ -512,7 +512,10 @@ const generateCategoryCoverFile = async (
 			const res = await getCategoryCoverConfig();
 			coverConfigCache = normalizeCourseCoverTemplatePack(res.data || res, { configType: 'category' });
 		}
-		config = getActiveCourseCoverConfig(coverConfigCache, { configType: 'category' });
+		config = resolveCategoryCoverConfigByCategory(coverConfigCache, {
+			category: primaryCategory,
+			sub_category: secondaryCategory,
+		});
 	} catch (_) {
 		config = DEFAULT_CATEGORY_COVER_CONFIG;
 	}

@@ -378,7 +378,7 @@ const visibleCourseFileRows = computed(() =>
 );
 const categoryTree = ref<any[]>([]);
 const categoryCascaderValue = ref<string[]>([]);
-const coverMode = ref<'manual' | 'auto'>('manual');
+const coverMode = ref<'manual' | 'auto'>('auto');
 const coverConfigOpen = ref(false);
 const generatedCoverPreview = ref('');
 let generatedPreviewObjectUrl = '';
@@ -639,9 +639,10 @@ const resetNewCourseForm = async () => {
 	fileList.value = [];
 	courseFileRows.value = [];
 	selectedPreviewFileId.value = undefined;
-	coverMode.value = 'manual';
+	coverMode.value = 'auto';
 	generatedCoverPreview.value = '';
 	generatedCoverFile = null;
+	scheduleAutoCoverPreview(0);
 };
 
 watch(
@@ -1039,7 +1040,12 @@ const handleUpload = async (options: any) => {
 	const refreshAutoCoverPreview = async () => {
 		try {
 			if (coverMode.value !== 'auto') return;
-			if (!formState.value.school?.trim() || !formState.value.major?.trim()) {
+			if (
+				!formState.value.school?.trim() &&
+				!formState.value.major?.trim() &&
+				!formState.value.category?.trim() &&
+				!formState.value.name?.trim()
+			) {
 				clearGeneratedCoverPreview();
 				return;
 			}
@@ -1090,11 +1096,11 @@ const handleUpload = async (options: any) => {
 	};
 
 const generateCourseCoverFile = async (): Promise<File> => {
-	const school = formState.value.school?.trim();
-	const major = formState.value.major?.trim();
+	const school = formState.value.school?.trim() || formState.value.category?.trim() || formState.value.name?.trim();
+	const major = formState.value.major?.trim() || formState.value.sub_category?.trim() || formState.value.name?.trim();
 
 	if (!school || !major) {
-		throw new Error('请先填写学校和专业，再自动生成封面');
+		throw new Error('请先填写学校和专业，或至少填写分类/课程名称后再自动生成封面');
 	}
 		let config = DEFAULT_COURSE_COVER_CONFIG;
 		try {
