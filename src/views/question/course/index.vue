@@ -49,7 +49,7 @@
 				</a-space>
 			</template>
 
-			<a-form layout="inline" class="course-filter-form">
+			<a-form layout="inline" class="course-filter-form" :class="{ 'course-filter-form--mobile': isMobile }">
 				<a-form-item label="课程名称">
 					<a-input
 						v-model:value="searchForm.name"
@@ -88,12 +88,105 @@
 				</a-form-item>
 			</a-form>
 
+			<!-- 移动端卡片列表 -->
+			<a-spin :spinning="isMobile && loading">
+				<div v-if="isMobile" class="mobile-course-list">
+					<div v-for="record in paginatedDataSource" :key="record.id" class="course-card">
+						<div class="course-card__header">
+							<a-checkbox
+								:checked="selectedRowKeys.includes(record.id)"
+								@change="(event) => toggleMobileRowSelection(record.id, event.target.checked)"
+							/>
+							<div class="course-card__title">{{ record.name || '-' }}</div>
+							<a-switch
+								:checked="record.status === 1"
+								:checked-children="'启用'"
+								:un-checked-children="'禁用'"
+								:loading="statusUpdatingId === record.id"
+								:disabled="!canToggleCourseStatus"
+								size="small"
+								@change="(checked) => handleStatusChange(record, checked)"
+							/>
+						</div>
+						<div class="course-card__body">
+							<div class="course-card__row">
+								<span class="course-card__label">课程</span>
+								<span class="course-card__value">{{ record.subject || '-' }}</span>
+							</div>
+							<div class="course-card__row">
+								<span class="course-card__label">分类</span>
+								<span class="course-card__value">
+									{{ [record.category, record.sub_category].filter(Boolean).join(' / ') || '-' }}
+								</span>
+							</div>
+							<div v-if="record.school || record.major" class="course-card__row">
+								<span class="course-card__label">院校专业</span>
+								<span class="course-card__value">
+									{{ [record.school, record.major].filter(Boolean).join(' · ') }}
+								</span>
+							</div>
+							<div class="course-card__row">
+								<span class="course-card__label">价格</span>
+								<span class="course-card__value">
+									<a-tag :color="record.is_free === 1 ? 'green' : 'default'" size="small">
+										{{ record.is_free === 1 ? '免费' : `¥${record.price ?? 0}` }}
+									</a-tag>
+									<span v-if="record.is_free !== 1" class="course-card__sub">代理 ¥{{ record.agent_price || 0 }}</span>
+								</span>
+							</div>
+							<div class="course-card__row">
+								<span class="course-card__label">排序</span>
+								<a-input-number
+									:value="record.sort ?? 0"
+									:min="0"
+									:precision="0"
+									size="small"
+									class="sort-input"
+									:disabled="sortUpdatingId === record.id"
+									@change="(value) => handleSortChange(record, value)"
+								/>
+							</div>
+						</div>
+						<div class="course-card__footer">
+							<a-button type="link" size="small" @click="handleEdit(record)">编辑</a-button>
+							<a-dropdown>
+								<a-button type="link" size="small" @click.prevent>
+									设置
+									<down-outlined />
+								</a-button>
+								<template #overlay>
+									<a-menu>
+										<a-menu-item key="exam" @click="handleExamConfig(record)">考试配置</a-menu-item>
+										<a-menu-item key="recommend" @click="handleRecommendConfig(record)">相关推荐</a-menu-item>
+									</a-menu>
+								</template>
+							</a-dropdown>
+							<a-popconfirm title="确定要删除这个课程吗？" @confirm="handleDelete(record)">
+								<a-button type="link" danger size="small">删除</a-button>
+							</a-popconfirm>
+						</div>
+					</div>
+					<a-empty v-if="!loading && paginatedDataSource.length === 0" description="暂无课程" />
+					<div v-if="pagination.total > 0" class="mobile-course-pagination">
+						<a-pagination
+							v-model:current="pagination.current"
+							v-model:page-size="pagination.pageSize"
+							:total="pagination.total"
+							simple
+							size="small"
+							@change="handleMobilePaginationChange"
+						/>
+					</div>
+				</div>
+
+				<!-- 桌面端表格 -->
+				<div v-else class="course-table-wrapper">
 			<a-table
 				class="course-table"
 				:columns="columns"
 				:data-source="dataSource"
 				:loading="loading"
-				:pagination="pagination"
+				:pagination="tablePagination"
 				:row-selection="courseRowSelection"
 				:scroll="{ x: 1780 }"
 				@change="handleTableChange"
@@ -162,7 +255,9 @@
 					</template>
 				</template>
 			</a-table>
-			<div class="pagination-jumper" v-if="pagination.total > 0">
+				</div>
+			</a-spin>
+			<div class="pagination-jumper" v-if="!isMobile && pagination.total > 0">
 				<a-space>
 					<a-button size="small" :disabled="pagination.current <= 1" @click="jumpToPage(1)">第一页</a-button>
 					<a-button size="small" :disabled="pagination.current >= lastPage" @click="jumpToPage(lastPage)">最后一页</a-button>
@@ -477,7 +572,7 @@
 </template>
 
 	<script setup lang="ts">
-	import { ref, onMounted, watch, computed, onBeforeUnmount } from 'vue';
+	import { ref, onMounted, watch, computed, onBeforeUnmount, onUnmounted } from 'vue';
 	import { message } from 'ant-design-vue';
 	import { PlusOutlined, DeleteOutlined, CheckOutlined, CloseOutlined, DownOutlined } from '@ant-design/icons-vue';
 	import { getCourseList, deleteCourse, batchDeleteCourses, batchUpdateCourseStatus, batchAdjustCoursePrice, syncAllCourseVirtualPayGoods, updateCourseSort, generateMissingCoursePreviewCaches, retryFailedCoursePreviewCaches, getCoursePreviewCacheProgress, interruptCoursePreviewCacheTask, fixBlankCoursePreviewCaches, getPreviewCacheTargetCourses, forceSelectedCoursePreviewCaches } from '@/api/course';
@@ -493,6 +588,12 @@ import { notifyVirtualPayGoodsPriceSync } from '@/utils/virtual-pay-goods';
 
 const loading = ref(false);
 const dataSource = ref([]);
+const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1200);
+const isMobile = computed(() => windowWidth.value < 768);
+
+const handleResize = () => {
+	windowWidth.value = window.innerWidth;
+};
 const batchUploadVisible = ref(false);
 const defaultParamsVisible = ref(false);
 const courseDefaultParamsKey = ref(0);
@@ -610,6 +711,36 @@ const pagination = ref({
 	showSizeChanger: true,
 	showTotal: (total: number) => `共 ${total} 条`,
 });
+
+const tablePagination = computed(() => ({
+	...pagination.value,
+	showSizeChanger: !isMobile.value,
+	showQuickJumper: !isMobile.value,
+	simple: isMobile.value,
+	size: isMobile.value ? 'small' : 'default',
+}));
+
+const paginatedDataSource = computed(() => {
+	const { current, pageSize } = pagination.value;
+	const start = (current - 1) * pageSize;
+	return dataSource.value.slice(start, start + pageSize);
+});
+
+const toggleMobileRowSelection = (id: number, checked: boolean) => {
+	if (checked) {
+		if (!selectedRowKeys.value.includes(id)) {
+			selectedRowKeys.value = [...selectedRowKeys.value, id];
+		}
+		return;
+	}
+	selectedRowKeys.value = selectedRowKeys.value.filter((key) => key !== id);
+};
+
+const handleMobilePaginationChange = (page: number, pageSize: number) => {
+	pagination.value.current = page;
+	pagination.value.pageSize = pageSize;
+	jumpPage.value = page;
+};
 
 const lastPage = computed(() => Math.max(1, Math.ceil((pagination.value.total || 0) / pagination.value.pageSize)));
 const canToggleCourseStatus = computed(() => userStore.hasRole('super_admin') || userStore.hasPermission('course:status'));
@@ -1535,6 +1666,7 @@ const confirmBatchAdjustPrice = async () => {
 };
 
 onMounted(() => {
+	window.addEventListener('resize', handleResize);
 	fetchCategoryTree();
 	fetchData();
 	if (getToken()) {
@@ -1549,6 +1681,10 @@ onMounted(() => {
 onBeforeUnmount(() => {
 	stopPreviewCachePolling();
 });
+
+onUnmounted(() => {
+	window.removeEventListener('resize', handleResize);
+});
 </script>
 
 <style scoped lang="scss">
@@ -1557,6 +1693,18 @@ onBeforeUnmount(() => {
 
 		:deep(.ant-card-extra) {
 			max-width: 100%;
+		}
+
+		@media (max-width: 768px) {
+			padding: 12px;
+
+			:deep(.ant-card-head) {
+				padding: 12px 16px;
+			}
+
+			:deep(.ant-card-body) {
+				padding: 12px;
+			}
 		}
 	}
 
@@ -1570,6 +1718,103 @@ onBeforeUnmount(() => {
 
 	.course-filter-form {
 		margin-bottom: 16px;
+
+		&--mobile {
+			:deep(.ant-form-item) {
+				margin-inline-end: 0;
+				margin-bottom: 12px;
+				width: 100%;
+			}
+
+			:deep(.ant-input),
+			:deep(.ant-cascader),
+			:deep(.ant-select) {
+				width: 100% !important;
+			}
+		}
+	}
+
+	.course-table-wrapper {
+		overflow-x: auto;
+		-webkit-overflow-scrolling: touch;
+	}
+
+	.mobile-course-list {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+	}
+
+	.course-card {
+		border: 1px solid #f0f0f0;
+		border-radius: 8px;
+		padding: 12px;
+		background: #fff;
+
+		&__header {
+			display: flex;
+			align-items: flex-start;
+			gap: 8px;
+			margin-bottom: 10px;
+		}
+
+		&__title {
+			flex: 1;
+			font-weight: 600;
+			font-size: 14px;
+			line-height: 1.5;
+			color: #1f2937;
+			word-break: break-all;
+		}
+
+		&__body {
+			display: flex;
+			flex-direction: column;
+			gap: 8px;
+			padding-left: 24px;
+		}
+
+		&__row {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			font-size: 13px;
+			line-height: 1.5;
+		}
+
+		&__label {
+			flex-shrink: 0;
+			width: 64px;
+			color: #8c8c8c;
+		}
+
+		&__value {
+			flex: 1;
+			color: #434343;
+			word-break: break-all;
+		}
+
+		&__sub {
+			margin-left: 6px;
+			color: #8c8c8c;
+			font-size: 12px;
+		}
+
+		&__footer {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 4px;
+			margin-top: 10px;
+			padding-top: 8px;
+			padding-left: 24px;
+			border-top: 1px solid #f0f0f0;
+		}
+	}
+
+	.mobile-course-pagination {
+		display: flex;
+		justify-content: center;
+		padding: 8px 0 4px;
 	}
 
 	.course-table {
