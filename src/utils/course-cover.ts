@@ -531,12 +531,13 @@ function drawConfiguredText(ctx: CanvasRenderingContext2D, field: CourseCoverFie
 	const fontFamily = normalizeFontFamilyForCover(field.fontFamily);
 	const lineHeight = field.lineHeight || field.fontSize;
 	const maxWidth = field.maxWidth || ctx.canvas.width - 40;
+	const font = `${fontWeight} ${field.fontSize}px ${fontFamily}`;
 	ctx.save();
 	ctx.textAlign = align;
 	ctx.textBaseline = 'alphabetic';
-	ctx.font = `${fontWeight} ${field.fontSize}px ${fontFamily}`;
+	ctx.font = font;
 	const lines = buildMultilineTextLines(ctx, text, maxWidth, field.maxLines || 1);
-	drawTextBackground(ctx, field, lines, maxWidth, lineHeight, align);
+	drawTextBackground(ctx, field, lines, lineHeight, font);
 	ctx.fillStyle = field.color || '#FFFFFF';
 	lines.forEach((line, index) => {
 		ctx.fillText(line, field.x, field.y + index * lineHeight);
@@ -656,27 +657,69 @@ function buildMultilineTextLines(
 	return lines;
 }
 
+function getLineBackgroundRect(
+	ctx: CanvasRenderingContext2D,
+	field: CourseCoverFieldConfig,
+	line: string,
+	lineIndex: number,
+	lineHeight: number,
+	font: string,
+) {
+	const align = field.align || 'center';
+	const horizontalPadding = Math.max(6, field.fontSize * 0.1);
+	const verticalPadding = Math.max(3, lineHeight * 0.06);
+	const lineY = field.y + lineIndex * lineHeight;
+
+	ctx.save();
+	ctx.font = font;
+	ctx.textAlign = align;
+	ctx.textBaseline = 'alphabetic';
+
+	const metrics = ctx.measureText(line);
+	const hasBoundingBox =
+		typeof metrics.actualBoundingBoxLeft === 'number' && typeof metrics.actualBoundingBoxRight === 'number';
+	const ascent = metrics.actualBoundingBoxAscent ?? field.fontSize * 0.82;
+	const descent = metrics.actualBoundingBoxDescent ?? field.fontSize * 0.18;
+
+	let left: number;
+	let width: number;
+
+	if (hasBoundingBox) {
+		left = field.x - metrics.actualBoundingBoxLeft - horizontalPadding;
+		width = metrics.actualBoundingBoxLeft + metrics.actualBoundingBoxRight + horizontalPadding * 2;
+	} else {
+		const textWidth = metrics.width;
+		width = textWidth + horizontalPadding * 2;
+		if (align === 'left') {
+			left = field.x - horizontalPadding;
+		} else if (align === 'right') {
+			left = field.x - textWidth - horizontalPadding;
+		} else {
+			left = field.x - textWidth / 2 - horizontalPadding;
+		}
+	}
+
+	const top = lineY - ascent - verticalPadding;
+	const height = ascent + descent + verticalPadding * 2;
+	ctx.restore();
+
+	return { left, top, width, height };
+}
+
 function drawTextBackground(
 	ctx: CanvasRenderingContext2D,
 	field: CourseCoverFieldConfig,
 	lines: string[],
-	maxWidth: number,
 	lineHeight: number,
-	align: CourseCoverAlign,
+	font: string,
 ) {
 	if (isTransparentColor(field.backgroundColor) || lines.length === 0) return;
-	const horizontalPadding = Math.max(8, field.fontSize * 0.12);
-	const verticalPadding = Math.max(4, lineHeight * 0.08);
 	ctx.save();
 	ctx.fillStyle = field.backgroundColor || 'transparent';
 	lines.forEach((line, index) => {
-		const textWidth = Math.min(ctx.measureText(line).width, maxWidth);
-		const width = textWidth + horizontalPadding * 2;
-		const height = lineHeight + verticalPadding * 2;
-		const lineY = field.y + index * lineHeight;
-		const rectX = align === 'left' ? field.x - horizontalPadding : align === 'right' ? field.x - width + horizontalPadding : field.x - width / 2;
-		const rectY = lineY - field.fontSize - verticalPadding;
-		ctx.fillRect(rectX, rectY, width, height);
+		if (!line.trim()) return;
+		const { left, top, width, height } = getLineBackgroundRect(ctx, field, line, index, lineHeight, font);
+		ctx.fillRect(left, top, width, height);
 	});
 	ctx.restore();
 }
