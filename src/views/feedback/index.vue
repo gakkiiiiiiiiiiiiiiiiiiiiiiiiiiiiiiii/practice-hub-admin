@@ -34,9 +34,13 @@
 				</a-form-item>
 			</a-form>
 
+			<div class="table-toolbar">
+				<TableColumnSetting :items="settingItems" @update:items="updatePreference" @reset="resetColumns" />
+			</div>
+
 			<!-- 表格 -->
 			<a-table
-				:columns="columns"
+				:columns="displayColumns"
 				:data-source="dataSource"
 				:loading="loading"
 				:pagination="pagination"
@@ -286,6 +290,8 @@ import {
 import { uploadImage } from '@/api/upload';
 import { getProxiedImageUrl } from '@/utils/imageProxy';
 import dayjs from 'dayjs';
+import TableColumnSetting from '@/components/TableColumnSetting/index.vue';
+import { useTableColumns } from '@/composables/useTableColumns';
 
 const loading = ref(false);
 const dataSource = ref<Feedback[]>([]);
@@ -329,7 +335,7 @@ const replyForm = ref({
 	reply: '',
 });
 
-const columns = [
+const baseColumns = [
 	{
 		title: 'ID',
 		dataIndex: 'id',
@@ -369,6 +375,10 @@ const columns = [
 		fixed: 'right',
 	},
 ];
+
+const { displayColumns, settingItems, resetColumns, updatePreference } = useTableColumns('feedback-list', baseColumns, {
+	lockRightKeys: ['action'],
+});
 
 const getTypeLabel = (type: string) => {
 	const map: Record<string, string> = {

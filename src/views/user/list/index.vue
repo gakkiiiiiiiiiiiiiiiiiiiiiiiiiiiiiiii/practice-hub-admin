@@ -23,11 +23,12 @@
 					</a-select>
 					<a-button type="primary" @click="handleSearch">查询</a-button>
 					<a-button @click="handleReset">重置</a-button>
+					<TableColumnSetting :items="settingItems" @update:items="updatePreference" @reset="resetColumns" />
 				</a-space>
 			</template>
 
 			<a-table
-				:columns="columns"
+				:columns="displayColumns"
 				:data-source="dataSource"
 				:loading="loading"
 				:pagination="pagination"
@@ -112,6 +113,8 @@ import { message, Modal } from 'ant-design-vue';
 import { getAppUserList, updateAppUserRole, updateUserStatus } from '@/api/user';
 import UserDetailModal from './components/UserDetailModal.vue';
 import dayjs from 'dayjs';
+import TableColumnSetting from '@/components/TableColumnSetting/index.vue';
+import { useTableColumns } from '@/composables/useTableColumns';
 
 const loading = ref(false);
 const dataSource = ref([]);
@@ -131,7 +134,7 @@ const pagination = ref({
 	showTotal: (total: number) => `共 ${total} 条`,
 });
 
-const columns = [
+const baseColumns = [
 	{
 		title: '头像',
 		key: 'avatar',
@@ -196,6 +199,10 @@ const columns = [
 		fixed: 'right',
 	},
 ];
+
+const { displayColumns, settingItems, resetColumns, updatePreference } = useTableColumns('user-list', baseColumns, {
+	lockRightKeys: ['action'],
+});
 
 const appRoleMap: Record<string, { name: string; color: string; description: string }> = {
 	user: {

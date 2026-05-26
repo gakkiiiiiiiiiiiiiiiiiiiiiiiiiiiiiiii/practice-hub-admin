@@ -33,3 +33,9 @@ body {
     line-height: 1.4;
   }
 }
+
+.table-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}

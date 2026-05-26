@@ -18,11 +18,12 @@
 					</a-select>
 					<a-button type="primary" @click="handleAdd">新增考试配置</a-button>
 					<a-button @click="handleSearch">查询</a-button>
+					<TableColumnSetting :items="settingItems" @update:items="updatePreference" @reset="resetColumns" />
 				</a-space>
 			</div>
 
 			<a-table
-				:columns="columns"
+				:columns="displayColumns"
 				:data-source="dataSource"
 				:loading="loading"
 				:pagination="pagination"
@@ -60,8 +61,10 @@ import { message, Modal } from 'ant-design-vue';
 import { getExamConfigList, deleteExamConfig } from '@/api/exam';
 import { getCourseList } from '@/api/course';
 import ExamConfigModal from './components/ExamConfigModal.vue';
+import TableColumnSetting from '@/components/TableColumnSetting/index.vue';
+import { useTableColumns } from '@/composables/useTableColumns';
 
-const columns = [
+const baseColumns = [
 	{
 		title: 'ID',
 		dataIndex: 'id',
@@ -117,6 +120,10 @@ const columns = [
 		fixed: 'right',
 	},
 ];
+
+const { displayColumns, settingItems, resetColumns, updatePreference } = useTableColumns('exam-list', baseColumns, {
+	lockRightKeys: ['action'],
+});
 
 const dataSource = ref([]);
 const loading = ref(false);

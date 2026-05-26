@@ -47,9 +47,13 @@
         </a-form-item>
       </a-form>
 
+      <div class="table-toolbar">
+        <TableColumnSetting :items="settingItems" @update:items="updatePreference" @reset="resetColumns" />
+      </div>
+
       <a-table
         class="activation-code-table"
-        :columns="columns"
+        :columns="displayColumns"
         :data-source="dataSource"
         :loading="loading"
         :pagination="pagination"
@@ -274,6 +278,8 @@ import {
 	} from '@/api/agent'
 import GenerateModal from './components/GenerateModal.vue'
 import BuyModal from './components/BuyModal.vue'
+import TableColumnSetting from '@/components/TableColumnSetting/index.vue'
+import { useTableColumns } from '@/composables/useTableColumns'
 
 const userStore = useUserStore()
 const isSuperAdmin = computed(() => userStore.hasRole('super_admin'))
@@ -305,7 +311,7 @@ const pagination = ref({
   total: 0,
 })
 
-const columns = [
+const baseColumns = [
   {
     title: '激活码',
     key: 'code',
@@ -364,6 +370,12 @@ const columns = [
       fixed: 'right',
 	  },
 	]
+
+const { displayColumns, settingItems, resetColumns, updatePreference } = useTableColumns(
+  'agent-activation-code-list',
+  baseColumns,
+  { lockRightKeys: ['action'] },
+)
 
 const fetchData = async () => {
   loading.value = true

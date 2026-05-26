@@ -181,9 +181,12 @@
 
 				<!-- 桌面端表格 -->
 				<div v-else class="course-table-wrapper">
+			<div class="table-toolbar">
+				<TableColumnSetting :items="settingItems" @update:items="updatePreference" @reset="resetColumns" />
+			</div>
 			<a-table
 				class="course-table"
-				:columns="columns"
+				:columns="displayColumns"
 				:data-source="dataSource"
 				:loading="loading"
 				:pagination="tablePagination"
@@ -585,6 +588,8 @@ import CourseDefaultParamsModal from './components/CourseDefaultParamsModal.vue'
 import ExamConfigDrawer from './components/ExamConfigDrawer.vue';
 import RecommendationDrawer from './components/RecommendationDrawer.vue';
 import { notifyVirtualPayGoodsPriceSync } from '@/utils/virtual-pay-goods';
+import TableColumnSetting from '@/components/TableColumnSetting/index.vue';
+import { useTableColumns } from '@/composables/useTableColumns';
 
 const loading = ref(false);
 const dataSource = ref([]);
@@ -872,7 +877,7 @@ const formatPreviewCacheTime = (value?: string | Date) => {
 	return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
-const columns = [
+const baseColumns = [
 	// {
 	// 	title: '封面图',
 	// 	key: 'cover',
@@ -968,6 +973,11 @@ const columns = [
 		fixed: 'right',
 	},
 ];
+
+const { displayColumns, settingItems, resetColumns, updatePreference } = useTableColumns('question-course-list', baseColumns, {
+	lockLeftKeys: ['sort'],
+	lockRightKeys: ['action'],
+});
 
 const fetchData = async () => {
 	loading.value = true;

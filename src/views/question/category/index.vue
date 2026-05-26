@@ -34,8 +34,12 @@
 				</a-space>
 			</template>
 
+			<div class="table-toolbar">
+				<TableColumnSetting :items="settingItems" @update:items="updatePreference" @reset="resetColumns" />
+			</div>
+
 			<a-table
-				:columns="columns"
+				:columns="displayColumns"
 				:data-source="tableData"
 				:loading="loading"
 				row-key="id"
@@ -268,6 +272,8 @@ import {
 	renderCourseCover,
 } from '@/utils/course-cover';
 import type { CourseCoverTemplatePack } from '@/utils/course-cover';
+import TableColumnSetting from '@/components/TableColumnSetting/index.vue';
+import { useTableColumns } from '@/composables/useTableColumns';
 
 const loading = ref(false);
 const modalVisible = ref(false);
@@ -325,13 +331,19 @@ const rules = {
 	name: [{ required: true, message: '请输入分类名称', trigger: 'blur' }],
 };
 
-const columns = [
+const baseColumns = [
 	{ title: '分类名称', dataIndex: 'name', key: 'name' },
 	{ title: '封面', key: 'cover', width: 100 },
 	{ title: '排序', dataIndex: 'sort', key: 'sort', width: 120 },
 	{ title: '状态', key: 'status', width: 120 },
-	{ title: '操作', key: 'action', width: 360 },
+	{ title: '操作', key: 'action', width: 360, fixed: 'right' },
 ];
+
+const { displayColumns, settingItems, resetColumns, updatePreference } = useTableColumns(
+	'question-category-list',
+	baseColumns,
+	{ lockRightKeys: ['action'] },
+);
 
 const tableData = computed(() => categoryTree.value);
 

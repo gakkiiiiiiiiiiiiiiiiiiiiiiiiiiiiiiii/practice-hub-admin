@@ -16,11 +16,12 @@
 				</a-select>
 				<a-button type="primary" @click="handleSearch">查询</a-button>
 				<a-button @click="handleReset">重置</a-button>
+				<TableColumnSetting :items="settingItems" @update:items="updatePreference" @reset="resetColumns" />
 			</a-space>
 		</div>
 
 		<a-table
-			:columns="columns"
+			:columns="displayColumns"
 			:data-source="dataSource"
 			:loading="loading"
 			:pagination="pagination"
@@ -99,8 +100,10 @@ import {
 	getDistributorList,
 	updateDistributorStatus,
 } from '@/api/distributor';
+import TableColumnSetting from '@/components/TableColumnSetting/index.vue';
+import { useTableColumns } from '@/composables/useTableColumns';
 
-const columns = [
+const baseColumns = [
 	{
 		title: 'ID',
 		dataIndex: 'id',
@@ -171,6 +174,12 @@ const columns = [
 		fixed: 'right',
 	},
 ];
+
+const { displayColumns, settingItems, resetColumns, updatePreference } = useTableColumns(
+	'distributor-list',
+	baseColumns,
+	{ lockRightKeys: ['action'] },
+);
 
 const dataSource = ref([]);
 const loading = ref(false);

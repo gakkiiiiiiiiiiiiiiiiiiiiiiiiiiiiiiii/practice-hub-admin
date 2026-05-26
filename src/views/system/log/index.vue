@@ -133,8 +133,11 @@
 
 			<!-- 桌面端表格布局 -->
 			<div v-else class="table-wrapper">
+				<div class="table-toolbar">
+					<TableColumnSetting :items="settingItems" @update:items="updatePreference" @reset="resetColumns" />
+				</div>
 				<a-table
-					:columns="columns"
+					:columns="displayColumns"
 					:data-source="dataSource"
 					:loading="loading"
 					:pagination="pagination"
@@ -224,6 +227,8 @@ import dayjs, { Dayjs } from 'dayjs';
 import { FilterOutlined, CloseOutlined } from '@ant-design/icons-vue';
 import { getOperationLogs, getRoleList } from '@/api/system';
 import type { TableColumnsType } from 'ant-design-vue';
+import TableColumnSetting from '@/components/TableColumnSetting/index.vue';
+import { useTableColumns } from '@/composables/useTableColumns';
 
 interface LogRecord {
 	id: number;
@@ -292,7 +297,7 @@ const paginationState = ref({
 	total: 0,
 });
 
-const columns: TableColumnsType = [
+const baseColumns: TableColumnsType = [
 	{
 		title: 'ID',
 		dataIndex: 'id',
@@ -347,6 +352,11 @@ const columns: TableColumnsType = [
 		width: 100,
 	},
 ];
+
+const { displayColumns, settingItems, resetColumns, updatePreference } = useTableColumns(
+	'system-log-list',
+	baseColumns as any[],
+);
 
 const fetchData = async () => {
 	loading.value = true;

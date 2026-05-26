@@ -18,9 +18,13 @@
 				</a-form-item>
 			</a-form>
 
+			<div class="table-toolbar">
+				<TableColumnSetting :items="settingItems" @update:items="updatePreference" @reset="resetColumns" />
+			</div>
+
 			<!-- 表格 -->
 			<a-table
-				:columns="columns"
+				:columns="displayColumns"
 				:data-source="dataSource"
 				:loading="loading"
 				:pagination="pagination"
@@ -120,6 +124,8 @@ import { ref, onMounted } from 'vue';
 import { message } from 'ant-design-vue';
 import dayjs from 'dayjs';
 import { getAfterSaleList, processAfterSale } from '@/api/after-sale';
+import TableColumnSetting from '@/components/TableColumnSetting/index.vue';
+import { useTableColumns } from '@/composables/useTableColumns';
 
 const loading = ref(false);
 const dataSource = ref([]);
@@ -144,7 +150,7 @@ const pagination = ref({
 	total: 0,
 });
 
-const columns = [
+const baseColumns = [
 	{
 		title: '申请ID',
 		dataIndex: 'id',
@@ -185,6 +191,10 @@ const columns = [
 		width: 200,
 	},
 ];
+
+const { displayColumns, settingItems, resetColumns, updatePreference } = useTableColumns('after-sale-list', baseColumns, {
+	lockRightKeys: ['action'],
+});
 
 const fetchData = async () => {
 	loading.value = true;

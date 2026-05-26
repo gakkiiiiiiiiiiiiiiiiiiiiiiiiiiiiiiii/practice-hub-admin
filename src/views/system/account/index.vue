@@ -32,11 +32,12 @@
             <template #icon><plus-outlined /></template>
             新增账号
           </a-button>
+          <TableColumnSetting :items="settingItems" @update:items="updatePreference" @reset="resetColumns" />
         </a-space>
       </template>
 
       <a-table
-        :columns="columns"
+        :columns="displayColumns"
         :data-source="dataSource"
         :loading="loading"
         :pagination="pagination"
@@ -100,6 +101,8 @@ import { PlusOutlined } from '@ant-design/icons-vue'
 import dayjs from 'dayjs'
 import { getAccountList, deleteAccount, updateAccount, getRoleList } from '@/api/system'
 import AccountModal from './components/AccountModal.vue'
+import TableColumnSetting from '@/components/TableColumnSetting/index.vue'
+import { useTableColumns } from '@/composables/useTableColumns'
 
 const loading = ref(false)
 const dataSource = ref([])
@@ -121,7 +124,7 @@ const pagination = ref({
   showTotal: (total: number) => `共 ${total} 条`,
 })
 
-const columns = [
+const baseColumns = [
   {
     title: '用户名',
     dataIndex: 'username',
@@ -162,6 +165,10 @@ const columns = [
     fixed: 'right',
   },
 ]
+
+const { displayColumns, settingItems, resetColumns, updatePreference } = useTableColumns('system-account-list', baseColumns, {
+  lockRightKeys: ['action'],
+})
 
 const roleMap = ref<Record<string, string>>({})
 

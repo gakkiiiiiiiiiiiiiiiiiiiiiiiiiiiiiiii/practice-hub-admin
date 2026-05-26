@@ -82,8 +82,12 @@
 				</a-form-item>
 			</a-form>
 
+			<div class="table-toolbar">
+				<TableColumnSetting :items="settingItems" @update:items="updatePreference" @reset="resetColumns" />
+			</div>
+
 			<a-table
-				:columns="columns"
+				:columns="displayColumns"
 				:data-source="dataSource"
 				:loading="loading"
 				:pagination="pagination"
@@ -281,6 +285,8 @@ import {
 import { generateQuestionTemplate } from '@/utils/excel-template';
 import { getCourseList } from '@/api/course';
 import JsonImportModal from './components/JsonImportModal.vue';
+import TableColumnSetting from '@/components/TableColumnSetting/index.vue';
+import { useTableColumns } from '@/composables/useTableColumns';
 
 const router = useRouter();
 
@@ -318,7 +324,7 @@ const pagination = ref({
 	total: 0,
 });
 
-const columns = [
+const baseColumns = [
 	{
 		title: '序号',
 		key: 'sortOrder',
@@ -362,6 +368,11 @@ const columns = [
 		width: 150,
 	},
 ];
+
+const { displayColumns, settingItems, resetColumns, updatePreference } = useTableColumns('question-list', baseColumns, {
+	lockLeftKeys: ['sortOrder'],
+	lockRightKeys: ['action'],
+});
 
 const fetchCourses = async () => {
 	try {

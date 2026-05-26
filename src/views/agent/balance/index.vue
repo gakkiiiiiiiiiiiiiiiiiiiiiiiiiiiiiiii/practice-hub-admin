@@ -21,8 +21,12 @@
         </a-form-item>
       </a-form>
 
+      <div class="table-toolbar">
+        <TableColumnSetting :items="settingItems" @update:items="updatePreference" @reset="resetColumns" />
+      </div>
+
       <a-table
-        :columns="columns"
+        :columns="displayColumns"
         :data-source="dataSource"
         :loading="loading"
         :pagination="pagination"
@@ -54,6 +58,8 @@
 import { ref, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { getBalanceLog } from '@/api/agent'
+import TableColumnSetting from '@/components/TableColumnSetting/index.vue'
+import { useTableColumns } from '@/composables/useTableColumns'
 
 const loading = ref(false)
 const dataSource = ref([])
@@ -68,7 +74,7 @@ const pagination = ref({
   total: 0,
 })
 
-const columns = [
+const baseColumns = [
   {
     title: '类型',
     key: 'type',
@@ -91,6 +97,8 @@ const columns = [
     width: 180,
   },
 ]
+
+const { displayColumns, settingItems, resetColumns, updatePreference } = useTableColumns('agent-balance-list', baseColumns)
 
 const fetchData = async () => {
   loading.value = true

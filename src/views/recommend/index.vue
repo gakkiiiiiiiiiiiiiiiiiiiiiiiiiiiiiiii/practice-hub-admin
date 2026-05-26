@@ -15,8 +15,12 @@
 				</a-space>
 			</template>
 
+			<div class="table-toolbar">
+				<TableColumnSetting :items="settingItems" @update:items="updatePreference" @reset="resetColumns" />
+			</div>
+
 			<a-table
-				:columns="columns"
+				:columns="displayColumns"
 				:data-source="dataSource"
 				:loading="loading"
 				:pagination="false"
@@ -151,6 +155,8 @@ import {
 } from '@/api/recommend';
 import { getCourseCategoryTree } from '@/api/course-category';
 import ItemManagementModal from './components/ItemManagementModal.vue';
+import TableColumnSetting from '@/components/TableColumnSetting/index.vue';
+import { useTableColumns } from '@/composables/useTableColumns';
 
 const loading = ref(false);
 const dataSource = ref<any[]>([]);
@@ -177,7 +183,7 @@ const categoryFormRules = {
 	bind_category_id: [{ required: true, message: '请选择一级分类', trigger: 'change' }],
 };
 
-const columns = [
+const baseColumns = [
 	{
 		title: 'ID',
 		dataIndex: 'id',
@@ -223,6 +229,10 @@ const columns = [
 		width: 150,
 	},
 ];
+
+const { displayColumns, settingItems, resetColumns, updatePreference } = useTableColumns('recommend-list', baseColumns, {
+	lockRightKeys: ['action'],
+});
 
 const primaryCategoryOptions = computed(() =>
 	courseCategoryTree.value

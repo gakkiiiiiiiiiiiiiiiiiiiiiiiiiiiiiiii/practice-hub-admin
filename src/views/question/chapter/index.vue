@@ -47,8 +47,12 @@
 				</a-space>
 			</template>
 
+			<div class="table-toolbar">
+				<TableColumnSetting :items="settingItems" @update:items="updatePreference" @reset="resetColumns" />
+			</div>
+
 			<a-table
-				:columns="columns"
+				:columns="displayColumns"
 				:data-source="dataSource"
 				:loading="loading"
 				:pagination="pagination"
@@ -107,6 +111,8 @@ import { PlusOutlined, ReloadOutlined, DeleteOutlined, CheckOutlined, CloseOutli
 import { getChapterList, deleteChapter, batchDeleteChapters, batchUpdateChapterStatus } from '@/api/question';
 import { getCourseList } from '@/api/course';
 import ChapterModal from './components/ChapterModal.vue';
+import TableColumnSetting from '@/components/TableColumnSetting/index.vue';
+import { useTableColumns } from '@/composables/useTableColumns';
 
 const loading = ref(false);
 const dataSource = ref([]);
@@ -124,7 +130,7 @@ const pagination = ref({
 	total: 0,
 });
 
-const columns = [
+const baseColumns = [
 	{
 		title: '章节名称',
 		dataIndex: 'name',
@@ -152,6 +158,12 @@ const columns = [
 		width: 150,
 	},
 ];
+
+const { displayColumns, settingItems, resetColumns, updatePreference } = useTableColumns(
+	'question-chapter-list',
+	baseColumns,
+	{ lockRightKeys: ['action'] },
+);
 
 const fetchCourses = async () => {
 	try {
