@@ -80,6 +80,17 @@
 						style="width: 220px"
 					/>
 				</a-form-item>
+				<a-form-item label="状态">
+					<a-select
+						v-model:value="searchForm.status"
+						placeholder="全部"
+						allow-clear
+						style="width: 120px"
+					>
+						<a-select-option :value="1">启用</a-select-option>
+						<a-select-option :value="0">禁用</a-select-option>
+					</a-select>
+				</a-form-item>
 				<a-form-item>
 					<a-space>
 						<a-button type="primary" @click="handleSearch">搜索</a-button>
@@ -688,6 +699,7 @@ const currentCourseName = ref<string>('');
 		subject: '',
 		category: '',
 		subCategory: '',
+		status: undefined as number | undefined,
 	});
 	const searchCategoryValue = ref<string[]>([]);
 	const categoryTree = ref<any[]>([]);
@@ -987,6 +999,7 @@ const fetchData = async () => {
 			subject: searchForm.value.subject || undefined,
 			category: searchForm.value.category || undefined,
 			subCategory: searchForm.value.subCategory || undefined,
+			status: searchForm.value.status ?? undefined,
 		};
 		const res = await getCourseList(params);
 		// 后端返回的是数组，不是分页对象
@@ -1032,6 +1045,7 @@ const handleResetSearch = () => {
 		subject: '',
 		category: '',
 		subCategory: '',
+		status: undefined,
 	};
 	searchCategoryValue.value = [];
 	pagination.value.current = 1;
@@ -1614,6 +1628,7 @@ const buildBatchAdjustPricePayload = () => {
 		payload.subject = searchForm.value.subject || undefined;
 		payload.category = searchForm.value.category || undefined;
 		payload.subCategory = searchForm.value.subCategory || undefined;
+		payload.status = searchForm.value.status ?? undefined;
 	} else {
 		payload.ids = [...selectedRowKeys.value];
 	}

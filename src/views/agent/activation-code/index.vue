@@ -41,6 +41,15 @@
             <a-select-option :value="2">已作废</a-select-option>
           </a-select>
         </a-form-item>
+        <a-form-item label="生成用户">
+          <a-input
+            v-model:value="searchForm.generatorUser"
+            placeholder="请输入生成用户"
+            allow-clear
+            style="width: 160px"
+            @pressEnter="handleSearch"
+          />
+        </a-form-item>
         <a-form-item>
           <a-button type="primary" @click="handleSearch">查询</a-button>
           <a-button style="margin-left: 8px" @click="handleReset">重置</a-button>
@@ -303,6 +312,7 @@ const deleteLoading = ref(false)
 const searchForm = ref({
   batchNo: undefined,
   status: undefined,
+  generatorUser: undefined as string | undefined,
 })
 
 const pagination = ref({
@@ -383,6 +393,7 @@ const fetchData = async () => {
     const res = await getActivationCodeList({
       batchNo: searchForm.value.batchNo,
       status: searchForm.value.status,
+      generatorUser: searchForm.value.generatorUser || undefined,
       page: pagination.value.current,
       pageSize: pagination.value.pageSize,
     })
@@ -419,6 +430,7 @@ const handleReset = () => {
   searchForm.value = {
     batchNo: undefined,
     status: undefined,
+    generatorUser: undefined,
   }
   handleSearch()
 }
