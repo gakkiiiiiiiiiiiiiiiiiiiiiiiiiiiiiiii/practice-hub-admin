@@ -19,3 +19,7 @@ export function updatePackageSection(id: number, data: any) {
 export function deletePackageSection(id: number) {
   return request.delete(`/admin/packages/${id}`)
 }
+
+export function syncAllPackageVirtualPayGoods() {
+  return request.post('/admin/packages/virtual-pay-goods/sync-all')
+}

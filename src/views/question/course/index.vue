@@ -1188,8 +1188,14 @@ const handleSyncAllVirtualPayGoods = async () => {
 	try {
 		const res = await syncAllCourseVirtualPayGoods();
 		const result = (res as any)?.data ?? res;
-		const total = Number(result?.total || 0);
-		message.success(`已提交 ${total} 门课程的虚拟道具价格同步`);
+		const courseTotal = Number(result?.course_total ?? result?.courses ?? 0);
+		const packageTotal = Number(result?.package_total ?? result?.packages ?? 0);
+		const total = Number(result?.total || courseTotal + packageTotal);
+		if (packageTotal > 0) {
+			message.success(`已提交 ${courseTotal} 门课程、${packageTotal} 个套餐规格的虚拟道具价格同步`);
+		} else {
+			message.success(`已提交 ${total} 门课程的虚拟道具价格同步`);
+		}
 		notifyVirtualPayGoodsPriceSync(result);
 	} catch (error: any) {
 		message.error(error?.msg || error?.message || '同步虚拟道具价格失败');

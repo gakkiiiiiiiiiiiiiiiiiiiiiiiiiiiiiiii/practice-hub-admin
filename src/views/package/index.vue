@@ -2,7 +2,10 @@
 	<div class="vip-section-page">
 		<a-card title="套餐管理">
 			<template #extra>
-				<a-button type="primary" @click="openCreate">新增套餐</a-button>
+				<a-space>
+					<a-button :loading="syncingVirtualPayGoods" @click="handleSyncAllVirtualPayGoods">同步虚拟道具价格</a-button>
+					<a-button type="primary" @click="openCreate">新增套餐</a-button>
+				</a-space>
 			</template>
 
 			<a-table :columns="columns" :data-source="list" :loading="loading" row-key="id" :pagination="false">
@@ -62,6 +65,56 @@
 						<a-radio value="manual">手动上传</a-radio>
 					</a-radio-group>
 					<div v-if="coverMode === 'auto'" class="package-auto-cover">
+						<a-row :gutter="12" class="package-cover-style-row">
+							<a-col :span="8">
+								<div class="color-field-label">背景色</div>
+								<div class="color-control">
+									<input
+										class="native-color-picker"
+										type="color"
+										:value="toColorPickerValue(form.cover_style.backgroundColor, defaultCoverStyle.backgroundColor)"
+										@input="handleCoverStyleColorPick('backgroundColor', $event)"
+									/>
+									<a-input
+										v-model:value="form.cover_style.backgroundColor"
+										placeholder="#F4F7FB"
+										@blur="normalizeCoverStyleField('backgroundColor')"
+									/>
+								</div>
+							</a-col>
+							<a-col :span="8">
+								<div class="color-field-label">标题字体色</div>
+								<div class="color-control">
+									<input
+										class="native-color-picker"
+										type="color"
+										:value="toColorPickerValue(form.cover_style.titleColor, defaultCoverStyle.titleColor)"
+										@input="handleCoverStyleColorPick('titleColor', $event)"
+									/>
+									<a-input
+										v-model:value="form.cover_style.titleColor"
+										placeholder="#8A9AB3"
+										@blur="normalizeCoverStyleField('titleColor')"
+									/>
+								</div>
+							</a-col>
+							<a-col :span="8">
+								<div class="color-field-label">分类字体色</div>
+								<div class="color-control">
+									<input
+										class="native-color-picker"
+										type="color"
+										:value="toColorPickerValue(form.cover_style.categoriesColor, defaultCoverStyle.categoriesColor)"
+										@input="handleCoverStyleColorPick('categoriesColor', $event)"
+									/>
+									<a-input
+										v-model:value="form.cover_style.categoriesColor"
+										placeholder="#6F7F99"
+										@blur="normalizeCoverStyleField('categoriesColor')"
+									/>
+								</div>
+							</a-col>
+						</a-row>
 						<a-spin :spinning="autoCoverLoading">
 							<div v-if="autoCoverPreviewSrc" class="package-auto-cover__preview">
 								<img :src="autoCoverPreviewSrc" alt="自动生成封面预览" />
@@ -155,15 +208,20 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import type { UploadFile } from 'ant-design-vue'
-import { createPackageSection, deletePackageSection, getPackageSectionList, updatePackageSection } from '@/api/package'
+import { createPackageSection, deletePackageSection, getPackageSectionList, syncAllPackageVirtualPayGoods, updatePackageSection } from '@/api/package'
 import { getCourseList } from '@/api/course'
 import { getCourseCategoryTree } from '@/api/course-category'
 import { uploadImage } from '@/api/upload'
 import { getProxiedImageUrl } from '@/utils/imageProxy'
+import { notifyVirtualPayGoodsPriceSync } from '@/utils/virtual-pay-goods'
 import {
 	collectPackageCategoryNames,
+	DEFAULT_PACKAGE_COVER_STYLE,
 	generateAndUploadPackageCover,
 	generatePackageCoverFile,
+	normalizeColorInput,
+	normalizePackageCoverStyle,
+	type PackageCoverStyle,
 	type PackageScopeInput,
 } from '@/utils/package-auto-cover'
 
@@ -174,6 +232,7 @@ type ScopeFormItem = {
 }
 
 const loading = ref(false)
+const syncingVirtualPayGoods = ref(false)
 const submitLoading = ref(false)
 const coverUploadLoading = ref(false)
 const autoCoverLoading = ref(false)
@@ -187,6 +246,10 @@ const courseList = ref<any[]>([])
 const categoryTree = ref<any[]>([])
 let autoCoverTimer: ReturnType<typeof setTimeout> | null = null
 let autoCoverPreviewObjectUrl = ''
+
+const defaultCoverStyle = DEFAULT_PACKAGE_COVER_STYLE
+
+const createDefaultCoverStyle = (): PackageCoverStyle => ({ ...DEFAULT_PACKAGE_COVER_STYLE })
 
 const coverMeta = computed(() => ({
 	courseList: courseList.value,
@@ -232,11 +295,29 @@ const form = reactive({
 	name: '',
 	description: '',
 	cover_img: '',
+	cover_style: createDefaultCoverStyle(),
 	status: 1,
 	sort: 0,
 	scopes: [] as ScopeFormItem[],
 	plans: defaultPlans(),
 })
+
+const toColorPickerValue = (value?: string, fallback = '#FFFFFF') => normalizeColorInput(value, fallback)
+
+const getEventTargetValue = (event: Event) => (event.target as HTMLInputElement | null)?.value || ''
+
+const normalizeCoverStyleField = (field: keyof PackageCoverStyle) => {
+	form.cover_style[field] = normalizeColorInput(
+		form.cover_style[field],
+		DEFAULT_PACKAGE_COVER_STYLE[field],
+	)
+	scheduleAutoCoverPreview()
+}
+
+const handleCoverStyleColorPick = (field: keyof PackageCoverStyle, event: Event) => {
+	form.cover_style[field] = normalizeColorInput(getEventTargetValue(event), DEFAULT_PACKAGE_COVER_STYLE[field])
+	scheduleAutoCoverPreview()
+}
 
 const courseOptions = computed(() =>
 	courseList.value.map((course) => ({
@@ -356,7 +437,12 @@ const refreshAutoCoverPreview = async () => {
 	}
 	try {
 		autoCoverLoading.value = true
-		const coverFile = await generatePackageCoverFile(form.name, form.scopes as PackageScopeInput[], coverMeta.value)
+		const coverFile = await generatePackageCoverFile(
+			form.name,
+			form.scopes as PackageScopeInput[],
+			coverMeta.value,
+			form.cover_style,
+		)
 		if (!coverFile) {
 			clearAutoCoverPreview()
 			return
@@ -376,7 +462,12 @@ const refreshAutoCoverPreview = async () => {
 
 const ensureAutoCoverUploaded = async () => {
 	if (coverMode.value !== 'manual') {
-		const url = await generateAndUploadPackageCover(form.name, form.scopes as PackageScopeInput[], coverMeta.value)
+		const url = await generateAndUploadPackageCover(
+			form.name,
+			form.scopes as PackageScopeInput[],
+			coverMeta.value,
+			form.cover_style,
+		)
 		if (url) {
 			form.cover_img = url
 		}
@@ -402,6 +493,7 @@ const resetForm = () => {
 	form.name = ''
 	form.description = ''
 	form.cover_img = ''
+	form.cover_style = createDefaultCoverStyle()
 	form.status = 1
 	form.sort = 0
 	form.scopes = []
@@ -448,10 +540,11 @@ const openEdit = (record: any) => {
 	form.name = record.name
 	form.description = record.description || ''
 	form.cover_img = record.coverImg || record.cover_img || ''
+	form.cover_style = normalizePackageCoverStyle(record.coverStyle || record.cover_style || null)
 	form.status = record.status
 	form.sort = record.sort || 0
 	form.scopes = (record.scopes || []).map((item: any) => normalizeScope(item))
-	coverMode.value = form.cover_img ? 'manual' : 'auto'
+	coverMode.value = record.coverStyle || record.cover_style ? 'auto' : form.cover_img ? 'manual' : 'auto'
 	const plans = record.plans?.length ? record.plans : defaultPlans()
 	form.plans = ['monthly', 'quarterly', 'yearly'].map((type, index) => {
 		const existing = plans.find((p: any) => p.planType === type || p.plan_type === type)
@@ -527,6 +620,7 @@ const buildPayload = () => ({
 	name: form.name.trim(),
 	description: form.description,
 	cover_img: form.cover_img,
+	cover_style: coverMode.value === 'auto' ? normalizePackageCoverStyle(form.cover_style) : null,
 	status: form.status,
 	sort: form.sort,
 	scopes: form.scopes
@@ -545,6 +639,21 @@ const buildPayload = () => ({
 	})),
 })
 
+const handleSyncAllVirtualPayGoods = async () => {
+	syncingVirtualPayGoods.value = true
+	try {
+		const res = await syncAllPackageVirtualPayGoods()
+		const result = (res as any)?.data ?? res
+		const total = Number(result?.total || result?.package_total || 0)
+		message.success(`已提交 ${total} 个套餐规格的虚拟道具价格同步`)
+		notifyVirtualPayGoodsPriceSync(result)
+	} catch (error: any) {
+		message.error(error?.msg || error?.message || '同步虚拟道具价格失败')
+	} finally {
+		syncingVirtualPayGoods.value = false
+	}
+}
+
 const handleSubmit = async () => {
 	if (!form.name.trim()) {
 		message.warning('请填写套餐名称')
@@ -554,12 +663,15 @@ const handleSubmit = async () => {
 	try {
 		await ensureAutoCoverUploaded()
 		const payload = buildPayload()
+		let saveResult: any
 		if (editingId.value) {
-			await updatePackageSection(editingId.value, payload)
+			saveResult = await updatePackageSection(editingId.value, payload)
 		} else {
-			await createPackageSection(payload)
+			saveResult = await createPackageSection(payload)
 		}
+		const result = (saveResult as any)?.data ?? saveResult
 		message.success('保存成功')
+		notifyVirtualPayGoodsPriceSync(result)
 		modalVisible.value = false
 		loadList()
 	} catch {
@@ -590,6 +702,12 @@ watch(
 
 watch(
 	() => form.scopes.map((item) => `${item.scope_type}:${item.scope_value}:${(item.sub_category_path || []).join('/')}`).join('|'),
+	() => scheduleAutoCoverPreview(),
+)
+
+watch(
+	() =>
+		`${form.cover_style.backgroundColor}|${form.cover_style.titleColor}|${form.cover_style.categoriesColor}`,
 	() => scheduleAutoCoverPreview(),
 )
 
@@ -637,5 +755,31 @@ watch(coverMode, (mode) => {
 	color: #6b7280;
 	font-size: 13px;
 	line-height: 1.6;
+}
+
+.package-cover-style-row {
+	margin-bottom: 12px;
+}
+
+.color-field-label {
+	margin-bottom: 6px;
+	font-size: 13px;
+	color: #4b5563;
+}
+
+.color-control {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.native-color-picker {
+	width: 36px;
+	height: 36px;
+	padding: 0;
+	border: 1px solid #d9d9d9;
+	border-radius: 6px;
+	background: transparent;
+	cursor: pointer;
 }
 </style>

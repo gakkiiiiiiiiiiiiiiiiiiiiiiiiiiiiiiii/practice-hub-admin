@@ -1,5 +1,10 @@
 import { uploadImage } from '@/api/upload'
-import { DEFAULT_CATEGORY_COVER_CONFIG, renderCourseCover, type CourseCoverConfig } from '@/utils/course-cover'
+import {
+	DEFAULT_CATEGORY_COVER_CONFIG,
+	normalizeCourseCoverConfig,
+	renderCourseCover,
+	type CourseCoverConfig,
+} from '@/utils/course-cover'
 
 export type PackageScopeInput = {
 	scope_type: string
@@ -12,7 +17,19 @@ export type PackageCoverMeta = {
 	categoryTree: any[]
 }
 
-const DEFAULT_PACKAGE_COVER_CONFIG: CourseCoverConfig = {
+export type PackageCoverStyle = {
+	backgroundColor?: string
+	titleColor?: string
+	categoriesColor?: string
+}
+
+export const DEFAULT_PACKAGE_COVER_STYLE: Required<PackageCoverStyle> = {
+	backgroundColor: '#F4F7FB',
+	titleColor: '#8A9AB3',
+	categoriesColor: '#6F7F99',
+}
+
+const BASE_PACKAGE_COVER_CONFIG: CourseCoverConfig = {
 	...DEFAULT_CATEGORY_COVER_CONFIG,
 	fields: [
 		{
@@ -23,7 +40,7 @@ const DEFAULT_PACKAGE_COVER_CONFIG: CourseCoverConfig = {
 			x: 600,
 			y: 320,
 			fontSize: 72,
-			color: '#8A9AB3',
+			color: DEFAULT_PACKAGE_COVER_STYLE.titleColor,
 			backgroundColor: 'transparent',
 			fontWeight: '800',
 			fontFamily: DEFAULT_CATEGORY_COVER_CONFIG.fields[0]?.fontFamily,
@@ -40,7 +57,7 @@ const DEFAULT_PACKAGE_COVER_CONFIG: CourseCoverConfig = {
 			x: 600,
 			y: 680,
 			fontSize: 88,
-			color: '#6F7F99',
+			color: DEFAULT_PACKAGE_COVER_STYLE.categoriesColor,
 			backgroundColor: 'transparent',
 			fontWeight: '900',
 			fontFamily: DEFAULT_CATEGORY_COVER_CONFIG.fields[1]?.fontFamily,
@@ -54,6 +71,46 @@ const DEFAULT_PACKAGE_COVER_CONFIG: CourseCoverConfig = {
 
 function sanitizeFileName(value: string) {
 	return value.replace(/[\\/:*?"<>|]+/g, '-').slice(0, 40)
+}
+
+export function normalizeColorInput(value?: string, fallback = '#FFFFFF') {
+	const raw = String(value || '').trim()
+	const withoutHash = raw.startsWith('#') ? raw.slice(1) : raw
+	if (/^[0-9a-fA-F]{6}$/.test(withoutHash)) {
+		return `#${withoutHash.toUpperCase()}`
+	}
+	if (/^[0-9a-fA-F]{3}$/.test(withoutHash)) {
+		return `#${withoutHash
+			.split('')
+			.map((char) => `${char}${char}`)
+			.join('')
+			.toUpperCase()}`
+	}
+	return fallback
+}
+
+export function normalizePackageCoverStyle(input?: PackageCoverStyle | null): Required<PackageCoverStyle> {
+	return {
+		backgroundColor: normalizeColorInput(input?.backgroundColor, DEFAULT_PACKAGE_COVER_STYLE.backgroundColor),
+		titleColor: normalizeColorInput(input?.titleColor, DEFAULT_PACKAGE_COVER_STYLE.titleColor),
+		categoriesColor: normalizeColorInput(input?.categoriesColor, DEFAULT_PACKAGE_COVER_STYLE.categoriesColor),
+	}
+}
+
+export function buildPackageCoverConfig(style?: PackageCoverStyle | null): CourseCoverConfig {
+	const normalized = normalizePackageCoverStyle(style)
+	const config = normalizeCourseCoverConfig(BASE_PACKAGE_COVER_CONFIG, BASE_PACKAGE_COVER_CONFIG)
+	config.backgroundColor = normalized.backgroundColor
+	config.fields = config.fields.map((field) => {
+		if (field.id === 'package_name') {
+			return { ...field, color: normalized.titleColor }
+		}
+		if (field.id === 'categories') {
+			return { ...field, color: normalized.categoriesColor }
+		}
+		return field
+	})
+	return config
 }
 
 function findSubCategoryPath(subCategoryName: string, categoryTree: any[]) {
@@ -122,13 +179,14 @@ export async function generatePackageCoverFile(
 	packageName: string,
 	scopes: PackageScopeInput[],
 	meta: PackageCoverMeta,
+	style?: PackageCoverStyle | null,
 ): Promise<File | null> {
 	const categoryNames = collectPackageCategoryNames(scopes, meta)
 	if (categoryNames.length === 0) {
 		return null
 	}
 
-	const canvas = await renderCourseCover(DEFAULT_PACKAGE_COVER_CONFIG, {
+	const canvas = await renderCourseCover(buildPackageCoverConfig(style), {
 		name: String(packageName || '套餐').trim() || '套餐',
 		categories: categoryNames.join('、'),
 	})
@@ -147,8 +205,9 @@ export async function generateAndUploadPackageCover(
 	packageName: string,
 	scopes: PackageScopeInput[],
 	meta: PackageCoverMeta,
+	style?: PackageCoverStyle | null,
 ): Promise<string | null> {
-	const coverFile = await generatePackageCoverFile(packageName, scopes, meta)
+	const coverFile = await generatePackageCoverFile(packageName, scopes, meta, style)
 	if (!coverFile) {
 		return null
 	}
