@@ -30,7 +30,13 @@
 			</a-table>
 		</a-card>
 
-		<a-modal v-model:open="modalVisible" :title="editingId ? '编辑套餐' : '新增套餐'" width="760px" @ok="handleSubmit">
+		<a-modal
+			v-model:open="modalVisible"
+			:title="editingId ? '编辑套餐' : '新增套餐'"
+			width="760px"
+			:confirm-loading="submitLoading"
+			@ok="handleSubmit"
+		>
 			<a-form layout="vertical">
 				<a-row :gutter="16">
 					<a-col :span="12">
@@ -50,14 +56,77 @@
 				<a-form-item label="套餐描述">
 					<a-textarea v-model:value="form.description" :rows="2" />
 				</a-form-item>
-				<a-form-item label="封面图URL">
-					<a-input v-model:value="form.cover_img" placeholder="可选" />
+				<a-form-item label="封面图">
+					<a-radio-group v-model:value="coverMode" style="margin-bottom: 12px">
+						<a-radio value="auto">自动生成（显示绑定分类名）</a-radio>
+						<a-radio value="manual">手动上传</a-radio>
+					</a-radio-group>
+					<div v-if="coverMode === 'auto'" class="package-auto-cover">
+						<a-spin :spinning="autoCoverLoading">
+							<div v-if="autoCoverPreviewSrc" class="package-auto-cover__preview">
+								<img :src="autoCoverPreviewSrc" alt="自动生成封面预览" />
+							</div>
+							<div v-else class="package-auto-cover__hint">
+								{{ autoCoverHint }}
+							</div>
+						</a-spin>
+					</div>
+					<a-upload
+						v-else
+						v-model:file-list="coverFileList"
+						list-type="picture-card"
+						:max-count="1"
+						:before-upload="beforeCoverUpload"
+						:custom-request="handleCoverUpload"
+						:disabled="coverUploadLoading"
+						@remove="handleCoverRemove"
+					>
+						<div v-if="coverFileList.length < 1">
+							<plus-outlined />
+							<div style="margin-top: 8px">上传</div>
+						</div>
+					</a-upload>
 				</a-form-item>
 
 				<a-divider>绑定范围</a-divider>
 				<div v-for="(scope, index) in form.scopes" :key="index" class="scope-row">
-					<a-select v-model:value="scope.scope_type" style="width: 160px" :options="scopeTypeOptions" />
-					<a-input v-model:value="scope.scope_value" style="flex: 1" :placeholder="scopePlaceholder(scope.scope_type)" />
+					<a-select
+						v-model:value="scope.scope_type"
+						style="width: 140px"
+						:options="scopeTypeOptions"
+						@change="() => handleScopeTypeChange(scope)"
+					/>
+					<a-select
+						v-if="scope.scope_type === 'course'"
+						v-model:value="scope.scope_value"
+						style="flex: 1"
+						show-search
+						allow-clear
+						placeholder="请选择课程"
+						:options="courseOptions"
+						:filter-option="filterCourseOption"
+					/>
+					<a-select
+						v-else-if="scope.scope_type === 'category'"
+						v-model:value="scope.scope_value"
+						style="flex: 1"
+						show-search
+						allow-clear
+						placeholder="请选择一级分类"
+						:options="categoryOptions"
+						:filter-option="filterSelectOption"
+					/>
+					<a-cascader
+						v-else
+						v-model:value="scope.sub_category_path"
+						style="flex: 1"
+						:options="categoryCascaderOptions"
+						:field-names="{ label: 'label', value: 'value', children: 'children' }"
+						:show-search="{ filter: cascaderFilter }"
+						placeholder="请选择二级分类"
+						allow-clear
+						@change="(value: string[]) => handleSubCategoryChange(scope, value)"
+					/>
 					<a-button danger @click="removeScope(index)">删除</a-button>
 				</div>
 				<a-button block style="margin-bottom: 16px" @click="addScope">添加绑定</a-button>
@@ -82,14 +151,55 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
+import { PlusOutlined } from '@ant-design/icons-vue'
+import type { UploadFile } from 'ant-design-vue'
 import { createPackageSection, deletePackageSection, getPackageSectionList, updatePackageSection } from '@/api/package'
+import { getCourseList } from '@/api/course'
+import { getCourseCategoryTree } from '@/api/course-category'
+import { uploadImage } from '@/api/upload'
+import { getProxiedImageUrl } from '@/utils/imageProxy'
+import {
+	collectPackageCategoryNames,
+	generateAndUploadPackageCover,
+	generatePackageCoverFile,
+	type PackageScopeInput,
+} from '@/utils/package-auto-cover'
+
+type ScopeFormItem = {
+	scope_type: string
+	scope_value: string
+	sub_category_path?: string[]
+}
 
 const loading = ref(false)
+const submitLoading = ref(false)
+const coverUploadLoading = ref(false)
+const autoCoverLoading = ref(false)
+const coverMode = ref<'auto' | 'manual'>('auto')
+const autoCoverPreviewSrc = ref('')
 const list = ref<any[]>([])
 const modalVisible = ref(false)
 const editingId = ref<number | null>(null)
+const coverFileList = ref<UploadFile[]>([])
+const courseList = ref<any[]>([])
+const categoryTree = ref<any[]>([])
+let autoCoverTimer: ReturnType<typeof setTimeout> | null = null
+let autoCoverPreviewObjectUrl = ''
+
+const coverMeta = computed(() => ({
+	courseList: courseList.value,
+	categoryTree: categoryTree.value,
+}))
+
+const autoCoverHint = computed(() => {
+	const names = collectPackageCategoryNames(form.scopes as PackageScopeInput[], coverMeta.value)
+	if (names.length === 0) {
+		return '请先添加绑定分类，保存时将自动生成分类名封面'
+	}
+	return `将展示：${names.join('、')}`
+})
 
 const columns = [
 	{ title: '名称', dataIndex: 'name', key: 'name' },
@@ -124,8 +234,43 @@ const form = reactive({
 	cover_img: '',
 	status: 1,
 	sort: 0,
-	scopes: [] as Array<{ scope_type: string; scope_value: string }>,
+	scopes: [] as ScopeFormItem[],
 	plans: defaultPlans(),
+})
+
+const courseOptions = computed(() =>
+	courseList.value.map((course) => ({
+		label: `${course.name}${course.status === 0 ? '（已禁用）' : ''}`,
+		value: String(course.id),
+	})),
+)
+
+const categoryOptions = computed(() =>
+	categoryTree.value.map((item) => ({
+		label: item.status === 0 ? `${item.name}（已禁用）` : item.name,
+		value: item.name,
+	})),
+)
+
+const categoryCascaderOptions = computed(() =>
+	categoryTree.value
+		.map((parent) => ({
+			label: parent.status === 0 ? `${parent.name}（已禁用）` : parent.name,
+			value: parent.name,
+			children: Array.isArray(parent.children)
+				? parent.children.map((child: any) => ({
+						label: child.status === 0 ? `${child.name}（已禁用）` : child.name,
+						value: child.name,
+					}))
+				: [],
+		}))
+		.filter((item) => item.children.length > 0),
+)
+
+const courseNameMap = computed(() => {
+	const map = new Map<string, string>()
+	courseList.value.forEach((course) => map.set(String(course.id), course.name))
+	return map
 })
 
 const scopeLabel = (scope: any) => {
@@ -134,13 +279,123 @@ const scopeLabel = (scope: any) => {
 		category: '一级分类',
 		sub_category: '二级分类',
 	}
-	return `${map[scope.scopeType] || scope.scope_type}:${scope.scopeValue || scope.scope_value}`
+	const type = scope.scopeType || scope.scope_type
+	const value = scope.scopeValue || scope.scope_value
+	if (type === 'course') {
+		return `${map[type]}:${courseNameMap.value.get(String(value)) || value}`
+	}
+	return `${map[type] || type}:${value}`
 }
 
-const scopePlaceholder = (type: string) => {
-	if (type === 'course') return '课程ID，如 12'
-	if (type === 'category') return '一级分类名称，如 考研政治'
-	return '二级分类名称，如 真题'
+const cascaderFilter = (inputValue: string, path: any[]) =>
+	path.some((option) => String(option.label || '').toLowerCase().includes(inputValue.toLowerCase()))
+
+const filterCourseOption = (input: string, option: any) =>
+	String(option?.label || '').toLowerCase().includes(input.toLowerCase())
+
+const filterSelectOption = (input: string, option: any) =>
+	String(option?.label || '').toLowerCase().includes(input.toLowerCase())
+
+const findSubCategoryPath = (subCategoryName: string) => {
+	for (const parent of categoryTree.value) {
+		for (const child of parent.children || []) {
+			if (child.name === subCategoryName) {
+				return [parent.name, child.name]
+			}
+		}
+	}
+	return subCategoryName ? [subCategoryName] : []
+}
+
+const normalizeScope = (item: any): ScopeFormItem => {
+	const scopeType = item.scopeType || item.scope_type
+	const scopeValue = item.scopeValue || item.scope_value || ''
+	return {
+		scope_type: scopeType,
+		scope_value: scopeType === 'course' ? String(scopeValue) : String(scopeValue),
+		sub_category_path: scopeType === 'sub_category' ? findSubCategoryPath(String(scopeValue)) : [],
+	}
+}
+
+const handleScopeTypeChange = (scope: ScopeFormItem) => {
+	scope.scope_value = ''
+	scope.sub_category_path = []
+	scheduleAutoCoverPreview()
+}
+
+const handleSubCategoryChange = (scope: ScopeFormItem, value: string[]) => {
+	scope.sub_category_path = value || []
+	scope.scope_value = value?.length ? value[value.length - 1] : ''
+	scheduleAutoCoverPreview()
+}
+
+const clearAutoCoverPreview = () => {
+	autoCoverPreviewSrc.value = ''
+	if (autoCoverPreviewObjectUrl) {
+		URL.revokeObjectURL(autoCoverPreviewObjectUrl)
+		autoCoverPreviewObjectUrl = ''
+	}
+}
+
+const scheduleAutoCoverPreview = (delay = 240) => {
+	if (coverMode.value !== 'auto' || !modalVisible.value) return
+	if (autoCoverTimer) {
+		clearTimeout(autoCoverTimer)
+	}
+	autoCoverTimer = setTimeout(() => {
+		refreshAutoCoverPreview()
+	}, delay)
+}
+
+const refreshAutoCoverPreview = async () => {
+	if (coverMode.value !== 'auto' || !modalVisible.value) return
+	const names = collectPackageCategoryNames(form.scopes as PackageScopeInput[], coverMeta.value)
+	if (names.length === 0) {
+		clearAutoCoverPreview()
+		return
+	}
+	try {
+		autoCoverLoading.value = true
+		const coverFile = await generatePackageCoverFile(form.name, form.scopes as PackageScopeInput[], coverMeta.value)
+		if (!coverFile) {
+			clearAutoCoverPreview()
+			return
+		}
+		if (autoCoverPreviewObjectUrl) {
+			URL.revokeObjectURL(autoCoverPreviewObjectUrl)
+		}
+		autoCoverPreviewObjectUrl = URL.createObjectURL(coverFile)
+		autoCoverPreviewSrc.value = autoCoverPreviewObjectUrl
+	} catch (error) {
+		clearAutoCoverPreview()
+		console.error('套餐封面预览生成失败:', error)
+	} finally {
+		autoCoverLoading.value = false
+	}
+}
+
+const ensureAutoCoverUploaded = async () => {
+	if (coverMode.value !== 'manual') {
+		const url = await generateAndUploadPackageCover(form.name, form.scopes as PackageScopeInput[], coverMeta.value)
+		if (url) {
+			form.cover_img = url
+		}
+	}
+}
+
+const setCoverFileList = (url?: string) => {
+	if (!url) {
+		coverFileList.value = []
+		return
+	}
+	coverFileList.value = [
+		{
+			uid: `cover-${Date.now()}`,
+			name: 'cover.png',
+			status: 'done',
+			url: getProxiedImageUrl(url),
+		},
+	]
 }
 
 const resetForm = () => {
@@ -151,6 +406,22 @@ const resetForm = () => {
 	form.sort = 0
 	form.scopes = []
 	form.plans = defaultPlans()
+	coverMode.value = 'auto'
+	clearAutoCoverPreview()
+	setCoverFileList()
+}
+
+const loadMetaOptions = async () => {
+	try {
+		const [courseRes, categoryRes] = await Promise.all([
+			getCourseList({ page: 1, pageSize: 1000 }),
+			getCourseCategoryTree(),
+		])
+		courseList.value = Array.isArray(courseRes.data) ? courseRes.data : courseRes.data?.list || []
+		categoryTree.value = Array.isArray(categoryRes.data) ? categoryRes.data : []
+	} catch {
+		message.error('加载课程或分类数据失败')
+	}
 }
 
 const loadList = async () => {
@@ -169,42 +440,87 @@ const openCreate = () => {
 	editingId.value = null
 	resetForm()
 	modalVisible.value = true
+	scheduleAutoCoverPreview()
 }
 
 const openEdit = (record: any) => {
 	editingId.value = record.id
 	form.name = record.name
 	form.description = record.description || ''
-	form.cover_img = record.coverImg || ''
+	form.cover_img = record.coverImg || record.cover_img || ''
 	form.status = record.status
 	form.sort = record.sort || 0
-	form.scopes = (record.scopes || []).map((item: any) => ({
-		scope_type: item.scopeType,
-		scope_value: item.scopeValue,
-	}))
+	form.scopes = (record.scopes || []).map((item: any) => normalizeScope(item))
+	coverMode.value = form.cover_img ? 'manual' : 'auto'
 	const plans = record.plans?.length ? record.plans : defaultPlans()
 	form.plans = ['monthly', 'quarterly', 'yearly'].map((type, index) => {
-		const existing = plans.find((p: any) => p.planType === type)
+		const existing = plans.find((p: any) => p.planType === type || p.plan_type === type)
 		return existing
 			? {
 					plan_type: type,
 					name: existing.name,
 					price: existing.price,
-					duration_days: existing.durationDays,
-					enabled: existing.status === 1,
+					duration_days: existing.durationDays ?? existing.duration_days,
+					enabled: (existing.status ?? 1) === 1,
 					sort: existing.sort || index + 1,
 				}
 			: defaultPlans()[index]
 	})
+	setCoverFileList(form.cover_img)
 	modalVisible.value = true
+	if (coverMode.value === 'auto') {
+		scheduleAutoCoverPreview()
+	} else {
+		clearAutoCoverPreview()
+	}
 }
 
 const addScope = () => {
-	form.scopes.push({ scope_type: 'category', scope_value: '' })
+	form.scopes.push({ scope_type: 'category', scope_value: '', sub_category_path: [] })
+	scheduleAutoCoverPreview()
 }
 
 const removeScope = (index: number) => {
 	form.scopes.splice(index, 1)
+	scheduleAutoCoverPreview()
+}
+
+const beforeCoverUpload = (file: File) => {
+	if (!file.type.startsWith('image/')) {
+		message.error('只能上传图片文件')
+		return false
+	}
+	return true
+}
+
+const handleCoverUpload = async (options: any) => {
+	const { file, onSuccess, onError } = options
+	try {
+		coverUploadLoading.value = true
+		const result = await uploadImage(file as File)
+		const imageUrl = result.url || result.imageUrl
+		if (!imageUrl) {
+			throw new Error('上传失败：未返回图片地址')
+		}
+		form.cover_img = imageUrl
+		coverMode.value = 'manual'
+		clearAutoCoverPreview()
+		setCoverFileList(imageUrl)
+		onSuccess?.(result, file)
+		message.success('封面上传成功')
+	} catch (error: any) {
+		message.error(error?.message || '封面上传失败')
+		onError?.(error)
+	} finally {
+		coverUploadLoading.value = false
+	}
+}
+
+const handleCoverRemove = () => {
+	form.cover_img = ''
+	coverMode.value = 'auto'
+	setCoverFileList()
+	scheduleAutoCoverPreview()
 }
 
 const buildPayload = () => ({
@@ -213,7 +529,12 @@ const buildPayload = () => ({
 	cover_img: form.cover_img,
 	status: form.status,
 	sort: form.sort,
-	scopes: form.scopes.filter((item) => item.scope_value.trim()),
+	scopes: form.scopes
+		.map((item) => ({
+			scope_type: item.scope_type,
+			scope_value: String(item.scope_value || '').trim(),
+		}))
+		.filter((item) => item.scope_value),
 	plans: form.plans.map((plan, index) => ({
 		plan_type: plan.plan_type,
 		name: plan.name,
@@ -229,7 +550,9 @@ const handleSubmit = async () => {
 		message.warning('请填写套餐名称')
 		return
 	}
+	submitLoading.value = true
 	try {
+		await ensureAutoCoverUploaded()
 		const payload = buildPayload()
 		if (editingId.value) {
 			await updatePackageSection(editingId.value, payload)
@@ -241,6 +564,8 @@ const handleSubmit = async () => {
 		loadList()
 	} catch {
 		message.error('保存失败')
+	} finally {
+		submitLoading.value = false
 	}
 }
 
@@ -254,7 +579,29 @@ const handleDelete = async (id: number) => {
 	}
 }
 
-onMounted(loadList)
+onMounted(async () => {
+	await Promise.all([loadMetaOptions(), loadList()])
+})
+
+watch(
+	() => form.name,
+	() => scheduleAutoCoverPreview(),
+)
+
+watch(
+	() => form.scopes.map((item) => `${item.scope_type}:${item.scope_value}:${(item.sub_category_path || []).join('/')}`).join('|'),
+	() => scheduleAutoCoverPreview(),
+)
+
+watch(coverMode, (mode) => {
+	if (mode === 'auto') {
+		form.cover_img = ''
+		setCoverFileList()
+		scheduleAutoCoverPreview()
+		return
+	}
+	clearAutoCoverPreview()
+})
 </script>
 
 <style scoped>
@@ -262,5 +609,33 @@ onMounted(loadList)
 	display: flex;
 	gap: 8px;
 	margin-bottom: 8px;
+	align-items: center;
+}
+
+:deep(.ant-upload-select-picture-card) {
+	width: 104px;
+	height: 104px;
+}
+
+.package-auto-cover__preview {
+	width: 160px;
+	height: 160px;
+	border-radius: 8px;
+	overflow: hidden;
+	border: 1px solid #f0f0f0;
+	background: #fafafa;
+}
+
+.package-auto-cover__preview img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	display: block;
+}
+
+.package-auto-cover__hint {
+	color: #6b7280;
+	font-size: 13px;
+	line-height: 1.6;
 }
 </style>
