@@ -215,6 +215,14 @@ const routes: RouteRecordRaw[] = [
 				},
 			},
 			{
+				path: 'package',
+				name: 'SystemPackage',
+				component: () => import('@/views/package/index.vue'),
+				meta: {
+					title: '套餐管理',
+				},
+			},
+			{
 				path: 'distributor',
 				name: 'SystemDistributor',
 				component: () => import('@/views/distributor/index.vue'),

@@ -41,9 +41,9 @@
               {{ record.nickname?.[0] || 'U' }}
             </a-avatar>
           </template>
-          <template v-else-if="column.key === 'vipStatus'">
-            <a-tag :color="record.vipStatus ? 'gold' : 'default'">
-              {{ record.vipStatus ? 'VIP' : '普通' }}
+          <template v-else-if="column.key === 'packageStatus'">
+            <a-tag :color="record.packageStatus ? 'gold' : 'default'">
+              {{ record.packageStatus ? '套餐' : '普通' }}
             </a-tag>
           </template>
           <template v-else-if="column.key === 'status'">
@@ -178,8 +178,8 @@ const baseColumns = [
 		},
 	},
 	{
-		title: 'VIP状态',
-		key: 'vipStatus',
+		title: '套餐状态',
+		key: 'packageStatus',
 		width: 100,
 	},
 	{

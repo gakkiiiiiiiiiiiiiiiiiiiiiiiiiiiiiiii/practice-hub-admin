@@ -252,6 +252,7 @@ const menuItems = computed(() => {
 				{ key: '/system/role', label: '角色管理' },
 				{ key: '/system/config', label: '运营配置' },
 				{ key: '/system/recommend', label: '首页推荐管理' },
+				{ key: '/system/package', label: '套餐管理' },
 				{ key: '/system/feedback', label: '功能反馈' },
 				{ key: '/system/distributor', label: '分销管理' },
 				{ key: '/system/log', label: '系统操作日志' },

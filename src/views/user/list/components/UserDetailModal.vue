@@ -16,12 +16,12 @@
 				<a-descriptions-item label="手机号">
 					{{ userInfo.phone || '未绑定' }}
 				</a-descriptions-item>
-				<a-descriptions-item label="VIP状态">
-					<a-tag :color="userInfo.vipStatus ? 'gold' : 'default'">
-						{{ userInfo.vipStatus ? 'VIP' : '普通用户' }}
+				<a-descriptions-item label="套餐状态">
+					<a-tag :color="userInfo.packageStatus ? 'gold' : 'default'">
+						{{ userInfo.packageStatus ? '套餐会员' : '普通用户' }}
 					</a-tag>
-					<span v-if="userInfo.vipExpireTime" style="margin-left: 8px; color: #999; font-size: 12px">
-						(到期时间: {{ formatDate(userInfo.vipExpireTime) }})
+					<span v-if="userInfo.packageExpireTime" style="margin-left: 8px; color: #999; font-size: 12px">
+						(到期时间: {{ formatDate(userInfo.packageExpireTime) }})
 					</span>
 				</a-descriptions-item>
 				<a-descriptions-item label="账号状态">

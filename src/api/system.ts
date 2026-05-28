@@ -114,3 +114,17 @@ export function getFaqConfig() {
 export function setFaqConfig(data: { items: Array<{ question: string; answer: string }> }) {
   return request.put('/admin/settings/faqs', data)
 }
+
+export function getReferralCouponConfig() {
+  return request.get('/admin/settings/referral-coupon')
+}
+
+export function setReferralCouponConfig(data: {
+  enabled?: boolean
+  invite_count_per_reward?: number
+  coupon_amount?: number
+  max_coupons_per_user?: number
+  coupon_valid_days?: number | null
+}) {
+  return request.put('/admin/settings/referral-coupon', data)
+}
