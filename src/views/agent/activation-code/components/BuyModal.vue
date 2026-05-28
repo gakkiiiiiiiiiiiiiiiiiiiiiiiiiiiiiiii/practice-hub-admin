@@ -38,7 +38,7 @@ import { ref, watch, computed, onMounted } from 'vue';
 import { message } from 'ant-design-vue';
 import { buyActivationCodes } from '@/api/agent';
 import { getAgentDashboard } from '@/api/dashboard';
-import { getCourseList } from '@/api/course';
+import { getCourseOptions } from '@/api/course';
 
 const props = defineProps<{
 	open: boolean;
@@ -76,7 +76,7 @@ const totalPrice = computed(() => {
 
 const fetchCourses = async () => {
 	try {
-		const res = await getCourseList({ page: 1, pageSize: 1000 });
+		const res = await getCourseOptions({ status: 1 });
 		courseList.value = Array.isArray(res.data) ? res.data : res.data.list || [];
 	} catch (error) {
 		console.error('获取课程列表失败:', error);

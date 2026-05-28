@@ -43,7 +43,7 @@
 	import { computed, ref, watch, onMounted } from 'vue';
 import { message } from 'ant-design-vue';
 import { generateActivationCodes } from '@/api/agent';
-import { getCourseList } from '@/api/course';
+import { getCourseOptions } from '@/api/course';
 import { getCourseCategoryTree } from '@/api/course-category';
 
 const props = defineProps<{
@@ -133,7 +133,7 @@ const cascaderFilter = (inputValue: string, path: any[]) =>
 const fetchCourses = async () => {
 	try {
 		const [courseRes, categoryRes] = await Promise.all([
-			getCourseList({ page: 1, pageSize: 1000 }),
+			getCourseOptions({ status: 1 }),
 			getCourseCategoryTree(),
 		]);
 		const res = courseRes;

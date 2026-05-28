@@ -211,7 +211,7 @@ import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import type { UploadFile } from 'ant-design-vue'
 import { createPackageSection, deletePackageSection, getPackageSectionList, syncAllPackageVirtualPayGoods, updatePackageSection } from '@/api/package'
-import { getCourseList } from '@/api/course'
+import { getCourseOptions } from '@/api/course'
 import { getCourseCategoryTree } from '@/api/course-category'
 import { uploadImage } from '@/api/upload'
 import { getProxiedImageUrl } from '@/utils/imageProxy'
@@ -513,7 +513,7 @@ const resetForm = () => {
 const loadMetaOptions = async () => {
 	try {
 		const [courseRes, categoryRes] = await Promise.all([
-			getCourseList({ page: 1, pageSize: 1000 }),
+			getCourseOptions({ status: 1 }),
 			getCourseCategoryTree(),
 		])
 		courseList.value = Array.isArray(courseRes.data) ? courseRes.data : courseRes.data?.list || []

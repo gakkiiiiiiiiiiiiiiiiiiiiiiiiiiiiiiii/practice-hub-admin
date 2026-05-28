@@ -5,6 +5,11 @@ export function getCourseList(params?: any) {
   return request.get('/admin/courses', { params })
 }
 
+/** 课程下拉选项（轻量，不含 introduction 等大字段） */
+export function getCourseOptions(params?: { name?: string; status?: number }) {
+  return request.get('/admin/courses/options', { params })
+}
+
 export function createCourse(data: any) {
   return request.post('/admin/courses', data)
 }
