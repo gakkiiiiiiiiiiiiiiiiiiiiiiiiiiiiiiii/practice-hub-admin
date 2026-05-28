@@ -4,6 +4,7 @@
 			<template #extra>
 				<a-space>
 					<a-button :loading="syncingVirtualPayGoods" @click="handleSyncAllVirtualPayGoods">同步虚拟道具价格</a-button>
+					<a-button @click="openCreateVip">新增 VIP 套餐</a-button>
 					<a-button type="primary" @click="openCreate">新增套餐</a-button>
 				</a-space>
 			</template>
@@ -169,8 +170,9 @@
 						:options="categoryOptions"
 						:filter-option="filterSelectOption"
 					/>
+					<span v-else-if="scope.scope_type === 'all'" class="scope-all-tip">全站全部课程（VIP）</span>
 					<a-cascader
-						v-else
+						v-else-if="scope.scope_type === 'sub_category'"
 						v-model:value="scope.sub_category_path"
 						style="flex: 1"
 						:options="categoryCascaderOptions"
@@ -280,6 +282,7 @@ const planColumns = [
 ]
 
 const scopeTypeOptions = [
+	{ label: 'VIP（全站课程）', value: 'all' },
 	{ label: '指定课程', value: 'course' },
 	{ label: '一级分类', value: 'category' },
 	{ label: '二级分类', value: 'sub_category' },
@@ -356,12 +359,16 @@ const courseNameMap = computed(() => {
 
 const scopeLabel = (scope: any) => {
 	const map: Record<string, string> = {
+		all: 'VIP全站',
 		course: '课程',
 		category: '一级分类',
 		sub_category: '二级分类',
 	}
 	const type = scope.scopeType || scope.scope_type
 	const value = scope.scopeValue || scope.scope_value
+	if (type === 'all') {
+		return map.all
+	}
 	if (type === 'course') {
 		return `${map[type]}:${courseNameMap.value.get(String(value)) || value}`
 	}
@@ -393,13 +400,13 @@ const normalizeScope = (item: any): ScopeFormItem => {
 	const scopeValue = item.scopeValue || item.scope_value || ''
 	return {
 		scope_type: scopeType,
-		scope_value: scopeType === 'course' ? String(scopeValue) : String(scopeValue),
+		scope_value: scopeType === 'all' ? '*' : scopeType === 'course' ? String(scopeValue) : String(scopeValue),
 		sub_category_path: scopeType === 'sub_category' ? findSubCategoryPath(String(scopeValue)) : [],
 	}
 }
 
 const handleScopeTypeChange = (scope: ScopeFormItem) => {
-	scope.scope_value = ''
+	scope.scope_value = scope.scope_type === 'all' ? '*' : ''
 	scope.sub_category_path = []
 	scheduleAutoCoverPreview()
 }
@@ -535,6 +542,16 @@ const openCreate = () => {
 	scheduleAutoCoverPreview()
 }
 
+const openCreateVip = () => {
+	editingId.value = null
+	resetForm()
+	form.name = 'VIP会员'
+	form.description = '购买后可查看全站全部课程'
+	form.scopes = [{ scope_type: 'all', scope_value: '*', sub_category_path: [] }]
+	modalVisible.value = true
+	scheduleAutoCoverPreview()
+}
+
 const openEdit = (record: any) => {
 	editingId.value = record.id
 	form.name = record.name
@@ -626,9 +643,9 @@ const buildPayload = () => ({
 	scopes: form.scopes
 		.map((item) => ({
 			scope_type: item.scope_type,
-			scope_value: String(item.scope_value || '').trim(),
+			scope_value: item.scope_type === 'all' ? '*' : String(item.scope_value || '').trim(),
 		}))
-		.filter((item) => item.scope_value),
+		.filter((item) => item.scope_type === 'all' || item.scope_value),
 	plans: form.plans.map((plan, index) => ({
 		plan_type: plan.plan_type,
 		name: plan.name,
@@ -728,6 +745,14 @@ watch(coverMode, (mode) => {
 	gap: 8px;
 	margin-bottom: 8px;
 	align-items: center;
+}
+.scope-all-tip {
+	flex: 1;
+	color: #92400e;
+	background: #fffbeb;
+	border: 1px solid #fde68a;
+	border-radius: 6px;
+	padding: 6px 12px;
 }
 
 :deep(.ant-upload-select-picture-card) {

@@ -139,6 +139,11 @@ export function collectPackageCategoryNames(
 	}
 
 	for (const scope of scopes || []) {
+		if (scope.scope_type === 'all') {
+			pushName('全站课程')
+			continue
+		}
+
 		const value = String(scope.scope_value || '').trim()
 		if (!value) continue
 
