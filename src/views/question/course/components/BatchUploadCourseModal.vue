@@ -229,12 +229,12 @@
 						</a-col>
 						<a-col :span="12">
 							<a-form-item label="用户售价">
-								<a-input-number v-model:value="defaults.price" :min="0" :step="0.1" style="width: 100%" />
+								<a-input-number v-model:value="defaults.price" :min="1" :step="1" :precision="0" style="width: 100%" />
 							</a-form-item>
 						</a-col>
 						<a-col :span="12">
 							<a-form-item label="代理商售价">
-								<a-input-number v-model:value="defaults.agent_price" :min="0" :step="0.1" style="width: 100%" />
+								<a-input-number v-model:value="defaults.agent_price" :min="0" :step="1" :precision="0" style="width: 100%" />
 							</a-form-item>
 						</a-col>
 						<a-col :span="12">

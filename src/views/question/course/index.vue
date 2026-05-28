@@ -359,8 +359,8 @@
 				<a-form-item :label="batchAdjustPriceValueLabel" required>
 					<a-input-number
 						v-model:value="batchAdjustPriceForm.value"
-						:precision="batchAdjustPriceForm.mode === 'percent' ? 2 : 2"
-						:step="batchAdjustPriceForm.mode === 'percent' ? 1 : 0.1"
+						:precision="batchAdjustPriceForm.mode === 'percent' ? 2 : 0"
+						:step="1"
 						style="width: 100%"
 					/>
 				</a-form-item>
@@ -800,12 +800,12 @@ const batchAdjustPriceHint = computed(() => {
 				? '用户售价'
 				: '代理商售价';
 	if (batchAdjustPriceForm.value.mode === 'delta') {
-		return `在${fieldsText}原基础上加减指定金额。例如填 1 表示涨价 1 元，填 -0.5 表示降价 0.5 元；结果不会低于 0。`;
+		return `在${fieldsText}原基础上加减指定整数金额。例如填 1 表示涨价 1 元，填 -1 表示降价 1 元；结果按进一取整且不低于 0。`;
 	}
 	if (batchAdjustPriceForm.value.mode === 'percent') {
-		return `按百分比调整${fieldsText}。例如填 10 表示涨价 10%，填 -20 表示降价 20%；结果不会低于 0。`;
+		return `按百分比调整${fieldsText}。例如填 10 表示涨价 10%，填 -20 表示降价 20%；结果按进一取整为整数元且不低于 0。`;
 	}
-	return `将${fieldsText}统一设置为指定价格；结果不会低于 0。`;
+	return `将${fieldsText}统一设置为指定整数价格；结果按进一取整且不低于 0。`;
 });
 const previewCachePercent = computed(() => {
 	const totalPages = Number(previewCacheProgress.value.totalPages || 0);

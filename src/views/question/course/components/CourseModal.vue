@@ -245,19 +245,22 @@
 			<a-form-item label="价格" name="price">
 				<a-input-number
 					v-model:value="formState.price"
-					:min="0"
-					:precision="2"
+					:min="1"
+					:precision="0"
+					:step="1"
 					style="width: 100%"
-					placeholder="请输入价格"
+					placeholder="请输入整数价格（元）"
 				/>
+				<div class="form-tip">代币支付仅支持整数元，请勿填写小数。</div>
 			</a-form-item>
 			<a-form-item label="代理商售价" name="agent_price">
 				<a-input-number
 					v-model:value="formState.agent_price"
 					:min="0"
-					:precision="2"
+					:precision="0"
+					:step="1"
 					style="width: 100%"
-					placeholder="请输入代理商售价"
+					placeholder="请输入整数价格（元）"
 				/>
 				<div class="form-tip">修改价格或免费状态后，将自动同步微信虚拟道具价格，约 10 分钟后生效。</div>
 			</a-form-item>
@@ -451,7 +454,19 @@ const formState = ref(buildNewCourseFormDefaults(FALLBACK_COURSE_DEFAULT_PARAMS)
 
 const rules = {
 	name: [{ required: true, message: '请输入课程名称', trigger: 'blur' }],
-	price: [{ required: true, message: '请输入价格', trigger: 'blur' }],
+	price: [
+		{ required: true, message: '请输入价格', trigger: 'blur' },
+		{
+			validator: (_rule: unknown, value: number) => {
+				if (formState.value.is_free === 1) return Promise.resolve();
+				if (!Number.isInteger(Number(value)) || Number(value) < 1) {
+					return Promise.reject(new Error('付费课程价格必须为不小于 1 的整数元'));
+				}
+				return Promise.resolve();
+			},
+			trigger: 'blur',
+		},
+	],
 	course_files: [
 		{
 			validator: async () => {
@@ -661,8 +676,8 @@ watch(
 					exam_year: props.record.exam_year || '',
 					answer_year: props.record.answer_year || '',
 					cover_img: props.record.cover_img || props.record.cover || '',
-					price: props.record.price ?? 0.5,
-					agent_price: props.record.agent_price ?? 0.1,
+					price: props.record.price ?? 1,
+					agent_price: props.record.agent_price ?? 1,
 						is_free: props.record.is_free ?? 0,
 						validity_days: props.record.validity_days ?? 365,
 						introduction: props.record.introduction || '',

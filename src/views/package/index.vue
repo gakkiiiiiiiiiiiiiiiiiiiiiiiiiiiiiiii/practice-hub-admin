@@ -190,7 +190,7 @@
 				<a-table :columns="planColumns" :data-source="form.plans" row-key="plan_type" :pagination="false" size="small">
 					<template #bodyCell="{ column, record }">
 						<template v-if="column.key === 'price'">
-							<a-input-number v-model:value="record.price" :min="0" :step="0.1" style="width: 100%" />
+							<a-input-number v-model:value="record.price" :min="1" :step="1" :precision="0" style="width: 100%" />
 						</template>
 						<template v-else-if="column.key === 'duration_days'">
 							<a-input-number v-model:value="record.duration_days" :min="1" style="width: 100%" />
@@ -289,9 +289,9 @@ const scopeTypeOptions = [
 ]
 
 const defaultPlans = () => [
-	{ plan_type: 'monthly', name: '月卡', price: 29.9, duration_days: 30, enabled: true, sort: 1 },
-	{ plan_type: 'quarterly', name: '季卡', price: 79.9, duration_days: 90, enabled: true, sort: 2 },
-	{ plan_type: 'yearly', name: '年卡', price: 199.9, duration_days: 365, enabled: true, sort: 3 },
+	{ plan_type: 'monthly', name: '月卡', price: 30, duration_days: 30, enabled: true, sort: 1 },
+	{ plan_type: 'quarterly', name: '季卡', price: 80, duration_days: 90, enabled: true, sort: 2 },
+	{ plan_type: 'yearly', name: '年卡', price: 200, duration_days: 365, enabled: true, sort: 3 },
 ]
 
 const form = reactive({

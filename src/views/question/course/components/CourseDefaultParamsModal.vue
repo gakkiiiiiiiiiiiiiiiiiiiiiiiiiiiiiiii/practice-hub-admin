@@ -33,11 +33,11 @@
 					<a-input v-model:value="formState.answer_year" allow-clear placeholder="可选" />
 				</a-form-item>
 				<a-form-item label="用户售价">
-					<a-input-number v-model:value="formState.price" :min="0" :step="0.1" style="width: 100%" />
+					<a-input-number v-model:value="formState.price" :min="1" :step="1" :precision="0" style="width: 100%" />
 				</a-form-item>
 				<a-form-item label="代理商售价">
-					<a-input-number v-model:value="formState.agent_price" :min="0" :step="0.1" style="width: 100%" />
-					<div class="form-tip">修改默认售价后，仅影响后续新建课程，不会自动改已有课程。</div>
+					<a-input-number v-model:value="formState.agent_price" :min="0" :step="1" :precision="0" style="width: 100%" />
+					<div class="form-tip">代币支付仅支持整数元。修改默认售价后，仅影响后续新建课程。</div>
 				</a-form-item>
 				<a-form-item label="是否免费">
 					<a-radio-group v-model:value="formState.is_free">
