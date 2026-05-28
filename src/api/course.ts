@@ -65,11 +65,6 @@ export function batchAdjustCoursePrice(data: {
   return request.post('/admin/courses/batch-adjust-price', data)
 }
 
-// 同步全部付费课程的微信虚拟道具价格
-export function syncAllCourseVirtualPayGoods() {
-  return request.post('/admin/courses/virtual-pay-goods/sync-all')
-}
-
 // 获取新增课程默认参数
 export function getCourseDefaultParams() {
   return request.get('/admin/courses/default-params')

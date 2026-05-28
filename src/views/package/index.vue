@@ -3,7 +3,6 @@
 		<a-card title="套餐管理">
 			<template #extra>
 				<a-space>
-					<a-button :loading="syncingVirtualPayGoods" @click="handleSyncAllVirtualPayGoods">同步虚拟道具价格</a-button>
 					<a-button @click="openCreateVip">新增 VIP 套餐</a-button>
 					<a-button type="primary" @click="openCreate">新增套餐</a-button>
 				</a-space>
@@ -210,12 +209,11 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import type { UploadFile } from 'ant-design-vue'
-import { createPackageSection, deletePackageSection, getPackageSectionList, syncAllPackageVirtualPayGoods, updatePackageSection } from '@/api/package'
+import { createPackageSection, deletePackageSection, getPackageSectionList, updatePackageSection } from '@/api/package'
 import { getCourseOptions } from '@/api/course'
 import { getCourseCategoryTree } from '@/api/course-category'
 import { uploadImage } from '@/api/upload'
 import { getProxiedImageUrl } from '@/utils/imageProxy'
-import { notifyVirtualPayGoodsPriceSync } from '@/utils/virtual-pay-goods'
 import {
 	collectPackageCategoryNames,
 	DEFAULT_PACKAGE_COVER_STYLE,
@@ -234,7 +232,6 @@ type ScopeFormItem = {
 }
 
 const loading = ref(false)
-const syncingVirtualPayGoods = ref(false)
 const submitLoading = ref(false)
 const coverUploadLoading = ref(false)
 const autoCoverLoading = ref(false)
@@ -656,21 +653,6 @@ const buildPayload = () => ({
 	})),
 })
 
-const handleSyncAllVirtualPayGoods = async () => {
-	syncingVirtualPayGoods.value = true
-	try {
-		const res = await syncAllPackageVirtualPayGoods()
-		const result = (res as any)?.data ?? res
-		const total = Number(result?.total || result?.package_total || 0)
-		message.success(`已提交 ${total} 个套餐规格的虚拟道具价格同步`)
-		notifyVirtualPayGoodsPriceSync(result)
-	} catch (error: any) {
-		message.error(error?.msg || error?.message || '同步虚拟道具价格失败')
-	} finally {
-		syncingVirtualPayGoods.value = false
-	}
-}
-
 const handleSubmit = async () => {
 	if (!form.name.trim()) {
 		message.warning('请填写套餐名称')
@@ -688,7 +670,6 @@ const handleSubmit = async () => {
 		}
 		const result = (saveResult as any)?.data ?? saveResult
 		message.success('保存成功')
-		notifyVirtualPayGoodsPriceSync(result)
 		modalVisible.value = false
 		loadList()
 	} catch {

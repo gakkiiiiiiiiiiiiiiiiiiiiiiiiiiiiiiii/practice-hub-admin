@@ -262,7 +262,7 @@
 					style="width: 100%"
 					placeholder="请输入整数价格（元）"
 				/>
-				<div class="form-tip">修改价格或免费状态后，将自动同步微信虚拟道具价格，约 10 分钟后生效。</div>
+				<div class="form-tip">代币支付仅支持整数元定价。</div>
 			</a-form-item>
 			<a-form-item label="是否免费" name="is_free">
 				<a-radio-group v-model:value="formState.is_free">
@@ -330,7 +330,6 @@ import {
 	renderCourseCover,
 } from '@/utils/course-cover';
 import type { CourseCoverTemplatePack } from '@/utils/course-cover';
-import { notifyVirtualPayGoodsPriceSync } from '@/utils/virtual-pay-goods';
 import {
 	buildNewCourseFormDefaults,
 	FALLBACK_COURSE_DEFAULT_PARAMS,
@@ -1268,8 +1267,6 @@ const handleSubmit = async () => {
 			courseId = Number(saveResponse?.id);
 			message.success('创建成功');
 		}
-		notifyVirtualPayGoodsPriceSync(saveResponse);
-
 		if (submitData.content_type === 'file' && courseId) {
 			await syncCourseFilesAfterSave(courseId);
 			try {
