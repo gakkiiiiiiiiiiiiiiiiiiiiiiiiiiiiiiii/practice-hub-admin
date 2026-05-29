@@ -17,8 +17,8 @@
 			<a-form-item label="优惠券面额（元）">
 				<a-input-number v-model:value="form.coupon_amount" :min="1" :step="1" :precision="0" style="width: 100%" />
 			</a-form-item>
-			<a-form-item label="使用门槛（元）" extra="订单满该金额可用，0 表示无门槛">
-				<a-input-number v-model:value="form.coupon_min_amount" :min="0" :step="1" :precision="0" style="width: 100%" />
+			<a-form-item label="使用门槛（元）" extra="订单满该金额可用，0 表示无门槛，支持小数">
+				<a-input-number v-model:value="form.coupon_min_amount" :min="0" :step="0.01" :precision="2" style="width: 100%" />
 			</a-form-item>
 			<a-form-item label="每人最多获得张数">
 				<a-input-number v-model:value="form.max_coupons_per_user" :min="1" style="width: 100%" />

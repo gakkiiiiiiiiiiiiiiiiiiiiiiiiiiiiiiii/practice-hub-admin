@@ -29,8 +29,8 @@
 			<a-form-item label="优惠券面额（元）" name="amount">
 				<a-input-number v-model:value="formState.amount" :min="1" :step="1" :precision="0" style="width: 100%" />
 			</a-form-item>
-			<a-form-item label="使用门槛（元）" name="min_amount" extra="0 表示无门槛">
-				<a-input-number v-model:value="formState.min_amount" :min="0" :step="1" :precision="0" style="width: 100%" />
+			<a-form-item label="使用门槛（元）" name="min_amount" extra="0 表示无门槛，支持小数">
+				<a-input-number v-model:value="formState.min_amount" :min="0" :step="0.01" :precision="2" style="width: 100%" />
 			</a-form-item>
 			<a-form-item label="发放张数" name="count">
 				<a-input-number v-model:value="formState.count" :min="1" :max="50" style="width: 100%" />
