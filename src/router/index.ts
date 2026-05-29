@@ -153,7 +153,15 @@ const routes: RouteRecordRaw[] = [
 				name: 'UserList',
 				component: () => import('@/views/user/list/index.vue'),
 				meta: {
-					title: '小程序用户',
+					title: '用户列表',
+				},
+			},
+			{
+				path: 'coupons',
+				name: 'UserCoupons',
+				component: () => import('@/views/user/coupons/index.vue'),
+				meta: {
+					title: '优惠券管理',
 				},
 			},
 		],

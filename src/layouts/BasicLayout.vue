@@ -235,9 +235,13 @@ const menuItems = computed(() => {
 	// 小程序用户（super_admin）
 	if (isSuperAdmin) {
 		items.push({
-			key: '/user/list',
+			key: 'user',
 			icon: () => h(UserSwitchOutlined),
 			label: '小程序用户',
+			children: [
+				{ key: '/user/list', label: '用户列表' },
+				{ key: '/user/coupons', label: '优惠券管理' },
+			],
 		});
 	}
 
@@ -296,6 +300,9 @@ watch(
 			openKeys.value = currentOpenKeys;
 		} else if ((path.startsWith('/system') || path.startsWith('/distributor')) && !currentOpenKeys.includes('system')) {
 			currentOpenKeys.push('system');
+			openKeys.value = currentOpenKeys;
+		} else if (path.startsWith('/user') && !currentOpenKeys.includes('user')) {
+			currentOpenKeys.push('user');
 			openKeys.value = currentOpenKeys;
 		}
 	},

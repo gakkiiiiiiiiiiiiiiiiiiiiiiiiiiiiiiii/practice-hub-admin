@@ -61,6 +61,9 @@
               <a-button type="link" size="small" @click="handleViewDetail(record)">
                 查看详情
               </a-button>
+              <a-button type="link" size="small" @click="handleIssueCoupon(record)">
+                发券
+              </a-button>
               <a-button
                 type="link"
                 size="small"
@@ -104,6 +107,12 @@
       v-model:open="detailModalVisible"
       :user-id="selectedUserId"
     />
+
+    <issue-coupon-modal
+      v-model:open="issueModalVisible"
+      :preset-user="issueTargetUser"
+      @success="fetchData"
+    />
   </div>
 </template>
 
@@ -112,6 +121,7 @@ import { ref, onMounted } from 'vue';
 import { message, Modal } from 'ant-design-vue';
 import { getAppUserList, updateAppUserRole, updateUserStatus } from '@/api/user';
 import UserDetailModal from './components/UserDetailModal.vue';
+import IssueCouponModal from './components/IssueCouponModal.vue';
 import dayjs from 'dayjs';
 import TableColumnSetting from '@/components/TableColumnSetting/index.vue';
 import { useTableColumns } from '@/composables/useTableColumns';
@@ -119,7 +129,9 @@ import { useTableColumns } from '@/composables/useTableColumns';
 const loading = ref(false);
 const dataSource = ref([]);
 const detailModalVisible = ref(false);
+const issueModalVisible = ref(false);
 const selectedUserId = ref<number | null>(null);
+const issueTargetUser = ref<{ id: number; nickname?: string; openId?: string } | null>(null);
 
 const searchForm = ref({
 	keyword: '',
@@ -195,7 +207,7 @@ const baseColumns = [
 	{
 		title: '操作',
 		key: 'action',
-		width: 380,
+		width: 420,
 		fixed: 'right',
 	},
 ];
@@ -274,6 +286,15 @@ const handleReset = () => {
 const handleViewDetail = (record: any) => {
 	selectedUserId.value = record.id;
 	detailModalVisible.value = true;
+};
+
+const handleIssueCoupon = (record: any) => {
+	issueTargetUser.value = {
+		id: record.id,
+		nickname: record.nickname,
+		openId: record.openId,
+	};
+	issueModalVisible.value = true;
 };
 
 const handleToggleStatus = async (record: any) => {
