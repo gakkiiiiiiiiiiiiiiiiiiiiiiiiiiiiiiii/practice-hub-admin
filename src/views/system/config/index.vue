@@ -28,6 +28,9 @@
         <a-tab-pane key="referral-coupon" tab="拉新优惠券">
           <referral-coupon-config />
         </a-tab-pane>
+        <a-tab-pane key="points" tab="积分系统">
+          <points-config />
+        </a-tab-pane>
       </a-tabs>
     </a-card>
   </div>
@@ -43,10 +46,11 @@ import CourseCoverConfig from './components/CourseCoverConfig.vue'
 import CourseIntroTemplateConfig from './components/CourseIntroTemplateConfig.vue'
 import FaqConfig from './components/FaqConfig.vue'
 import ReferralCouponConfig from './components/ReferralCouponConfig.vue'
+import PointsConfig from './components/PointsConfig.vue'
 
 const route = useRoute()
 const router = useRouter()
-const validTabs = new Set(['banner', 'ai', 'checkin', 'course-cover', 'course-intro-template', 'faq', 'referral-coupon'])
+const validTabs = new Set(['banner', 'ai', 'checkin', 'course-cover', 'course-intro-template', 'faq', 'referral-coupon', 'points'])
 const activeTab = ref(getInitialTab())
 
 function getInitialTab() {

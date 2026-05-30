@@ -164,6 +164,14 @@ const routes: RouteRecordRaw[] = [
 					title: '优惠券管理',
 				},
 			},
+			{
+				path: 'orders',
+				name: 'UserOrders',
+				component: () => import('@/views/user/orders/index.vue'),
+				meta: {
+					title: '订单列表',
+				},
+			},
 		],
 	},
 	{

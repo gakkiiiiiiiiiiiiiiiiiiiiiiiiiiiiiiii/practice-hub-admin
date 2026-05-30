@@ -585,7 +585,7 @@ const fetchPageRoutes = async () => {
 			{ path: '/pages/sub-pages/wrong/index', title: '错题集', type: 'sub', status: 1 },
 			{ path: '/pages/sub-pages/collection/index', title: '我的收藏', type: 'sub', status: 1 },
 			{ path: '/pages/sub-pages/rank/index', title: '排行榜', type: 'sub', status: 1 },
-			{ path: '/pages/sub-pages/trajectory/index', title: '学习轨迹', type: 'sub', status: 1 },
+			{ path: '/pages/sub-pages/points-mall/index', title: '积分商城', type: 'sub', status: 1 },
 			{ path: '/pages/sub-pages/feedback/index', title: '功能反馈', type: 'sub', status: 1 },
 			{ path: '/pages/sub-pages/course-intro/index', title: '课程介绍', type: 'sub', status: 1 },
 			{ path: '/pages/sub-pages/bank-settings/index', title: '题库设置', type: 'sub', status: 1 },

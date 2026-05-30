@@ -129,3 +129,18 @@ export function setReferralCouponConfig(data: {
 }) {
   return request.put('/admin/settings/referral-coupon', data)
 }
+
+export function getPointsConfig() {
+  return request.get('/admin/settings/points')
+}
+
+export function setPointsConfig(data: {
+  enabled?: boolean
+  checkin_reward?: number
+  exchange_points?: number
+  exchange_coupon_amount?: number
+  exchange_coupon_min_amount?: number
+  coupon_valid_days?: number | null
+}) {
+  return request.put('/admin/settings/points', data)
+}

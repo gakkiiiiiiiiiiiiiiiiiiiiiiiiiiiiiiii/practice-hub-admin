@@ -240,6 +240,7 @@ const menuItems = computed(() => {
 			label: '小程序用户',
 			children: [
 				{ key: '/user/list', label: '用户列表' },
+				{ key: '/user/orders', label: '订单列表' },
 				{ key: '/user/coupons', label: '优惠券管理' },
 			],
 		});
