@@ -10,6 +10,7 @@ export type CourseDefaultParams = {
 	validity_days: number | null;
 	allow_source_file: number;
 	content_type: 'normal' | 'file';
+	status: number;
 };
 
 export const FALLBACK_COURSE_DEFAULT_PARAMS: CourseDefaultParams = {
@@ -24,6 +25,7 @@ export const FALLBACK_COURSE_DEFAULT_PARAMS: CourseDefaultParams = {
 	validity_days: 365,
 	allow_source_file: 0,
 	content_type: 'normal',
+	status: 0,
 };
 
 export const normalizeCourseDefaultParams = (input?: Partial<CourseDefaultParams> | null): CourseDefaultParams => {
@@ -42,6 +44,7 @@ export const normalizeCourseDefaultParams = (input?: Partial<CourseDefaultParams
 		validity_days: isFree === 1 ? null : Math.max(1, Number(source.validity_days ?? FALLBACK_COURSE_DEFAULT_PARAMS.validity_days) || 365),
 		allow_source_file: Number(source.allow_source_file ?? FALLBACK_COURSE_DEFAULT_PARAMS.allow_source_file) === 1 ? 1 : 0,
 		content_type: contentType,
+		status: Number(source.status ?? FALLBACK_COURSE_DEFAULT_PARAMS.status) === 1 ? 1 : 0,
 	};
 };
 

@@ -264,6 +264,14 @@
 								</a-radio-group>
 							</a-form-item>
 						</a-col>
+						<a-col :span="12">
+							<a-form-item label="状态">
+								<a-radio-group v-model:value="defaults.status">
+									<a-radio :value="0">禁用</a-radio>
+									<a-radio :value="1">启用</a-radio>
+								</a-radio-group>
+							</a-form-item>
+						</a-col>
 					</a-row>
 				</a-form>
 			</a-collapse-panel>
@@ -688,7 +696,7 @@ const buildSubmitPayload = (
 	const payload: Record<string, unknown> = {
 		name: String(group.courseName || '').trim(),
 		content_type: 'file',
-		status: 0,
+		status: Number(defaults.value.status) === 1 ? 1 : 0,
 		price: defaults.value.price,
 		agent_price: defaults.value.agent_price,
 		is_free: defaults.value.is_free,
