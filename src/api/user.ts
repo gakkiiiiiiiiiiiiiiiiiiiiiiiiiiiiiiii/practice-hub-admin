@@ -53,3 +53,8 @@ export function updateUserStatus(id: number, data: { status: number }) {
 export function updateAppUserRole(id: number, data: { role: 'user' | 'bank_admin' | 'admin' }) {
   return request.put(`/admin/users/${id}/role`, data)
 }
+
+// 重置为新用户
+export function resetAppUserAsNew(id: number) {
+  return request.post(`/admin/users/${id}/reset-as-new`)
+}

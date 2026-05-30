@@ -64,6 +64,9 @@
               <a-button type="link" size="small" @click="handleIssueCoupon(record)">
                 发券
               </a-button>
+              <a-button type="link" size="small" danger @click="handleResetAsNew(record)">
+                重置为新用户
+              </a-button>
               <a-button
                 type="link"
                 size="small"
@@ -119,7 +122,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { message, Modal } from 'ant-design-vue';
-import { getAppUserList, updateAppUserRole, updateUserStatus } from '@/api/user';
+import { getAppUserList, updateAppUserRole, updateUserStatus, resetAppUserAsNew } from '@/api/user';
 import UserDetailModal from './components/UserDetailModal.vue';
 import IssueCouponModal from './components/IssueCouponModal.vue';
 import dayjs from 'dayjs';
@@ -207,7 +210,7 @@ const baseColumns = [
 	{
 		title: '操作',
 		key: 'action',
-		width: 420,
+		width: 520,
 		fixed: 'right',
 	},
 ];
@@ -332,6 +335,24 @@ const handleUpdateAppRole = async (record: any, nextRole: 'user' | 'bank_admin' 
 				fetchData();
 			} catch (error: any) {
 				message.error(error?.message || `${action}失败`);
+			}
+		},
+	});
+};
+
+const handleResetAsNew = (record: any) => {
+	Modal.confirm({
+		title: '重置为新用户',
+		content: `确定将用户「${record.nickname}」重置为新用户吗？将重置注册时间为当前时间，并清除其被邀请关系、积分流水与打卡记录。课程权限、订单和套餐不受影响。`,
+		okText: '确认重置',
+		okType: 'danger',
+		onOk: async () => {
+			try {
+				await resetAppUserAsNew(record.id);
+				message.success('已重置为新用户');
+				fetchData();
+			} catch (error: any) {
+				message.error(error?.message || '重置失败');
 			}
 		},
 	});
