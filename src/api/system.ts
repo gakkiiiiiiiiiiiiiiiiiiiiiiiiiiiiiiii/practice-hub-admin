@@ -141,6 +141,15 @@ export function setPointsConfig(data: {
   exchange_coupon_amount?: number
   exchange_coupon_min_amount?: number
   coupon_valid_days?: number | null
+  exchange_items?: Array<{
+    id?: string
+    name?: string
+    points?: number
+    coupon_amount?: number
+    coupon_min_amount?: number
+    enabled?: boolean
+    sort?: number
+  }>
 }) {
   return request.put('/admin/settings/points', data)
 }
