@@ -165,6 +165,7 @@ export function setUserTitleConfig(data: {
     name?: string
     minDays?: number
     tierStyle?: string
+    textColor?: string
     sort?: number
     enabled?: boolean
   }>
