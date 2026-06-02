@@ -153,3 +153,21 @@ export function setPointsConfig(data: {
 }) {
   return request.put('/admin/settings/points', data)
 }
+
+export function getUserTitleConfig() {
+  return request.get('/admin/settings/user-title')
+}
+
+export function setUserTitleConfig(data: {
+  enabled?: boolean
+  tiers?: Array<{
+    id?: string
+    name?: string
+    minDays?: number
+    tierStyle?: string
+    sort?: number
+    enabled?: boolean
+  }>
+}) {
+  return request.put('/admin/settings/user-title', data)
+}

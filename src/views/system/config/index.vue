@@ -31,6 +31,9 @@
         <a-tab-pane key="points" tab="积分系统">
           <points-config />
         </a-tab-pane>
+        <a-tab-pane key="user-title" tab="用户称号">
+          <user-title-config />
+        </a-tab-pane>
       </a-tabs>
     </a-card>
   </div>
@@ -47,10 +50,11 @@ import CourseIntroTemplateConfig from './components/CourseIntroTemplateConfig.vu
 import FaqConfig from './components/FaqConfig.vue'
 import ReferralCouponConfig from './components/ReferralCouponConfig.vue'
 import PointsConfig from './components/PointsConfig.vue'
+import UserTitleConfig from './components/UserTitleConfig.vue'
 
 const route = useRoute()
 const router = useRouter()
-const validTabs = new Set(['banner', 'ai', 'checkin', 'course-cover', 'course-intro-template', 'faq', 'referral-coupon', 'points'])
+const validTabs = new Set(['banner', 'ai', 'checkin', 'course-cover', 'course-intro-template', 'faq', 'referral-coupon', 'points', 'user-title'])
 const activeTab = ref(getInitialTab())
 
 function getInitialTab() {
