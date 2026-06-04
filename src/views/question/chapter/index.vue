@@ -1,7 +1,6 @@
 <template>
 	<div class="chapter-management">
 		<a-card>
-			<template #title>章节管理</template>
 			<template #extra>
 				<a-space>
 					<a-select

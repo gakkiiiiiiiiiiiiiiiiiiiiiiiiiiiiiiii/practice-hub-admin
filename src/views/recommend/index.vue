@@ -1,7 +1,6 @@
 <template>
 	<div class="recommend-management">
 		<a-card>
-			<template #title>首页推荐管理</template>
 			<template #extra>
 				<a-space>
 					<a-button type="primary" @click="handleAddCategory('course')">

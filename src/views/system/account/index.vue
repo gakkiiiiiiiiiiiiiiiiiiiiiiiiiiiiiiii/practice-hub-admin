@@ -1,7 +1,6 @@
 <template>
   <div class="account-management">
     <a-card>
-      <template #title>账号管理</template>
       <template #extra>
         <a-space>
           <a-form layout="inline" :model="searchForm" @finish="handleSearch">

@@ -1,7 +1,6 @@
 <template>
 	<div class="feedback-list">
 		<a-card>
-			<template #title>功能反馈管理</template>
 			<template #extra>
 				<a-button type="primary" @click="handleOpenSubmitModal">
 					<template #icon>

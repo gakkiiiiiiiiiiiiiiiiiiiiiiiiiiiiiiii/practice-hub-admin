@@ -1,7 +1,6 @@
 <template>
 	<div class="user-list">
 		<a-card>
-			<template #title>小程序用户</template>
 			<template #extra>
 				<a-space>
 					<a-input-search

@@ -1,7 +1,6 @@
 <template>
 	<div class="order-list">
 		<a-card>
-			<template #title>订单列表</template>
 
 			<a-form :model="searchForm" layout="inline" class="search-form">
 				<a-form-item label="关键词">

@@ -1,7 +1,6 @@
 <template>
 	<div class="course-category-management">
 		<a-card>
-			<template #title>题库分类管理</template>
 			<template #extra>
 				<a-space>
 					<a-button

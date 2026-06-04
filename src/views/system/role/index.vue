@@ -1,7 +1,6 @@
 <template>
   <div class="role-management">
     <a-card>
-      <template #title>角色管理</template>
       <template #extra>
         <a-space>
           <a-alert

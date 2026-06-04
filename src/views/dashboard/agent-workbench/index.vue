@@ -32,7 +32,7 @@
       </a-col>
     </a-row>
 
-    <a-card title="快捷操作" class="quick-actions">
+    <a-card class="quick-actions">
       <a-space>
         <a-button type="primary" @click="handleBuyCodes">
           <template #icon><gift-outlined /></template>

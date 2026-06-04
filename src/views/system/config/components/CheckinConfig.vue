@@ -1,7 +1,6 @@
 <template>
 	<div class="checkin-config">
 		<a-card>
-			<template #title>刷题打卡配置</template>
 			<a-form :model="formState" :label-col="{ span: 6 }" :wrapper-col="{ span: 18 }" style="max-width: 600px">
 				<a-form-item label="打卡所需时间" required>
 					<a-input-number

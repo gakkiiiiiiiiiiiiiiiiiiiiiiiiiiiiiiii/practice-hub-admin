@@ -1,6 +1,6 @@
 <template>
 	<div class="vip-section-page">
-		<a-card title="套餐管理">
+		<a-card>
 			<template #extra>
 				<a-space>
 					<a-button @click="openCreateVip">新增 VIP 套餐</a-button>

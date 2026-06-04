@@ -42,7 +42,6 @@
 		</a-row>
 
 		<a-card>
-			<template #title>分销数据概览</template>
 			<div style="text-align: center; padding: 40px; color: #999">
 				更多详细统计数据功能开发中...
 			</div>

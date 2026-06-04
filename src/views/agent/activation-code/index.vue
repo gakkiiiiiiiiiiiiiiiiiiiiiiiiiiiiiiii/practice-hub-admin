@@ -1,7 +1,6 @@
 <template>
   <div class="activation-code">
     <a-card>
-      <template #title>激活码管理</template>
       <template #extra>
         <a-button
           v-if="isSuperAdmin"

@@ -1,7 +1,6 @@
 <template>
 	<div class="after-sale-list">
 		<a-card>
-			<template #title>售后申请管理</template>
 
 			<!-- 搜索栏 -->
 			<a-form :model="searchForm" layout="inline" class="search-form">

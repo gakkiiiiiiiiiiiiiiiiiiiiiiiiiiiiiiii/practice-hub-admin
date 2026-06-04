@@ -5,6 +5,25 @@ export function getCourseList(params?: any) {
   return request.get('/admin/courses', { params })
 }
 
+/** 检测同名或类似课程分组（基于当前筛选范围） */
+export function getSimilarCourseGroups(params?: {
+  name?: string
+  subject?: string
+  category?: string
+  subCategory?: string
+  status?: number
+}) {
+  return request.get('/admin/courses/similar-groups', { params })
+}
+
+export function getCourseSimilarityConfig() {
+  return request.get('/admin/courses/similarity-config')
+}
+
+export function setCourseSimilarityConfig(data: { threshold?: number }) {
+  return request.put('/admin/courses/similarity-config', data)
+}
+
 /** 课程下拉选项（轻量，不含 introduction 等大字段） */
 export function getCourseOptions(params?: { name?: string; status?: number }) {
   return request.get('/admin/courses/options', { params })

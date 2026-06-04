@@ -1,7 +1,6 @@
 <template>
   <div class="balance-log">
     <a-card>
-      <template #title>资金记录</template>
 
       <a-form :model="searchForm" layout="inline" class="search-form">
         <a-form-item label="类型">

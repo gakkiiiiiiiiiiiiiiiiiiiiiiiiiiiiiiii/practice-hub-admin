@@ -1,7 +1,6 @@
 <template>
 	<div class="coupon-list">
 		<a-card>
-			<template #title>优惠券管理</template>
 			<template #extra>
 				<a-button type="primary" @click="openIssueModal">
 					<template #icon>

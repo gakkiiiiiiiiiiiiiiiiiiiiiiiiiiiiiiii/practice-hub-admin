@@ -1,7 +1,6 @@
 <template>
 	<div class="operation-log-management">
 		<a-card>
-			<template #title>系统操作日志</template>
 			<template #extra>
 				<a-button v-if="isMobile" type="text" @click="searchCollapsed = !searchCollapsed" class="search-toggle-btn">
 					<template #icon>

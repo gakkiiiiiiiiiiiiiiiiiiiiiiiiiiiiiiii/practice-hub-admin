@@ -1,7 +1,6 @@
 <template>
   <div class="system-config">
     <a-card>
-      <template #title>运营配置</template>
 
       <a-tabs v-model:activeKey="activeTab">
         <a-tab-pane key="banner" tab="首页轮播图">

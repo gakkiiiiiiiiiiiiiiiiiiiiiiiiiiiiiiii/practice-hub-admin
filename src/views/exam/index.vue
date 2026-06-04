@@ -1,7 +1,6 @@
 <template>
 	<div class="exam-management">
 		<a-card>
-			<template #title>考试管理</template>
 
 			<div class="toolbar">
 				<a-space>

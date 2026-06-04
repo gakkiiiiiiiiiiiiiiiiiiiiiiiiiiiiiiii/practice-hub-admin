@@ -1,7 +1,6 @@
 <template>
 	<div class="course-management">
 		<a-card>
-			<template #title>课程管理</template>
 			<template #extra>
 				<a-space class="course-toolbar" wrap>
 					<a-button
@@ -90,10 +89,17 @@
 						<a-select-option :value="0">禁用</a-select-option>
 					</a-select>
 				</a-form-item>
+				<a-form-item label="重复筛选">
+					<a-checkbox v-model:checked="searchForm.similarOnly" @change="handleSimilarOnlyChange">
+						仅显示同名/类似
+					</a-checkbox>
+				</a-form-item>
 				<a-form-item>
 					<a-space>
 						<a-button type="primary" @click="handleSearch">搜索</a-button>
 						<a-button @click="handleResetSearch">重置</a-button>
+						<a-button :loading="similarDetectLoading" @click="openSimilarGroupsModal">同名/类似检测</a-button>
+						<a-button @click="similarityConfigVisible = true">检测设置</a-button>
 					</a-space>
 				</a-form-item>
 			</a-form>
@@ -107,7 +113,17 @@
 								:checked="selectedRowKeys.includes(record.id)"
 								@change="(event) => toggleMobileRowSelection(record.id, event.target.checked)"
 							/>
-							<div class="course-card__title">{{ record.name || '-' }}</div>
+							<div class="course-card__title">
+								<a-tag
+									v-if="record.similar_match_type"
+									:color="record.similar_match_type === 'exact' ? 'red' : 'orange'"
+									size="small"
+									class="similar-tag"
+								>
+									{{ record.similar_match_type === 'exact' ? '同名' : '类似' }}
+								</a-tag>
+								{{ record.name || '-' }}
+							</div>
 							<a-switch
 								:checked="record.status === 1"
 								:checked-children="'启用'"
@@ -242,9 +258,18 @@
 						/>
 					</template>
 					<template v-else-if="column.key === 'name'">
-						<a-tooltip :title="record.name" placement="topLeft">
-							<span class="course-name-text">{{ record.name }}</span>
-						</a-tooltip>
+						<div class="course-name-cell-inner">
+							<a-tag
+								v-if="record.similar_match_type"
+								:color="record.similar_match_type === 'exact' ? 'red' : 'orange'"
+								size="small"
+							>
+								{{ record.similar_match_type === 'exact' ? '同名' : '类似' }}
+							</a-tag>
+							<a-tooltip :title="record.name" placement="topLeft">
+								<span class="course-name-text">{{ record.name }}</span>
+							</a-tooltip>
+						</div>
 					</template>
 					<template v-else-if="column.key === 'action'">
 						<a-space class="course-action-space" :size="4" wrap>
@@ -293,6 +318,65 @@
 			v-model:open="defaultParamsVisible"
 			@saved="handleCourseDefaultParamsSaved"
 		/>
+		<course-similarity-config-modal
+			v-model:open="similarityConfigVisible"
+			@saved="handleCourseSimilarityConfigSaved"
+		/>
+		<a-modal
+			v-model:open="similarGroupsModalVisible"
+			title="同名 / 类似课程检测结果"
+			width="920px"
+			:footer="null"
+			destroy-on-close
+		>
+			<a-alert
+				type="info"
+				show-icon
+				class="similar-detect-tip"
+				:message="`在当前筛选范围内共发现 ${similarGroupsSummary.groupCount} 组、涉及 ${similarGroupsSummary.duplicateCourseCount} 门课程`"
+				:description="similarDetectDescription"
+			/>
+			<a-spin :spinning="similarDetectLoading">
+				<a-empty v-if="!similarDetectLoading && similarGroups.length === 0" description="未发现同名或类似课程" />
+				<a-collapse v-else accordion class="similar-groups-collapse">
+					<a-collapse-panel
+						v-for="group in similarGroups"
+						:key="group.groupId"
+						:header="`${group.matchType === 'exact' ? '同名' : '类似'} · ${group.representativeName}（${group.courses?.length || 0} 门）`"
+					>
+						<a-table
+							:data-source="group.courses || []"
+							:columns="similarGroupColumns"
+							:pagination="false"
+							row-key="id"
+							size="small"
+						>
+							<template #bodyCell="{ column, record }">
+								<template v-if="column.key === 'status'">
+									<a-tag :color="record.status === 1 ? 'green' : 'default'">
+										{{ record.status === 1 ? '启用' : '禁用' }}
+									</a-tag>
+								</template>
+								<template v-else-if="column.key === 'action'">
+									<a-button type="link" size="small" @click="handleEdit(record)">编辑</a-button>
+								</template>
+							</template>
+						</a-table>
+					</a-collapse-panel>
+				</a-collapse>
+			</a-spin>
+			<div class="similar-modal-actions">
+				<a-button @click="similarGroupsModalVisible = false">关闭</a-button>
+				<a-button
+					type="primary"
+					:disabled="similarGroupsSummary.duplicateCourseCount === 0"
+					@click="applySimilarOnlyFilter"
+				>
+					仅显示这些课程
+				</a-button>
+			</div>
+		</a-modal>
+
 		<exam-config-drawer
 			:open="examDrawerVisible"
 			:course-id="currentCourseId"
@@ -587,13 +671,14 @@
 	import { ref, onMounted, watch, computed, onBeforeUnmount, onUnmounted } from 'vue';
 	import { message } from 'ant-design-vue';
 	import { PlusOutlined, DeleteOutlined, CheckOutlined, CloseOutlined, DownOutlined } from '@ant-design/icons-vue';
-	import { getCourseList, deleteCourse, batchDeleteCourses, batchUpdateCourseStatus, batchAdjustCoursePrice, updateCourseSort, generateMissingCoursePreviewCaches, retryFailedCoursePreviewCaches, getCoursePreviewCacheProgress, interruptCoursePreviewCacheTask, fixBlankCoursePreviewCaches, getPreviewCacheTargetCourses, forceSelectedCoursePreviewCaches } from '@/api/course';
+	import { getCourseList, getSimilarCourseGroups, getCourseSimilarityConfig, deleteCourse, batchDeleteCourses, batchUpdateCourseStatus, batchAdjustCoursePrice, updateCourseSort, generateMissingCoursePreviewCaches, retryFailedCoursePreviewCaches, getCoursePreviewCacheProgress, interruptCoursePreviewCacheTask, fixBlankCoursePreviewCaches, getPreviewCacheTargetCourses, forceSelectedCoursePreviewCaches } from '@/api/course';
 	import { getCourseCategoryTree } from '@/api/course-category';
 	import { getToken } from '@/utils/auth';
 	import { useUserStore } from '@/store/user';
 import CourseModal from './components/CourseModal.vue';
 import BatchUploadCourseModal from './components/BatchUploadCourseModal.vue';
 import CourseDefaultParamsModal from './components/CourseDefaultParamsModal.vue';
+import CourseSimilarityConfigModal from './components/CourseSimilarityConfigModal.vue';
 import ExamConfigDrawer from './components/ExamConfigDrawer.vue';
 import RecommendationDrawer from './components/RecommendationDrawer.vue';
 import TableColumnSetting from '@/components/TableColumnSetting/index.vue';
@@ -609,6 +694,7 @@ const handleResize = () => {
 };
 const batchUploadVisible = ref(false);
 const defaultParamsVisible = ref(false);
+const similarityConfigVisible = ref(false);
 const courseDefaultParamsKey = ref(0);
 const userStore = useUserStore();
 const modalVisible = ref(false);
@@ -696,7 +782,34 @@ const currentCourseName = ref<string>('');
 		category: '',
 		subCategory: '',
 		status: undefined as number | undefined,
+		similarOnly: false,
 	});
+	const similarGroupsModalVisible = ref(false);
+	const similarDetectLoading = ref(false);
+	const similarGroups = ref<any[]>([]);
+	const similarGroupsSummary = ref({
+		groupCount: 0,
+		duplicateCourseCount: 0,
+	});
+	const similarityThreshold = ref(0.82);
+	const similarDetectDescription = computed(
+		() =>
+			`同名：规范化后名称完全一致；类似：仅年份不同、名称包含或编辑距离相近（当前阈值 ${Math.round(similarityThreshold.value * 100)}%）。可在「检测设置」中调整。`,
+	);
+	const similarGroupColumns = [
+		{ title: 'ID', dataIndex: 'id', key: 'id', width: 72 },
+		{ title: '课程名称', dataIndex: 'name', key: 'name', ellipsis: true },
+		{ title: '课程', dataIndex: 'subject', key: 'subject', width: 100, ellipsis: true },
+		{
+			title: '分类',
+			key: 'category',
+			width: 160,
+			customRender: ({ record }: any) =>
+				[record.category, record.sub_category].filter(Boolean).join(' / ') || '-',
+		},
+		{ title: '状态', key: 'status', width: 80 },
+		{ title: '操作', key: 'action', width: 80 },
+	];
 	const searchCategoryValue = ref<string[]>([]);
 	const categoryTree = ref<any[]>([]);
 
@@ -987,16 +1100,75 @@ const { displayColumns, settingItems, resetColumns, updatePreference } = useTabl
 	lockRightKeys: ['action'],
 });
 
+const buildCourseFilterParams = () => ({
+	name: searchForm.value.name || undefined,
+	subject: searchForm.value.subject || undefined,
+	category: searchForm.value.category || undefined,
+	subCategory: searchForm.value.subCategory || undefined,
+	status: searchForm.value.status ?? undefined,
+});
+
+const buildSearchParams = () => ({
+	...buildCourseFilterParams(),
+	similarOnly: searchForm.value.similarOnly ? 1 : undefined,
+});
+
+const loadSimilarityConfig = async () => {
+	try {
+		const res = await getCourseSimilarityConfig();
+		const data = (res as { data?: { threshold?: number } })?.data ?? res;
+		const threshold = Number((data as { threshold?: number })?.threshold);
+		if (Number.isFinite(threshold)) {
+			similarityThreshold.value = threshold;
+		}
+	} catch {
+		// 使用默认值
+	}
+};
+
+const fetchSimilarGroups = async () => {
+	similarDetectLoading.value = true;
+	try {
+		const res = await getSimilarCourseGroups(buildCourseFilterParams());
+		const data = res.data || {};
+		similarGroups.value = Array.isArray(data.groups) ? data.groups : [];
+		similarGroupsSummary.value = {
+			groupCount: Number(data.groupCount) || 0,
+			duplicateCourseCount: Number(data.duplicateCourseCount) || 0,
+		};
+		const threshold = Number(data.similarityThreshold);
+		if (Number.isFinite(threshold)) {
+			similarityThreshold.value = threshold;
+		}
+	} catch {
+		message.error('同名/类似课程检测失败');
+		similarGroups.value = [];
+		similarGroupsSummary.value = { groupCount: 0, duplicateCourseCount: 0 };
+	} finally {
+		similarDetectLoading.value = false;
+	}
+};
+
+const openSimilarGroupsModal = async () => {
+	similarGroupsModalVisible.value = true;
+	await fetchSimilarGroups();
+};
+
+const applySimilarOnlyFilter = () => {
+	searchForm.value.similarOnly = true;
+	similarGroupsModalVisible.value = false;
+	handleSearch();
+};
+
+const handleSimilarOnlyChange = () => {
+	pagination.value.current = 1;
+	fetchData();
+};
+
 const fetchData = async () => {
 	loading.value = true;
 	try {
-		const params = {
-			name: searchForm.value.name || undefined,
-			subject: searchForm.value.subject || undefined,
-			category: searchForm.value.category || undefined,
-			subCategory: searchForm.value.subCategory || undefined,
-			status: searchForm.value.status ?? undefined,
-		};
+		const params = buildSearchParams();
 		const res = await getCourseList(params);
 		// 后端返回的是数组，不是分页对象
 		dataSource.value = Array.isArray(res.data) ? res.data : res.data.list || [];
@@ -1042,6 +1214,7 @@ const handleResetSearch = () => {
 		category: '',
 		subCategory: '',
 		status: undefined,
+		similarOnly: false,
 	};
 	searchCategoryValue.value = [];
 	pagination.value.current = 1;
@@ -1173,6 +1346,18 @@ const openBatchUploadModal = () => {
 
 const openDefaultParamsModal = () => {
 	defaultParamsVisible.value = true;
+};
+
+const handleCourseSimilarityConfigSaved = (config: { threshold: number }) => {
+	similarityThreshold.value = config.threshold;
+	if (searchForm.value.similarOnly || similarGroupsModalVisible.value) {
+		if (similarGroupsModalVisible.value) {
+			fetchSimilarGroups();
+		}
+		if (searchForm.value.similarOnly) {
+			fetchData();
+		}
+	}
 };
 
 const handleCourseDefaultParamsSaved = () => {
@@ -1673,6 +1858,7 @@ const confirmBatchAdjustPrice = async () => {
 onMounted(() => {
 	window.addEventListener('resize', handleResize);
 	fetchCategoryTree();
+	loadSimilarityConfig();
 	fetchData();
 	if (getToken()) {
 		fetchPreviewCacheProgress().then(() => {
@@ -1847,12 +2033,43 @@ onUnmounted(() => {
 		}
 	}
 
+	.course-name-cell-inner {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		min-width: 0;
+	}
+
 	.course-name-text {
 		display: block;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
 		line-height: 1.5;
+		flex: 1;
+		min-width: 0;
+	}
+
+	.similar-detect-tip {
+		margin-bottom: 16px;
+	}
+
+	.similar-groups-collapse {
+		margin-top: 12px;
+		max-height: 480px;
+		overflow-y: auto;
+	}
+
+	.similar-modal-actions {
+		margin-top: 16px;
+		display: flex;
+		justify-content: flex-end;
+		gap: 12px;
+	}
+
+	.course-card__title .similar-tag {
+		margin-right: 8px;
+		vertical-align: middle;
 	}
 
 	.course-action-space {

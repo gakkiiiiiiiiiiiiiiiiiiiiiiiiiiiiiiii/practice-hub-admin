@@ -1,7 +1,6 @@
 <template>
 	<div class="distributor-management">
 		<a-card>
-			<template #title>分销管理</template>
 
 			<a-tabs v-model:activeKey="activeTab">
 				<a-tab-pane key="list" tab="分销用户列表">

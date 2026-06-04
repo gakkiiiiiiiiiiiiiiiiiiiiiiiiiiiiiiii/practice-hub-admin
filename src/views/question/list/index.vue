@@ -1,7 +1,6 @@
 <template>
 	<div class="question-list">
 		<a-card>
-			<template #title>试题管理</template>
 			<template #extra>
 				<a-space>
 					<a-button
