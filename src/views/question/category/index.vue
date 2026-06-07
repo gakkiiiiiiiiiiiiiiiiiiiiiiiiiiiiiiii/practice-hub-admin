@@ -126,13 +126,19 @@
 				<a-form-item label="所属上级" name="parent_id">
 					<a-select
 						v-model:value="formState.parent_id"
-						allow-clear
+						:allow-clear="!isEditingSecondaryCategory"
 						placeholder="不选择则为一级分类"
 						:options="parentOptions"
-						:disabled="currentRecord !== null"
+						:disabled="isEditingPrimaryCategory"
 					/>
 					<div v-if="!currentRecord" style="margin-top: 4px; color: #999; font-size: 12px">
 						只能选择一级分类作为父级，二级分类不允许新增子分类
+					</div>
+					<div v-else-if="isEditingSecondaryCategory" style="margin-top: 4px; color: #999; font-size: 12px">
+						可调整所属一级分类，保存后将同步更新已绑定课程的一级分类
+					</div>
+					<div v-else style="margin-top: 4px; color: #999; font-size: 12px">
+						一级分类不可修改上级
 					</div>
 				</a-form-item>
 				<a-form-item v-if="formState.parent_id" label="封面方式">
@@ -356,6 +362,10 @@ const parentOptions = computed(() =>
 		.filter((item) => !item.parent_id) // 只显示一级分类
 		.map((item) => ({ label: item.name, value: item.id })),
 );
+
+const isEditingSecondaryCategory = computed(() => !!currentRecord.value?.parent_id);
+
+const isEditingPrimaryCategory = computed(() => !!currentRecord.value && !currentRecord.value.parent_id);
 
 const findCategoryById = (items: any[], id?: number | null): any | null => {
 	if (!id) return null;
@@ -646,8 +656,11 @@ const handleSubmit = async () => {
 			await ensureAutoCoverUploaded();
 		}
 		if (currentRecord.value) {
-			await updateCourseCategory(currentRecord.value.id, formState.value);
-			message.success('更新成功');
+			const res = await updateCourseCategory(currentRecord.value.id, formState.value);
+			const syncedCourseCount = Number((res as any)?.data?.syncedCourseCount ?? (res as any)?.syncedCourseCount ?? 0);
+			message.success(
+				syncedCourseCount > 0 ? `更新成功，已同步 ${syncedCourseCount} 门课程` : '更新成功',
+			);
 		} else {
 			await createCourseCategory(formState.value);
 			message.success('创建成功');
