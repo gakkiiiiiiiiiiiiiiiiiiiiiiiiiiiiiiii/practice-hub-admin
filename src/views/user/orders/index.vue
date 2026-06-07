@@ -6,7 +6,7 @@
 				<a-form-item label="关键词">
 					<a-input-search
 						v-model:value="searchForm.keyword"
-						placeholder="订单号 / 昵称 / 手机号 / 用户ID"
+						placeholder="订单号 / 昵称 / 手机号 / OpenID"
 						style="width: 260px"
 						allow-clear
 						@search="handleSearch"
@@ -38,7 +38,7 @@
 				:loading="loading"
 				:pagination="pagination"
 				row-key="id"
-				:scroll="{ x: 1200 }"
+				:scroll="{ x: 1400 }"
 				@change="handleTableChange"
 			>
 				<template #bodyCell="{ column, record }">
@@ -49,7 +49,7 @@
 							</a-avatar>
 							<div>
 								<div>{{ record.user?.nickname || '未知用户' }}</div>
-								<div class="sub-text">ID: {{ record.userId }}</div>
+								<div class="sub-text openid-text">OpenID: {{ record.user?.openid || record.openid || '-' }}</div>
 								<div v-if="record.user?.phone" class="sub-text">{{ record.user.phone }}</div>
 							</div>
 						</a-space>
@@ -66,6 +66,18 @@
 						<div v-if="record.discountAmount > 0" class="sub-text">
 							优惠 ¥{{ formatAmount(record.discountAmount) }}
 						</div>
+					</template>
+					<template v-else-if="column.key === 'afterSale'">
+						<template v-if="record.afterSale?.reason">
+							<div class="after-sale-reason">{{ record.afterSale.reason }}</div>
+							<div v-if="record.afterSale.description" class="sub-text after-sale-desc">
+								{{ record.afterSale.description }}
+							</div>
+							<a-tag size="small" :color="getAfterSaleStatusColor(record.afterSale.status)">
+								{{ getAfterSaleStatusLabel(record.afterSale.status) }}
+							</a-tag>
+						</template>
+						<span v-else class="sub-text">-</span>
 					</template>
 					<template v-else-if="column.key === 'status'">
 						<a-tag v-if="record.refunded" color="default">已退款</a-tag>
@@ -116,7 +128,9 @@
 						<div class="sub-text">微信商户后台显示的是充值单号，与业务订单号不同属正常情况</div>
 					</a-descriptions-item>
 					<a-descriptions-item label="用户">{{ currentRecord.user?.nickname || '未知用户' }}</a-descriptions-item>
-					<a-descriptions-item label="用户ID">{{ currentRecord.userId }}</a-descriptions-item>
+					<a-descriptions-item label="OpenID" :span="2">
+						<span class="openid-text">{{ currentRecord.user?.openid || currentRecord.openid || '-' }}</span>
+					</a-descriptions-item>
 					<a-descriptions-item label="手机号">{{ currentRecord.user?.phone || '-' }}</a-descriptions-item>
 					<a-descriptions-item label="订单状态">
 						<a-tag :color="getStatusColor(currentRecord.status)">{{ getStatusLabel(currentRecord.status) }}</a-tag>
@@ -132,6 +146,25 @@
 					<a-descriptions-item label="支付时间">
 						{{ currentRecord.paidTime ? formatTime(currentRecord.paidTime) : '-' }}
 					</a-descriptions-item>
+					<template v-if="currentRecord.afterSale">
+						<a-descriptions-item label="售后原因" :span="2">
+							{{ currentRecord.afterSale.reason || '-' }}
+						</a-descriptions-item>
+						<a-descriptions-item v-if="currentRecord.afterSale.description" label="详细描述" :span="2">
+							{{ currentRecord.afterSale.description }}
+						</a-descriptions-item>
+						<a-descriptions-item label="售后状态">
+							<a-tag :color="getAfterSaleStatusColor(currentRecord.afterSale.status)">
+								{{ getAfterSaleStatusLabel(currentRecord.afterSale.status) }}
+							</a-tag>
+						</a-descriptions-item>
+						<a-descriptions-item label="申请时间">
+							{{ currentRecord.afterSale.createTime ? formatTime(currentRecord.afterSale.createTime) : '-' }}
+						</a-descriptions-item>
+						<a-descriptions-item v-if="currentRecord.afterSale.adminReply" label="处理回复" :span="2">
+							{{ currentRecord.afterSale.adminReply }}
+						</a-descriptions-item>
+					</template>
 				</a-descriptions>
 
 				<div v-if="currentRecord.cartItems?.length" class="cart-items">
@@ -217,6 +250,7 @@ const columns = [
 	{ title: '金额', key: 'amount', width: 120 },
 	{ title: '类型', key: 'orderType', width: 90 },
 	{ title: '状态', key: 'status', width: 110 },
+	{ title: '售后原因', key: 'afterSale', width: 220 },
 	{ title: '下单时间', key: 'createTime', width: 170 },
 	{ title: '支付时间', key: 'paidTime', width: 170 },
 	{ title: '操作', key: 'action', width: 220, fixed: 'right' as const },
@@ -340,6 +374,24 @@ const getStatusColor = (status: string) => {
 	return map[status] || 'default'
 }
 
+const getAfterSaleStatusLabel = (status: number) => {
+	const map: Record<number, string> = {
+		0: '待处理',
+		1: '已处理',
+		2: '已拒绝',
+	}
+	return map[status] ?? '未知'
+}
+
+const getAfterSaleStatusColor = (status: number) => {
+	const map: Record<number, string> = {
+		0: 'orange',
+		1: 'green',
+		2: 'red',
+	}
+	return map[status] || 'default'
+}
+
 onMounted(fetchData)
 </script>
 
@@ -352,6 +404,24 @@ onMounted(fetchData)
 	color: #999;
 	font-size: 12px;
 	line-height: 1.5;
+}
+
+.openid-text {
+	word-break: break-all;
+}
+
+.after-sale-reason {
+	color: #111827;
+	font-size: 13px;
+	line-height: 1.5;
+}
+
+.after-sale-desc {
+	margin-top: 4px;
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
 }
 
 .amount-text {
