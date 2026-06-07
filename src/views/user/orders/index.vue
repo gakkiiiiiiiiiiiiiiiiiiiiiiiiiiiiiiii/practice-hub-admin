@@ -68,7 +68,8 @@
 						</div>
 					</template>
 					<template v-else-if="column.key === 'status'">
-						<a-tag :color="getStatusColor(record.status)">{{ getStatusLabel(record.status) }}</a-tag>
+						<a-tag v-if="record.refunded" color="default">已退款</a-tag>
+						<a-tag v-else :color="getStatusColor(record.status)">{{ getStatusLabel(record.status) }}</a-tag>
 					</template>
 					<template v-else-if="column.key === 'orderType'">
 						<a-tag>{{ record.orderType === 'package' ? '套餐' : '课程' }}</a-tag>
@@ -80,7 +81,27 @@
 						{{ record.paidTime ? formatTime(record.paidTime) : '-' }}
 					</template>
 					<template v-else-if="column.key === 'action'">
-						<a-button type="link" size="small" @click="handleViewDetail(record)">查看详情</a-button>
+						<a-space>
+							<a-button type="link" size="small" @click="handleViewDetail(record)">查看详情</a-button>
+							<a-button
+								v-if="record.status === 'pending'"
+								type="link"
+								size="small"
+								:loading="syncingOrderId === record.id"
+								@click="handleSyncPayment(record)"
+							>
+								同步支付
+							</a-button>
+							<a-button
+								v-if="record.status === 'after_sale' && !record.refunded"
+								type="link"
+								size="small"
+								danger
+								@click="openRefundModal(record)"
+							>
+								退款
+							</a-button>
+						</a-space>
 					</template>
 				</template>
 			</a-table>
@@ -89,7 +110,11 @@
 		<a-modal v-model:open="detailVisible" title="订单详情" width="760px" :footer="null">
 			<div v-if="currentRecord">
 				<a-descriptions :column="2" bordered>
-					<a-descriptions-item label="订单号" :span="2">{{ currentRecord.orderNo }}</a-descriptions-item>
+					<a-descriptions-item label="业务订单号" :span="2">{{ currentRecord.orderNo }}</a-descriptions-item>
+					<a-descriptions-item v-if="currentRecord.wechatRechargeOrderNo" label="微信充值单号" :span="2">
+						{{ currentRecord.wechatRechargeOrderNo }}
+						<div class="sub-text">微信商户后台显示的是充值单号，与业务订单号不同属正常情况</div>
+					</a-descriptions-item>
 					<a-descriptions-item label="用户">{{ currentRecord.user?.nickname || '未知用户' }}</a-descriptions-item>
 					<a-descriptions-item label="用户ID">{{ currentRecord.userId }}</a-descriptions-item>
 					<a-descriptions-item label="手机号">{{ currentRecord.user?.phone || '-' }}</a-descriptions-item>
@@ -125,15 +150,48 @@
 				</div>
 			</div>
 		</a-modal>
+
+		<a-modal
+			v-model:open="refundVisible"
+			title="确认退款"
+			ok-text="确认退款"
+			cancel-text="取消"
+			:confirm-loading="refunding"
+			@ok="handleConfirmRefund"
+		>
+			<a-alert
+				type="warning"
+				show-icon
+				message="退款将撤销用户课程/套餐权限，并原路退回微信代币或充值金额。"
+				style="margin-bottom: 16px"
+			/>
+			<a-form layout="vertical">
+				<a-form-item label="订单号">
+					<a-input :value="refundTarget?.orderNo" disabled />
+				</a-form-item>
+				<a-form-item label="退款金额">
+					<a-input :value="refundTarget ? `¥${formatAmount(refundTarget.amount)}` : ''" disabled />
+				</a-form-item>
+				<a-form-item label="退款备注">
+					<a-textarea v-model:value="refundRemark" :rows="3" placeholder="可选，例如：用户申请售后，同意退款" />
+				</a-form-item>
+			</a-form>
+		</a-modal>
 	</div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import dayjs from 'dayjs'
-import { getAdminOrderList } from '@/api/order'
+import { message } from 'ant-design-vue'
+import { getAdminOrderList, refundAdminOrder, syncAdminOrderPayment } from '@/api/order'
 
 const loading = ref(false)
+const syncingOrderId = ref<number | null>(null)
+const refundVisible = ref(false)
+const refunding = ref(false)
+const refundTarget = ref<any>(null)
+const refundRemark = ref('')
 const dataSource = ref<any[]>([])
 const detailVisible = ref(false)
 const currentRecord = ref<any>(null)
@@ -161,7 +219,7 @@ const columns = [
 	{ title: '状态', key: 'status', width: 110 },
 	{ title: '下单时间', key: 'createTime', width: 170 },
 	{ title: '支付时间', key: 'paidTime', width: 170 },
-	{ title: '操作', key: 'action', width: 100, fixed: 'right' as const },
+	{ title: '操作', key: 'action', width: 220, fixed: 'right' as const },
 ]
 
 const cartColumns = [
@@ -215,6 +273,48 @@ const handleViewDetail = (record: any) => {
 	detailVisible.value = true
 }
 
+const openRefundModal = (record: any) => {
+	refundTarget.value = record
+	refundRemark.value = ''
+	refundVisible.value = true
+}
+
+const handleConfirmRefund = async () => {
+	if (!refundTarget.value) {
+		return
+	}
+	refunding.value = true
+	try {
+		const res = await refundAdminOrder(refundTarget.value.id, {
+			remark: refundRemark.value.trim() || undefined,
+		})
+		message.success(res.data?.message || '退款成功')
+		refundVisible.value = false
+		await fetchData()
+	} catch (error: any) {
+		message.error(error?.message || '退款失败')
+		throw error
+	} finally {
+		refunding.value = false
+	}
+}
+
+const handleSyncPayment = async (record: any) => {
+	syncingOrderId.value = record.id
+	try {
+		const res = await syncAdminOrderPayment(record.id)
+		message.success(res.data?.message || '支付状态已同步')
+		await fetchData()
+		if (currentRecord.value?.id === record.id) {
+			currentRecord.value = dataSource.value.find((item) => item.id === record.id) || currentRecord.value
+		}
+	} catch (error: any) {
+		message.error(error?.message || '同步支付状态失败')
+	} finally {
+		syncingOrderId.value = null
+	}
+}
+
 const formatAmount = (value: number | string) => Number(value || 0).toFixed(2)
 
 const formatTime = (value: string) => dayjs(value).format('YYYY-MM-DD HH:mm:ss')
@@ -225,6 +325,7 @@ const getStatusLabel = (status: string) => {
 		paid: '支付完成',
 		cancelled: '已取消',
 		after_sale: '售后',
+		refunded: '已退款',
 	}
 	return map[status] || status
 }
