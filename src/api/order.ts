@@ -1,5 +1,9 @@
 import request from '@/utils/request'
 
+export function getAdminOrderDetail(orderId: number) {
+	return request.get(`/admin/orders/${orderId}`)
+}
+
 export function getAdminOrderList(params?: {
 	page?: number
 	pageSize?: number

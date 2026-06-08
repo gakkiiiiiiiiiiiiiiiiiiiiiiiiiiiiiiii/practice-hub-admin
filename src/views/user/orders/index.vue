@@ -120,6 +120,7 @@
 		</a-card>
 
 		<a-modal v-model:open="detailVisible" title="订单详情" width="760px" :footer="null">
+			<a-spin :spinning="detailLoading">
 			<div v-if="currentRecord">
 				<a-descriptions :column="2" bordered>
 					<a-descriptions-item label="业务订单号" :span="2">{{ currentRecord.orderNo }}</a-descriptions-item>
@@ -146,26 +147,32 @@
 					<a-descriptions-item label="支付时间">
 						{{ currentRecord.paidTime ? formatTime(currentRecord.paidTime) : '-' }}
 					</a-descriptions-item>
-					<template v-if="currentRecord.afterSale">
-						<a-descriptions-item label="售后原因" :span="2">
-							{{ currentRecord.afterSale.reason || '-' }}
+				</a-descriptions>
+
+				<div v-if="showAfterSaleDetail(currentRecord)" class="after-sale-detail">
+					<div class="cart-title">售后信息</div>
+					<a-descriptions :column="1" bordered size="small">
+						<a-descriptions-item label="售后原因">
+							{{ currentRecord.afterSale?.reason || '-' }}
 						</a-descriptions-item>
-						<a-descriptions-item v-if="currentRecord.afterSale.description" label="详细描述" :span="2">
-							{{ currentRecord.afterSale.description }}
+						<a-descriptions-item label="详细描述">
+							<div class="after-sale-description">
+								{{ currentRecord.afterSale?.description || '-' }}
+							</div>
 						</a-descriptions-item>
 						<a-descriptions-item label="售后状态">
-							<a-tag :color="getAfterSaleStatusColor(currentRecord.afterSale.status)">
-								{{ getAfterSaleStatusLabel(currentRecord.afterSale.status) }}
+							<a-tag :color="getAfterSaleStatusColor(currentRecord.afterSale?.status ?? 0)">
+								{{ getAfterSaleStatusLabel(currentRecord.afterSale?.status ?? 0) }}
 							</a-tag>
 						</a-descriptions-item>
 						<a-descriptions-item label="申请时间">
-							{{ currentRecord.afterSale.createTime ? formatTime(currentRecord.afterSale.createTime) : '-' }}
+							{{ currentRecord.afterSale?.createTime ? formatTime(currentRecord.afterSale.createTime) : '-' }}
 						</a-descriptions-item>
-						<a-descriptions-item v-if="currentRecord.afterSale.adminReply" label="处理回复" :span="2">
+						<a-descriptions-item v-if="currentRecord.afterSale?.adminReply" label="处理回复">
 							{{ currentRecord.afterSale.adminReply }}
 						</a-descriptions-item>
-					</template>
-				</a-descriptions>
+					</a-descriptions>
+				</div>
 
 				<div v-if="currentRecord.cartItems?.length" class="cart-items">
 					<div class="cart-title">购物车课程明细</div>
@@ -182,6 +189,7 @@
 					</a-table>
 				</div>
 			</div>
+			</a-spin>
 		</a-modal>
 
 		<a-modal
@@ -217,9 +225,10 @@
 import { onMounted, ref } from 'vue'
 import dayjs from 'dayjs'
 import { message } from 'ant-design-vue'
-import { getAdminOrderList, refundAdminOrder, syncAdminOrderPayment } from '@/api/order'
+import { getAdminOrderDetail, getAdminOrderList, refundAdminOrder, syncAdminOrderPayment } from '@/api/order'
 
 const loading = ref(false)
+const detailLoading = ref(false)
 const syncingOrderId = ref<number | null>(null)
 const refundVisible = ref(false)
 const refunding = ref(false)
@@ -302,9 +311,24 @@ const handleTableChange = (pager: any) => {
 	fetchData()
 }
 
-const handleViewDetail = (record: any) => {
+const showAfterSaleDetail = (record: any) => {
+	return record?.status === 'after_sale' || Boolean(record?.afterSale)
+}
+
+const handleViewDetail = async (record: any) => {
 	currentRecord.value = record
 	detailVisible.value = true
+	detailLoading.value = true
+	try {
+		const res = await getAdminOrderDetail(record.id)
+		if (res.data) {
+			currentRecord.value = res.data
+		}
+	} catch (error: any) {
+		message.error(error?.message || '获取订单详情失败')
+	} finally {
+		detailLoading.value = false
+	}
 }
 
 const openRefundModal = (record: any) => {
@@ -436,5 +460,15 @@ onMounted(fetchData)
 .cart-title {
 	margin-bottom: 12px;
 	font-weight: 600;
+}
+
+.after-sale-detail {
+	margin-top: 20px;
+}
+
+.after-sale-description {
+	white-space: pre-wrap;
+	word-break: break-word;
+	line-height: 1.6;
 }
 </style>
