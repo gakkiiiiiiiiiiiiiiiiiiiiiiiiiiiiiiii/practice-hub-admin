@@ -69,6 +69,9 @@
 					</template>
 					<template v-else-if="column.key === 'afterSale'">
 						<template v-if="record.afterSale?.reason">
+							<div v-if="record.afterSale.wechatContact" class="sub-text">
+								微信：{{ record.afterSale.wechatContact }}
+							</div>
 							<div class="after-sale-reason">{{ record.afterSale.reason }}</div>
 							<div v-if="record.afterSale.description" class="sub-text after-sale-desc">
 								{{ record.afterSale.description }}
@@ -152,6 +155,9 @@
 				<div v-if="showAfterSaleDetail(currentRecord)" class="after-sale-detail">
 					<div class="cart-title">售后信息</div>
 					<a-descriptions :column="1" bordered size="small">
+						<a-descriptions-item label="微信联系方式">
+							{{ currentRecord.afterSale?.wechatContact || '-' }}
+						</a-descriptions-item>
 						<a-descriptions-item label="售后原因">
 							{{ currentRecord.afterSale?.reason || '-' }}
 						</a-descriptions-item>

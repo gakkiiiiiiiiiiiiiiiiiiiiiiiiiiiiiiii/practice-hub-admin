@@ -140,6 +140,9 @@
 							<span>{{ currentRecord.user?.nickname || '未知用户' }}</span>
 						</a-space>
 					</a-descriptions-item>
+					<a-descriptions-item v-if="currentRecord.wechat_contact" label="微信联系方式" :span="2">
+						{{ currentRecord.wechat_contact }}
+					</a-descriptions-item>
 					<a-descriptions-item label="问题描述" :span="2">
 						<div class="description-text">{{ currentRecord.description }}</div>
 					</a-descriptions-item>
@@ -234,6 +237,21 @@
 					</a-radio-group>
 				</a-form-item>
 				<a-form-item
+					label="微信联系方式（选填）"
+					name="wechat_contact"
+					:rules="[
+						{ min: 2, message: '微信联系方式至少2个字符' },
+						{ max: 64, message: '微信联系方式最多64个字符' },
+					]"
+				>
+					<a-input
+						v-model:value="submitForm.wechat_contact"
+						placeholder="请输入微信号或手机号"
+						:maxlength="64"
+						allow-clear
+					/>
+				</a-form-item>
+				<a-form-item
 					label="问题描述"
 					name="description"
 					:rules="[
@@ -306,10 +324,12 @@ const deletingId = ref<number | null>(null);
 const deleteLoading = ref(false);
 const submitForm = ref<{
 	type: 'bug' | 'style' | 'feature';
+	wechat_contact: string;
 	description: string;
 	imageList: UploadFile[];
 }>({
 	type: 'bug',
+	wechat_contact: '',
 	description: '',
 	imageList: [],
 });
@@ -350,6 +370,13 @@ const baseColumns = [
 		title: '反馈类型',
 		key: 'type',
 		width: 120,
+	},
+	{
+		title: '微信联系方式',
+		dataIndex: 'wechat_contact',
+		key: 'wechat_contact',
+		width: 140,
+		ellipsis: true,
 	},
 	{
 		title: '问题描述',
@@ -573,6 +600,7 @@ const handleReply = async (id: number) => {
 const handleOpenSubmitModal = () => {
 	submitForm.value = {
 		type: 'bug',
+		wechat_contact: '',
 		description: '',
 		imageList: [],
 	};
@@ -582,6 +610,7 @@ const handleOpenSubmitModal = () => {
 const handleCancelSubmit = () => {
 	submitForm.value = {
 		type: 'bug',
+		wechat_contact: '',
 		description: '',
 		imageList: [],
 	};
@@ -671,9 +700,16 @@ const handleSubmitFeedback = async () => {
 
 		console.log('提交的图片列表:', images); // 调试日志
 
+		const wechatContact = submitForm.value.wechat_contact?.trim() || '';
+		if (wechatContact && wechatContact.length < 2) {
+			message.warning('微信联系方式至少2个字符');
+			return;
+		}
+
 		const data: CreateFeedbackDto = {
 			type: submitForm.value.type,
 			description: submitForm.value.description.trim(),
+			wechat_contact: wechatContact || undefined,
 			images: images.length > 0 ? images : undefined,
 		};
 
@@ -682,6 +718,7 @@ const handleSubmitFeedback = async () => {
 		submitModalVisible.value = false;
 		submitForm.value = {
 			type: 'bug',
+			wechat_contact: '',
 			description: '',
 			imageList: [],
 		};

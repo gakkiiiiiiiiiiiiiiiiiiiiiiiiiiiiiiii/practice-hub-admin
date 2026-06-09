@@ -3,6 +3,7 @@ import request from '@/utils/request';
 export interface CreateFeedbackDto {
 	type: 'bug' | 'style' | 'feature';
 	description: string;
+	wechat_contact?: string;
 	images?: string[];
 }
 
@@ -24,6 +25,7 @@ export interface Feedback {
 	user_id: number;
 	type: 'bug' | 'style' | 'feature';
 	description: string;
+	wechat_contact?: string;
 	images: string[];
 	status: 'pending' | 'processing' | 'resolved' | 'rejected';
 	reply?: string;

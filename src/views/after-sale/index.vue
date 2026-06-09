@@ -73,6 +73,9 @@
 				<a-descriptions :column="2" bordered>
 					<a-descriptions-item label="申请ID">{{ currentRecord.id }}</a-descriptions-item>
 					<a-descriptions-item label="订单号">{{ currentRecord.order_no }}</a-descriptions-item>
+					<a-descriptions-item label="微信联系方式" :span="2">
+						{{ currentRecord.wechat_contact || '-' }}
+					</a-descriptions-item>
 					<a-descriptions-item label="用户ID">{{ currentRecord.user_id }}</a-descriptions-item>
 					<a-descriptions-item label="处理状态">
 						<a-tag :color="getStatusColor(currentRecord.status)">
@@ -88,8 +91,8 @@
 					<a-descriptions-item label="售后原因" :span="2">
 						<div class="description-text">{{ currentRecord.reason }}</div>
 					</a-descriptions-item>
-					<a-descriptions-item v-if="currentRecord.description" label="详细描述" :span="2">
-						<div class="description-text">{{ currentRecord.description }}</div>
+					<a-descriptions-item label="详细描述" :span="2">
+						<div class="description-text">{{ currentRecord.description || '-' }}</div>
 					</a-descriptions-item>
 					<a-descriptions-item v-if="currentRecord.admin_reply" label="管理员回复" :span="2">
 						<div class="reply-text">{{ currentRecord.admin_reply }}</div>
@@ -105,6 +108,20 @@
 			@ok="handleConfirmProcess"
 			:confirm-loading="processing"
 		>
+			<a-alert
+				v-if="processType === 1"
+				type="info"
+				show-icon
+				message="同意后请在「订单管理」中找到对应订单执行退款，用户微信联系方式见上方列表。"
+				style="margin-bottom: 16px"
+			/>
+			<a-alert
+				v-else
+				type="warning"
+				show-icon
+				message="拒绝后订单将恢复为「支付完成」状态，用户可正常使用已购内容。"
+				style="margin-bottom: 16px"
+			/>
 			<a-form :model="processForm" :label-col="{ span: 6 }" :wrapper-col="{ span: 18 }">
 				<a-form-item label="管理员回复">
 					<a-textarea
@@ -161,6 +178,12 @@ const baseColumns = [
 		dataIndex: 'order_no',
 		key: 'order_no',
 		width: 200,
+	},
+	{
+		title: '微信联系方式',
+		dataIndex: 'wechat_contact',
+		key: 'wechat_contact',
+		width: 160,
 	},
 	{
 		title: '用户ID',
