@@ -124,6 +124,7 @@ export function setHomePopupConfig(data: {
   title?: string
   content?: string
   image?: string
+  buttonText?: string
   showMode?: 'once' | 'always'
 }) {
   return request.put('/admin/settings/home-popup', data)

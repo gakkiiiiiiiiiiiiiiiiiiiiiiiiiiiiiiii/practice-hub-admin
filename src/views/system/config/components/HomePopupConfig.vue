@@ -33,6 +33,14 @@
 					</div>
 				</a-upload>
 			</a-form-item>
+			<a-form-item label="按钮文案">
+				<a-input
+					v-model:value="form.buttonText"
+					placeholder="默认：我知道了"
+					:maxlength="20"
+					allow-clear
+				/>
+			</a-form-item>
 			<a-form-item label="展示策略">
 				<a-radio-group v-model:value="form.showMode">
 					<a-radio value="once">只弹一次（关闭后不再展示，更新配置后重新展示）</a-radio>
@@ -74,6 +82,7 @@ const form = reactive({
 	title: '',
 	content: '',
 	image: '',
+	buttonText: '我知道了',
 	showMode: 'once' as 'once' | 'always',
 	version: 0,
 });
@@ -101,6 +110,7 @@ const load = async () => {
 		form.title = data.title || '';
 		form.content = data.content || '';
 		form.image = data.image || '';
+		form.buttonText = data.buttonText || '我知道了';
 		form.showMode = data.showMode === 'always' ? 'always' : 'once';
 		form.version = Number(data.version) || 0;
 		syncFileList(form.image);
@@ -160,6 +170,7 @@ const save = async () => {
 			title: form.title.trim(),
 			content: form.content,
 			image: form.image.trim(),
+			buttonText: form.buttonText.trim() || '我知道了',
 			showMode: form.showMode,
 		});
 		const config = res.data?.config;
