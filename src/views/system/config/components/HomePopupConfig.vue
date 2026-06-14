@@ -3,7 +3,7 @@
 		<a-alert
 			type="info"
 			show-icon
-			message="配置小程序首页弹窗内容。开启后用户进入首页会看到弹窗；「只弹一次」在用户关闭后不再展示（更新配置后会再次展示）；「每次进入都弹」则每次打开首页都会展示。"
+			message="配置小程序首页弹窗内容（支持富文本）。开启后用户进入首页会看到弹窗；「只弹一次」在用户关闭后不再展示（更新配置后会再次展示）；「每次进入都弹」则每次打开首页都会展示。"
 			class="config-tip"
 		/>
 
@@ -15,13 +15,7 @@
 				<a-input v-model:value="form.title" placeholder="例如：重要公告" :maxlength="100" allow-clear />
 			</a-form-item>
 			<a-form-item label="弹窗内容" required>
-				<a-textarea
-					v-model:value="form.content"
-					placeholder="请输入弹窗正文内容"
-					:rows="6"
-					:maxlength="2000"
-					show-count
-				/>
+				<WangEditor v-model="form.content" placeholder="请输入弹窗正文内容（支持富文本）" />
 			</a-form-item>
 			<a-form-item label="弹窗图片（选填）">
 				<a-upload
@@ -63,6 +57,13 @@ import type { UploadFile } from 'ant-design-vue';
 import { getHomePopupConfig, setHomePopupConfig } from '@/api/system';
 import { uploadImage } from '@/api/upload';
 import { getProxiedImageUrl } from '@/utils/imageProxy';
+import WangEditor from '@/components/WangEditor/index.vue';
+
+const stripRichText = (html: string) =>
+	String(html || '')
+		.replace(/<[^>]+>/g, '')
+		.replace(/&nbsp;/gi, ' ')
+		.trim();
 
 const saving = ref(false);
 const uploadLoading = ref(false);
@@ -147,7 +148,7 @@ const handleRemoveImage = () => {
 };
 
 const save = async () => {
-	if (form.enabled && !form.content.trim()) {
+	if (form.enabled && !stripRichText(form.content)) {
 		message.warning('启用弹窗时请填写弹窗内容');
 		return;
 	}
@@ -157,7 +158,7 @@ const save = async () => {
 		const res = await setHomePopupConfig({
 			enabled: form.enabled,
 			title: form.title.trim(),
-			content: form.content.trim(),
+			content: form.content,
 			image: form.image.trim(),
 			showMode: form.showMode,
 		});
