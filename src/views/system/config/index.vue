@@ -6,6 +6,9 @@
         <a-tab-pane key="banner" tab="首页轮播图">
           <banner-config />
         </a-tab-pane>
+        <a-tab-pane key="home-popup" tab="首页弹窗">
+          <home-popup-config />
+        </a-tab-pane>
         <!-- <a-tab-pane key="countdown" tab="倒计时配置">
           <countdown-config />
         </a-tab-pane> -->
@@ -42,6 +45,7 @@
 import { ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import BannerConfig from './components/BannerConfig.vue'
+import HomePopupConfig from './components/HomePopupConfig.vue'
 import AiPromptConfig from './components/AiPromptConfig.vue'
 import CheckinConfig from './components/CheckinConfig.vue'
 import CourseCoverConfig from './components/CourseCoverConfig.vue'
@@ -53,7 +57,7 @@ import UserTitleConfig from './components/UserTitleConfig.vue'
 
 const route = useRoute()
 const router = useRouter()
-const validTabs = new Set(['banner', 'ai', 'checkin', 'course-cover', 'course-intro-template', 'faq', 'referral-coupon', 'points', 'user-title'])
+const validTabs = new Set(['banner', 'home-popup', 'ai', 'checkin', 'course-cover', 'course-intro-template', 'faq', 'referral-coupon', 'points', 'user-title'])
 const activeTab = ref(getInitialTab())
 
 function getInitialTab() {

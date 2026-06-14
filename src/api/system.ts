@@ -115,6 +115,20 @@ export function setFaqConfig(data: { items: Array<{ question: string; answer: st
   return request.put('/admin/settings/faqs', data)
 }
 
+export function getHomePopupConfig() {
+  return request.get('/admin/settings/home-popup')
+}
+
+export function setHomePopupConfig(data: {
+  enabled?: boolean
+  title?: string
+  content?: string
+  image?: string
+  showMode?: 'once' | 'always'
+}) {
+  return request.put('/admin/settings/home-popup', data)
+}
+
 export function getReferralCouponConfig() {
   return request.get('/admin/settings/referral-coupon')
 }
