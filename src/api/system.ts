@@ -121,11 +121,25 @@ export function getHomePopupConfig() {
 
 export function setHomePopupConfig(data: {
   enabled?: boolean
+  activeTemplateId?: string
   title?: string
   content?: string
   image?: string
   buttonText?: string
   showMode?: 'once' | 'always'
+  templates?: Array<{
+    id: string
+    name: string
+    title?: string
+    buttonText?: string
+    showMode?: 'once' | 'always'
+    pages: Array<{
+      id: string
+      title?: string
+      content?: string
+      image?: string
+    }>
+  }>
 }) {
   return request.put('/admin/settings/home-popup', data)
 }

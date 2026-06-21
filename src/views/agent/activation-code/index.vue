@@ -110,9 +110,10 @@
           <template v-else-if="column.key === 'create_time'">
             <span class="time-cell">{{ dayjs(record.create_time).format('YYYY-MM-DD HH:mm:ss') }}</span>
           </template>
-          <template v-else-if="column.key === 'courseName'">
-            <div class="course-name-cell" :title="record.course?.name || record.courseName || '-'">
-              {{ record.course?.name || record.courseName || '-' }}
+          <template v-else-if="column.key === 'target'">
+            <div class="course-name-cell" :title="record.target_text || record.course?.name || record.courseName || '-'">
+              <a-tag>{{ record.target_type_text || (record.target_type === 'package' ? '套餐/VIP' : '课程') }}</a-tag>
+              {{ record.target_text || record.course?.name || record.courseName || '-' }}
             </div>
           </template>
           <template v-else-if="column.key === 'action'">
@@ -226,8 +227,11 @@
         <a-descriptions-item label="生成用户">
           {{ currentDetail.generator_user || '-' }}
         </a-descriptions-item>
-        <a-descriptions-item label="关联课程">
-          {{ currentDetail.course?.name || '-' }}
+        <a-descriptions-item label="目标类型">
+          {{ currentDetail.target_type_text || (currentDetail.target_type === 'package' ? '套餐/VIP' : '课程') }}
+        </a-descriptions-item>
+        <a-descriptions-item label="激活目标">
+          {{ currentDetail.target_text || currentDetail.course?.name || '-' }}
         </a-descriptions-item>
         <a-descriptions-item label="状态">
           <a-tag
@@ -350,9 +354,9 @@ const baseColumns = [
 	    width: 120,
 	  },
   {
-    title: '关联课程',
-    dataIndex: 'courseName',
-    key: 'courseName',
+    title: '激活目标',
+    dataIndex: 'target_text',
+    key: 'target',
     width: 300,
   },
   {

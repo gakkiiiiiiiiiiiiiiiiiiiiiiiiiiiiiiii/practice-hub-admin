@@ -200,6 +200,10 @@ const menuItems = computed(() => {
 			key: '/question/course',
 			label: '课程管理',
 		},
+		(hasRole(['super_admin', 'content_admin']) || hasPermission('course:view')) && {
+			key: '/question/course-type',
+			label: '课程类型',
+		},
 		(hasRole(['super_admin', 'content_admin']) || hasPermission('chapter:view')) && {
 			key: '/question/chapter',
 			label: '章节管理',
