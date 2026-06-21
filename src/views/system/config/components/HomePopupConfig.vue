@@ -78,12 +78,18 @@
 					</a-col>
 					<a-col v-if="activeTemplate.targetMode === 'specified'" :span="12">
 						<a-form-item label="指定用户ID">
-							<a-textarea
-								v-model:value="activeTemplate.targetUserIdsText"
-								placeholder="输入小程序用户ID，支持逗号、空格或换行分隔"
-								:auto-size="{ minRows: 2, maxRows: 4 }"
+							<a-select
+								v-model:value="activeTemplate.targetUserIds"
+								mode="multiple"
+								show-search
+								:filter-option="false"
+								:options="targetUserOptions"
+								:loading="targetUserSearching"
+								placeholder="搜索昵称、OpenID后选择用户"
+								style="width: 100%"
+								@search="handleSearchTargetUser"
 							/>
-							<div class="field-help">仅这些用户进入首页时会看到当前模板弹窗。</div>
+							<div class="field-help">仅选中的用户进入首页时会看到当前模板弹窗。</div>
 						</a-form-item>
 					</a-col>
 				</a-row>
@@ -158,6 +164,7 @@ import { message } from 'ant-design-vue';
 import { PlusOutlined } from '@ant-design/icons-vue';
 import type { UploadFile } from 'ant-design-vue';
 import { getHomePopupConfig, setHomePopupConfig } from '@/api/system';
+import { getAppUserDetail, getAppUserList } from '@/api/user';
 import { uploadImage } from '@/api/upload';
 import { getProxiedImageUrl } from '@/utils/imageProxy';
 import WangEditor from '@/components/WangEditor/index.vue';
@@ -181,7 +188,6 @@ interface PopupTemplate {
 	showMode: ShowMode;
 	targetMode: TargetMode;
 	targetUserIds: number[];
-	targetUserIdsText: string;
 	pages: PopupPage[];
 }
 
@@ -233,15 +239,13 @@ const createTemplate = (index: number, data: Partial<PopupTemplate> = {}): Popup
 	showMode: data.showMode === 'always' ? 'always' : 'once',
 	targetMode: data.targetMode === 'specified' ? 'specified' : 'all',
 	targetUserIds: normalizeTargetUserIds(data.targetUserIds),
-	targetUserIdsText:
-		data.targetUserIdsText ||
-		normalizeTargetUserIds(data.targetUserIds)
-			.join(', '),
 	pages: Array.isArray(data.pages) && data.pages.length ? data.pages.map((page) => createPage(page)) : [createPage()],
 });
 
 const saving = ref(false);
 const uploadLoading = ref(false);
+const targetUserSearching = ref(false);
+const targetUserOptions = ref<Array<{ value: number; label: string }>>([]);
 
 const form = reactive({
 	enabled: false,
@@ -278,6 +282,48 @@ const normalizeTemplatesFromServer = (data: any): PopupTemplate[] => {
 	];
 };
 
+const formatTargetUserLabel = (user: any) => {
+	const nickname = user?.nickname || '未设置';
+	const phone = user?.phone ? ` · ${user.phone}` : '';
+	const openId = user?.openId ? ` · ${String(user.openId).slice(0, 8)}` : '';
+	return `${nickname}${phone}${openId} · ID:${user?.id}`;
+};
+
+const mergeTargetUserOptions = (options: Array<{ value: number; label: string }>) => {
+	const map = new Map(targetUserOptions.value.map((option) => [option.value, option]));
+	options.forEach((option) => map.set(option.value, option));
+	targetUserOptions.value = Array.from(map.values());
+};
+
+const hydrateTargetUserOptions = async (ids: number[]) => {
+	const normalizedIds = normalizeTargetUserIds(ids);
+	if (!normalizedIds.length) return;
+	const missingIds = normalizedIds.filter((id) => !targetUserOptions.value.some((option) => option.value === id));
+	if (!missingIds.length) return;
+	const results = await Promise.allSettled(missingIds.map((id) => getAppUserDetail(id)));
+	const options = results
+		.map((result, index) => {
+			if (result.status !== 'fulfilled') {
+				return {
+					value: missingIds[index],
+					label: `用户ID:${missingIds[index]}`,
+				};
+			}
+			const userInfo = result.value?.data?.userInfo || result.value?.userInfo || result.value?.data || {};
+			return {
+				value: Number(userInfo.id || missingIds[index]),
+				label: formatTargetUserLabel({ ...userInfo, id: userInfo.id || missingIds[index] }),
+			};
+		})
+		.filter((option) => Number.isInteger(option.value) && option.value > 0);
+	mergeTargetUserOptions(options);
+};
+
+const hydrateAllSelectedTargetUsers = async () => {
+	const ids = form.templates.flatMap((template) => template.targetUserIds);
+	await hydrateTargetUserOptions(ids);
+};
+
 const load = async () => {
 	try {
 		const res = await getHomePopupConfig();
@@ -289,8 +335,29 @@ const load = async () => {
 				? data.activeTemplateId
 				: form.templates[0]?.id || 'default';
 		form.version = Number(data.version) || 0;
+		await hydrateAllSelectedTargetUsers();
 	} catch {
 		message.error('获取首页弹窗配置失败');
+	}
+};
+
+const handleSearchTargetUser = async (keyword: string) => {
+	const normalizedKeyword = String(keyword || '').trim();
+	if (!normalizedKeyword) return;
+	targetUserSearching.value = true;
+	try {
+		const res = await getAppUserList({ page: 1, pageSize: 20, keyword: normalizedKeyword });
+		const list = res.data?.list || res.list || [];
+		mergeTargetUserOptions(
+			list.map((item: any) => ({
+				value: item.id,
+				label: formatTargetUserLabel(item),
+			})),
+		);
+	} catch {
+		message.error('搜索用户失败');
+	} finally {
+		targetUserSearching.value = false;
 	}
 };
 
@@ -383,9 +450,9 @@ const save = async () => {
 		message.warning('启用弹窗时请至少填写一个轮播页的标题、正文或图片');
 		return;
 	}
-	const targetUserIds = normalizeTargetUserIds(currentTemplate.targetUserIdsText);
+	const targetUserIds = normalizeTargetUserIds(currentTemplate.targetUserIds);
 	if (form.enabled && currentTemplate.targetMode === 'specified' && targetUserIds.length === 0) {
-		message.warning('指定用户弹窗请至少填写一个有效用户ID');
+		message.warning('指定用户弹窗请至少选择一个用户');
 		return;
 	}
 
@@ -401,8 +468,7 @@ const save = async () => {
 				buttonText: template.buttonText.trim() || '我知道了',
 				showMode: template.showMode,
 				targetMode: template.targetMode,
-				targetUserIds:
-					template.targetMode === 'specified' ? normalizeTargetUserIds(template.targetUserIdsText) : [],
+				targetUserIds: template.targetMode === 'specified' ? normalizeTargetUserIds(template.targetUserIds) : [],
 				pages: template.pages.map((page) => ({
 					id: page.id,
 					title: page.title.trim(),
