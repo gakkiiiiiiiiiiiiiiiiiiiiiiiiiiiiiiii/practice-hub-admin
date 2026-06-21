@@ -67,6 +67,27 @@
 					</a-col>
 				</a-row>
 
+				<a-row :gutter="16">
+					<a-col :span="12">
+						<a-form-item label="弹出对象">
+							<a-radio-group v-model:value="activeTemplate.targetMode">
+								<a-radio value="all">全部用户</a-radio>
+								<a-radio value="specified">指定用户</a-radio>
+							</a-radio-group>
+						</a-form-item>
+					</a-col>
+					<a-col v-if="activeTemplate.targetMode === 'specified'" :span="12">
+						<a-form-item label="指定用户ID">
+							<a-textarea
+								v-model:value="activeTemplate.targetUserIdsText"
+								placeholder="输入小程序用户ID，支持逗号、空格或换行分隔"
+								:auto-size="{ minRows: 2, maxRows: 4 }"
+							/>
+							<div class="field-help">仅这些用户进入首页时会看到当前模板弹窗。</div>
+						</a-form-item>
+					</a-col>
+				</a-row>
+
 				<a-divider orientation="left">弹窗轮播内容</a-divider>
 
 				<div
@@ -142,6 +163,7 @@ import { getProxiedImageUrl } from '@/utils/imageProxy';
 import WangEditor from '@/components/WangEditor/index.vue';
 
 type ShowMode = 'once' | 'always';
+type TargetMode = 'all' | 'specified';
 
 interface PopupPage {
 	id: string;
@@ -157,6 +179,9 @@ interface PopupTemplate {
 	title: string;
 	buttonText: string;
 	showMode: ShowMode;
+	targetMode: TargetMode;
+	targetUserIds: number[];
+	targetUserIdsText: string;
 	pages: PopupPage[];
 }
 
@@ -167,6 +192,21 @@ const stripRichText = (html: string) =>
 		.trim();
 
 const createId = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+const normalizeTargetUserIds = (input: unknown): number[] => {
+	const rawValues = Array.isArray(input)
+		? input
+		: String(input || '')
+				.split(/[\s,，;；]+/)
+				.filter(Boolean);
+	return Array.from(
+		new Set(
+			rawValues
+				.map((item) => Number(item))
+				.filter((id) => Number.isInteger(id) && id > 0),
+		),
+	);
+};
 
 const createPage = (data: Partial<PopupPage> = {}): PopupPage => ({
 	id: data.id || createId('page'),
@@ -191,6 +231,12 @@ const createTemplate = (index: number, data: Partial<PopupTemplate> = {}): Popup
 	title: data.title || '',
 	buttonText: data.buttonText || '我知道了',
 	showMode: data.showMode === 'always' ? 'always' : 'once',
+	targetMode: data.targetMode === 'specified' ? 'specified' : 'all',
+	targetUserIds: normalizeTargetUserIds(data.targetUserIds),
+	targetUserIdsText:
+		data.targetUserIdsText ||
+		normalizeTargetUserIds(data.targetUserIds)
+			.join(', '),
 	pages: Array.isArray(data.pages) && data.pages.length ? data.pages.map((page) => createPage(page)) : [createPage()],
 });
 
@@ -337,6 +383,11 @@ const save = async () => {
 		message.warning('启用弹窗时请至少填写一个轮播页的标题、正文或图片');
 		return;
 	}
+	const targetUserIds = normalizeTargetUserIds(currentTemplate.targetUserIdsText);
+	if (form.enabled && currentTemplate.targetMode === 'specified' && targetUserIds.length === 0) {
+		message.warning('指定用户弹窗请至少填写一个有效用户ID');
+		return;
+	}
 
 	saving.value = true;
 	try {
@@ -349,6 +400,9 @@ const save = async () => {
 				title: template.title.trim(),
 				buttonText: template.buttonText.trim() || '我知道了',
 				showMode: template.showMode,
+				targetMode: template.targetMode,
+				targetUserIds:
+					template.targetMode === 'specified' ? normalizeTargetUserIds(template.targetUserIdsText) : [],
 				pages: template.pages.map((page) => ({
 					id: page.id,
 					title: page.title.trim(),

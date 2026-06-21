@@ -133,6 +133,8 @@ export function setHomePopupConfig(data: {
     title?: string
     buttonText?: string
     showMode?: 'once' | 'always'
+    targetMode?: 'all' | 'specified'
+    targetUserIds?: number[]
     pages: Array<{
       id: string
       title?: string
