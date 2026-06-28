@@ -8,6 +8,10 @@ import {
 
 export const DEFAULT_BATCH_COURSE_DEFAULTS: CourseDefaultParams = { ...FALLBACK_COURSE_DEFAULT_PARAMS };
 
+export const PAPER_EXAM_CONTENT_TYPE = 'paper_exam' as const;
+export const PAPER_EXAM_DEFAULT_PRICE = 80;
+export const PAPER_EXAM_EXCEL_HEADERS = ['学校', '专业课代码', '真题年份', '答案年份'] as const;
+
 export const DEFAULT_FILENAME_TEMPLATE = '{category}-{course}';
 
 export const FILENAME_TEMPLATE_FIELDS = [
@@ -57,6 +61,16 @@ export type BatchCoursePreviewGroup = {
 	exam_year?: string;
 	answer_year?: string;
 	files: BatchCourseFileItem[];
+	parseError?: string;
+	sourceRow?: number;
+};
+
+export type PaperExamExcelRow = {
+	rowNumber: number;
+	school: string;
+	major: string;
+	exam_year: string;
+	answer_year: string;
 	parseError?: string;
 };
 
@@ -456,6 +470,47 @@ export function buildBatchGroupsByFilenameTemplate(
 	}
 
 	return [...finalizeBatchGroups([...groupMap.values()]), ...invalidFiles];
+}
+
+export function buildPaperExamCourseName(row: Pick<PaperExamExcelRow, 'school' | 'major' | 'exam_year' | 'answer_year'>) {
+	return [row.school, row.major].map((item) => String(item || '').trim()).filter(Boolean).join('') || '未命名';
+}
+
+export function buildPaperExamGroupsFromRows(
+	rows: PaperExamExcelRow[],
+	category: string,
+	subCategory: string,
+): BatchCoursePreviewGroup[] {
+	return rows.map((row) => {
+		const missing: string[] = [];
+		if (!row.school) missing.push('学校');
+		if (!row.major) missing.push('专业课代码');
+		if (!row.exam_year) missing.push('真题年份');
+		if (!row.answer_year) missing.push('答案年份');
+
+		const parseError = row.parseError || (missing.length ? `第 ${row.rowNumber} 行缺少：${missing.join('、')}` : '');
+		const courseName = buildPaperExamCourseName(row);
+		const key = createGroupKey(category, subCategory, `${courseName}-${row.rowNumber}`, {
+			school: row.school,
+			major: row.major,
+			exam_year: row.exam_year,
+			answer_year: row.answer_year,
+		});
+
+		return {
+			key,
+			courseName,
+			category,
+			sub_category: subCategory,
+			school: row.school,
+			major: row.major,
+			exam_year: row.exam_year,
+			answer_year: row.answer_year,
+			files: [],
+			sourceRow: row.rowNumber,
+			parseError,
+		};
+	});
 }
 
 function finalizeBatchGroups(groups: BatchCoursePreviewGroup[]) {

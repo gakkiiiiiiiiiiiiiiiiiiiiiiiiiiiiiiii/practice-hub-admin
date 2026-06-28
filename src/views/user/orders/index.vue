@@ -86,6 +86,16 @@
 						<a-tag v-if="record.refunded" color="default">已退款</a-tag>
 						<a-tag v-else :color="getStatusColor(record.status)">{{ getStatusLabel(record.status) }}</a-tag>
 					</template>
+					<template v-else-if="column.key === 'delivery'">
+						<template v-if="isPaperShippingOrder(record)">
+							<a-tag :color="getDeliveryStatusColor(record.deliveryStatus)">
+								{{ getDeliveryStatusLabel(record.deliveryStatus) }}
+							</a-tag>
+							<div v-if="record.trackingNo" class="sub-text">{{ record.trackingNo }}</div>
+							<div v-if="record.shipperName" class="sub-text">{{ record.shipperName }}</div>
+						</template>
+						<span v-else class="sub-text">-</span>
+					</template>
 					<template v-else-if="column.key === 'orderType'">
 						<a-tag>{{ record.orderType === 'package' ? '套餐' : '课程' }}</a-tag>
 					</template>
@@ -98,6 +108,14 @@
 					<template v-else-if="column.key === 'action'">
 						<a-space>
 							<a-button type="link" size="small" @click="handleViewDetail(record)">查看详情</a-button>
+							<a-button
+								v-if="canShipOrder(record)"
+								type="link"
+								size="small"
+								@click="openShipModal(record)"
+							>
+								{{ record.trackingNo ? '改运单' : '发货' }}
+							</a-button>
 							<a-button
 								v-if="record.status === 'pending'"
 								type="link"
@@ -140,6 +158,29 @@
 						<a-tag :color="getStatusColor(currentRecord.status)">{{ getStatusLabel(currentRecord.status) }}</a-tag>
 					</a-descriptions-item>
 					<a-descriptions-item label="购买内容" :span="2">{{ currentRecord.productName }}</a-descriptions-item>
+					<a-descriptions-item v-if="currentRecord.shippingAddress" label="收货人">
+						{{ currentRecord.shippingAddress.name || '-' }}
+					</a-descriptions-item>
+					<a-descriptions-item v-if="currentRecord.shippingAddress" label="收货电话">
+						{{ currentRecord.shippingAddress.phone || '-' }}
+					</a-descriptions-item>
+					<a-descriptions-item v-if="currentRecord.shippingAddress" label="收货地址" :span="2">
+						{{ formatShippingAddress(currentRecord.shippingAddress) }}
+					</a-descriptions-item>
+					<a-descriptions-item v-if="isPaperShippingOrder(currentRecord)" label="发货状态">
+						<a-tag :color="getDeliveryStatusColor(currentRecord.deliveryStatus)">
+							{{ getDeliveryStatusLabel(currentRecord.deliveryStatus) }}
+						</a-tag>
+					</a-descriptions-item>
+					<a-descriptions-item v-if="isPaperShippingOrder(currentRecord)" label="运单号">
+						{{ currentRecord.trackingNo || '-' }}
+					</a-descriptions-item>
+					<a-descriptions-item v-if="isPaperShippingOrder(currentRecord)" label="物流公司">
+						{{ currentRecord.shipperName || currentRecord.shipperCode || '-' }}
+					</a-descriptions-item>
+					<a-descriptions-item v-if="isPaperShippingOrder(currentRecord)" label="发货时间">
+						{{ currentRecord.shippedAt ? formatTime(currentRecord.shippedAt) : '-' }}
+					</a-descriptions-item>
 					<a-descriptions-item label="实付金额">¥{{ formatAmount(currentRecord.amount) }}</a-descriptions-item>
 					<a-descriptions-item label="原价">
 						{{ currentRecord.originalAmount != null ? `¥${formatAmount(currentRecord.originalAmount)}` : '-' }}
@@ -151,6 +192,50 @@
 						{{ currentRecord.paidTime ? formatTime(currentRecord.paidTime) : '-' }}
 					</a-descriptions-item>
 				</a-descriptions>
+
+				<div v-if="isPaperShippingOrder(currentRecord)" class="shipment-detail">
+					<div class="section-title-row">
+						<div class="cart-title">物流信息</div>
+						<a-space>
+							<a-button v-if="canShipOrder(currentRecord)" size="small" @click="openShipModal(currentRecord)">
+								{{ currentRecord.trackingNo ? '修改运单' : '录入发货' }}
+							</a-button>
+							<a-button
+								size="small"
+								:disabled="!currentRecord.trackingNo"
+								:loading="logisticsQueryingId === currentRecord.id"
+								@click="handleQueryLogistics(currentRecord)"
+							>
+								查询物流
+							</a-button>
+						</a-space>
+					</div>
+					<a-alert
+						v-if="currentRecord.logisticsSnapshot && !currentRecord.logisticsSnapshot.configured"
+						type="info"
+						show-icon
+						:message="currentRecord.logisticsSnapshot.message || '快递鸟 API 未配置，已保存运单号'"
+						class="shipment-alert"
+					/>
+					<a-alert
+						v-else-if="currentRecord.logisticsSnapshot && !currentRecord.logisticsSnapshot.success"
+						type="warning"
+						show-icon
+						:message="currentRecord.logisticsSnapshot.reason || currentRecord.logisticsSnapshot.message || '物流查询失败'"
+						class="shipment-alert"
+					/>
+					<div v-if="currentRecord.logisticsSnapshot?.traces?.length" class="logistics-traces">
+						<a-timeline>
+							<a-timeline-item
+								v-for="(trace, index) in currentRecord.logisticsSnapshot.traces"
+								:key="`${trace.time}-${index}`"
+							>
+								<div class="trace-text">{{ trace.text || '-' }}</div>
+								<div class="sub-text">{{ trace.time || '-' }}</div>
+							</a-timeline-item>
+						</a-timeline>
+					</div>
+				</div>
 
 				<div v-if="showAfterSaleDetail(currentRecord)" class="after-sale-detail">
 					<div class="cart-title">售后信息</div>
@@ -191,6 +276,9 @@
 					>
 						<template #bodyCell="{ column, record }">
 							<template v-if="column.key === 'price'">¥{{ formatAmount(record.price) }}</template>
+							<template v-else-if="column.key === 'contentType'">
+								<a-tag>{{ getCartItemTypeLabel(record.contentType) }}</a-tag>
+							</template>
 						</template>
 					</a-table>
 				</div>
@@ -224,6 +312,33 @@
 				</a-form-item>
 			</a-form>
 		</a-modal>
+
+		<a-modal
+			v-model:open="shipVisible"
+			:title="shipTarget?.trackingNo ? '修改运单' : '录入发货'"
+			ok-text="保存"
+			cancel-text="取消"
+			:confirm-loading="shipping"
+			@ok="handleConfirmShip"
+		>
+			<a-form layout="vertical">
+				<a-form-item label="订单号">
+					<a-input :value="shipTarget?.orderNo" disabled />
+				</a-form-item>
+				<a-form-item label="运单号" required>
+					<a-input v-model:value="shipForm.tracking_no" placeholder="请输入物流运单号" :maxlength="80" />
+				</a-form-item>
+				<a-form-item label="物流公司编码">
+					<a-input v-model:value="shipForm.shipper_code" placeholder="可选，留空时尝试自动识别" :maxlength="40" />
+				</a-form-item>
+				<a-form-item label="物流公司名称">
+					<a-input v-model:value="shipForm.shipper_name" placeholder="可选，例如顺丰速运" :maxlength="80" />
+				</a-form-item>
+				<a-form-item label="备注">
+					<a-textarea v-model:value="shipForm.remark" :rows="3" placeholder="可选" :maxlength="255" />
+				</a-form-item>
+			</a-form>
+		</a-modal>
 	</div>
 </template>
 
@@ -231,7 +346,14 @@
 import { onMounted, ref } from 'vue'
 import dayjs from 'dayjs'
 import { message } from 'ant-design-vue'
-import { getAdminOrderDetail, getAdminOrderList, refundAdminOrder, syncAdminOrderPayment } from '@/api/order'
+import {
+	getAdminOrderDetail,
+	getAdminOrderList,
+	queryAdminOrderLogistics,
+	refundAdminOrder,
+	shipAdminOrder,
+	syncAdminOrderPayment,
+} from '@/api/order'
 
 const loading = ref(false)
 const detailLoading = ref(false)
@@ -240,6 +362,16 @@ const refundVisible = ref(false)
 const refunding = ref(false)
 const refundTarget = ref<any>(null)
 const refundRemark = ref('')
+const shipVisible = ref(false)
+const shipping = ref(false)
+const shipTarget = ref<any>(null)
+const logisticsQueryingId = ref<number | null>(null)
+const shipForm = ref({
+	tracking_no: '',
+	shipper_code: '',
+	shipper_name: '',
+	remark: '',
+})
 const dataSource = ref<any[]>([])
 const detailVisible = ref(false)
 const currentRecord = ref<any>(null)
@@ -265,6 +397,7 @@ const columns = [
 	{ title: '金额', key: 'amount', width: 120 },
 	{ title: '类型', key: 'orderType', width: 90 },
 	{ title: '状态', key: 'status', width: 110 },
+	{ title: '发货', key: 'delivery', width: 150 },
 	{ title: '售后原因', key: 'afterSale', width: 220 },
 	{ title: '下单时间', key: 'createTime', width: 170 },
 	{ title: '支付时间', key: 'paidTime', width: 170 },
@@ -274,8 +407,31 @@ const columns = [
 const cartColumns = [
 	{ title: '课程ID', dataIndex: 'courseId', key: 'courseId', width: 100 },
 	{ title: '课程名称', dataIndex: 'name', key: 'name' },
+	{ title: '类型', key: 'contentType', width: 110 },
 	{ title: '价格', key: 'price', width: 100 },
 ]
+
+const getCartItemTypeLabel = (contentType?: string) => {
+	if (contentType === 'file') return '文件课程'
+	if (contentType === 'paper_exam') return '纸质真题'
+	return '普通题库'
+}
+
+const formatShippingAddress = (address: any) => {
+	if (!address) return '-'
+	const detail = [address.province, address.city, address.district, address.detail].filter(Boolean).join('')
+	return detail || address.fullAddress || '-'
+}
+
+const isPaperShippingOrder = (record: any) => {
+	return Boolean(
+		record?.requiresShipping ||
+		record?.contentType === 'paper_exam' ||
+		record?.cartItems?.some((item: any) => item.contentType === 'paper_exam')
+	)
+}
+
+const canShipOrder = (record: any) => record?.status === 'paid' && isPaperShippingOrder(record)
 
 const fetchData = async () => {
 	loading.value = true
@@ -343,6 +499,79 @@ const openRefundModal = (record: any) => {
 	refundVisible.value = true
 }
 
+const openShipModal = (record: any) => {
+	shipTarget.value = record
+	shipForm.value = {
+		tracking_no: record?.trackingNo || '',
+		shipper_code: record?.shipperCode || '',
+		shipper_name: record?.shipperName || '',
+		remark: record?.shipmentRemark || '',
+	}
+	shipVisible.value = true
+}
+
+const refreshRecordAfterShipment = async (orderId: number) => {
+	await fetchData()
+	if (currentRecord.value?.id === orderId) {
+		const res = await getAdminOrderDetail(orderId)
+		currentRecord.value = res.data || currentRecord.value
+	}
+}
+
+const handleConfirmShip = async () => {
+	if (!shipTarget.value) return
+	const trackingNo = shipForm.value.tracking_no.trim()
+	if (!trackingNo) {
+		message.warning('请输入物流运单号')
+		return
+	}
+
+	shipping.value = true
+	try {
+		const res = await shipAdminOrder(shipTarget.value.id, {
+			tracking_no: trackingNo,
+			shipper_code: shipForm.value.shipper_code.trim() || undefined,
+			shipper_name: shipForm.value.shipper_name.trim() || undefined,
+			remark: shipForm.value.remark.trim() || undefined,
+		})
+		const logistics = res.data?.logistics
+		if (logistics?.configured === false) {
+			message.info(logistics.message || '发货信息已保存，物流查询 API 未配置')
+		} else if (logistics?.success === false) {
+			message.warning(logistics.reason || logistics.message || '发货信息已保存，物流查询暂未成功')
+		} else {
+			message.success(res.data?.message || '发货信息已保存')
+		}
+		shipVisible.value = false
+		await refreshRecordAfterShipment(shipTarget.value.id)
+	} catch (error: any) {
+		message.error(error?.message || '保存发货信息失败')
+	} finally {
+		shipping.value = false
+	}
+}
+
+const handleQueryLogistics = async (record: any) => {
+	if (!record?.id || !record.trackingNo) return
+	logisticsQueryingId.value = record.id
+	try {
+		const res = await queryAdminOrderLogistics(record.id)
+		const logistics = res.data
+		if (logistics?.configured === false) {
+			message.info(logistics.message || '快递鸟 API 未配置')
+		} else if (logistics?.success === false) {
+			message.warning(logistics.reason || logistics.message || '物流查询失败')
+		} else {
+			message.success('物流信息已更新')
+		}
+		await refreshRecordAfterShipment(record.id)
+	} catch (error: any) {
+		message.error(error?.message || '查询物流失败')
+	} finally {
+		logisticsQueryingId.value = null
+	}
+}
+
 const handleConfirmRefund = async () => {
 	if (!refundTarget.value) {
 		return
@@ -402,6 +631,22 @@ const getStatusColor = (status: string) => {
 		after_sale: 'red',
 	}
 	return map[status] || 'default'
+}
+
+const getDeliveryStatusLabel = (status?: string) => {
+	const map: Record<string, string> = {
+		pending: '待发货',
+		shipped: '已发货',
+	}
+	return map[status || 'pending'] || status || '待发货'
+}
+
+const getDeliveryStatusColor = (status?: string) => {
+	const map: Record<string, string> = {
+		pending: 'orange',
+		shipped: 'green',
+	}
+	return map[status || 'pending'] || 'default'
 }
 
 const getAfterSaleStatusLabel = (status: number) => {
@@ -468,8 +713,34 @@ onMounted(fetchData)
 	font-weight: 600;
 }
 
+.section-title-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	margin-bottom: 12px;
+}
+
 .after-sale-detail {
 	margin-top: 20px;
+}
+
+.shipment-detail {
+	margin-top: 20px;
+}
+
+.shipment-alert {
+	margin-bottom: 12px;
+}
+
+.logistics-traces {
+	margin-top: 12px;
+}
+
+.trace-text {
+	color: #111827;
+	line-height: 1.6;
+	word-break: break-word;
 }
 
 .after-sale-description {

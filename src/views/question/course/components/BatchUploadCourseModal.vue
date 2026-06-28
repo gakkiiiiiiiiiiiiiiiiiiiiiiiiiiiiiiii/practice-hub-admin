@@ -46,9 +46,26 @@
 					</a-form-item>
 				</a-form>
 			</a-tab-pane>
+			<a-tab-pane key="paperExcel" tab="纸质真题 Excel">
+				<a-form :label-col="{ span: 5 }" :wrapper-col="{ span: 18 }">
+					<a-form-item label="目标分类" required>
+						<a-cascader
+							v-model:value="categoryValue"
+							:options="categoryOptions"
+							:field-names="{ label: 'label', value: 'value', children: 'children' }"
+							:show-search="{ filter: cascaderFilter }"
+							change-on-select
+							allow-clear
+							placeholder="请选择一级或二级分类"
+							style="width: 100%"
+						/>
+						<div class="form-tip">Excel 需包含「学校、专业课代码、真题年份、答案年份」四列；课程介绍使用系统课程介绍模板。</div>
+					</a-form-item>
+				</a-form>
+			</a-tab-pane>
 		</a-tabs>
 
-		<div class="batch-upload-file-actions">
+		<div v-if="activeMode !== 'paperExcel'" class="batch-upload-file-actions">
 			<a-upload
 				:show-upload-list="false"
 				:before-upload="beforeSelectFiles"
@@ -78,6 +95,22 @@
 				class="batch-upload-folder-input"
 				@change="handleFolderSelect"
 			/>
+		</div>
+		<div v-else class="batch-upload-file-actions">
+			<a-upload
+				:show-upload-list="false"
+				:before-upload="beforeSelectPaperExcel"
+				accept=".xlsx"
+			>
+				<a-button>
+					<upload-outlined />
+					选择 Excel
+				</a-button>
+			</a-upload>
+			<a-button danger :disabled="!paperExcelFileName || uploading" @click="clearPaperExcelFile">
+				清空 Excel
+			</a-button>
+			<span class="form-tip">{{ paperExcelFileName ? `已选 ${paperExcelFileName}` : '请选择 .xlsx 文件' }}</span>
 		</div>
 
 		<a-collapse v-model:activeKey="coverSettingsExpanded" class="batch-upload-cover">
@@ -127,6 +160,13 @@
 
 		<a-collapse v-model:activeKey="defaultsExpanded" class="batch-upload-defaults">
 			<a-collapse-panel key="defaults" header="默认参数（可修改，将应用于全部新课程）">
+				<a-alert
+					v-if="activeMode === 'paperExcel'"
+					type="info"
+					show-icon
+					message="纸质专业真题将按 Excel 行创建实物发货课程，默认售价 80 元，购买时小程序要求选择微信收货地址。"
+					style="margin-bottom: 16px"
+				/>
 				<a-form :label-col="{ span: 6 }" :wrapper-col="{ span: 16 }">
 					<a-row :gutter="16">
 						<template v-if="activeMode === 'filename'">
@@ -157,7 +197,7 @@
 								</a-form-item>
 							</a-col>
 						</template>
-						<a-col :span="12">
+						<a-col v-if="activeMode !== 'paperExcel'" :span="12">
 							<a-form-item>
 								<template #label>
 									<span v-if="activeMode === 'filename'" class="template-variable-label">
@@ -171,7 +211,7 @@
 								<a-input v-model:value="defaults.subject" allow-clear placeholder="可选" />
 							</a-form-item>
 						</a-col>
-						<a-col :span="12">
+						<a-col v-if="activeMode !== 'paperExcel'" :span="12">
 							<a-form-item>
 								<template #label>
 									<span v-if="activeMode === 'filename'" class="template-variable-label">
@@ -185,7 +225,7 @@
 								<a-input v-model:value="defaults.school" allow-clear placeholder="可选" />
 							</a-form-item>
 						</a-col>
-						<a-col :span="12">
+						<a-col v-if="activeMode !== 'paperExcel'" :span="12">
 							<a-form-item>
 								<template #label>
 									<span v-if="activeMode === 'filename'" class="template-variable-label">
@@ -199,7 +239,7 @@
 								<a-input v-model:value="defaults.major" allow-clear placeholder="可选" />
 							</a-form-item>
 						</a-col>
-						<a-col :span="12">
+						<a-col v-if="activeMode !== 'paperExcel'" :span="12">
 							<a-form-item>
 								<template #label>
 									<span v-if="activeMode === 'filename'" class="template-variable-label">
@@ -213,7 +253,7 @@
 								<a-input v-model:value="defaults.exam_year" allow-clear placeholder="可选" />
 							</a-form-item>
 						</a-col>
-						<a-col :span="12">
+						<a-col v-if="activeMode !== 'paperExcel'" :span="12">
 							<a-form-item>
 								<template #label>
 									<span v-if="activeMode === 'filename'" class="template-variable-label">
@@ -237,7 +277,7 @@
 								<a-input-number v-model:value="defaults.agent_price" :min="0" :step="1" :precision="0" style="width: 100%" />
 							</a-form-item>
 						</a-col>
-						<a-col :span="12">
+						<a-col v-if="activeMode !== 'paperExcel'" :span="12">
 							<a-form-item label="是否免费">
 								<a-radio-group v-model:value="defaults.is_free">
 									<a-radio :value="0">付费</a-radio>
@@ -245,7 +285,7 @@
 								</a-radio-group>
 							</a-form-item>
 						</a-col>
-						<a-col :span="12">
+						<a-col v-if="activeMode !== 'paperExcel'" :span="12">
 							<a-form-item label="有效期(天)">
 								<a-input-number
 									v-model:value="defaults.validity_days"
@@ -256,7 +296,7 @@
 								/>
 							</a-form-item>
 						</a-col>
-						<a-col :span="12">
+						<a-col v-if="activeMode !== 'paperExcel'" :span="12">
 							<a-form-item label="源文件查看">
 								<a-radio-group v-model:value="defaults.allow_source_file">
 									<a-radio :value="0">关闭</a-radio>
@@ -281,7 +321,7 @@
 			<div class="batch-upload-preview__header">
 				<span>解析预览（{{ previewGroups.length }} 门课程）</span>
 				<span v-if="invalidPreviewCount > 0" class="batch-upload-preview__warn">
-					{{ invalidPreviewCount }} 个文件无法解析
+					{{ invalidPreviewCount }} 个{{ activeMode === 'paperExcel' ? '行' : '文件' }}无法解析
 				</span>
 			</div>
 			<a-table
@@ -310,6 +350,9 @@
 						<a-tooltip :title="getFileListText(record)">
 							<span>{{ record.files.length }} 个文件</span>
 						</a-tooltip>
+					</template>
+					<template v-else-if="['school', 'major', 'exam_year', 'answer_year'].includes(String(column.key))">
+						<span>{{ record[column.key] || '—' }}</span>
 					</template>
 					<template v-else-if="column.key === 'status'">
 						<a-tag v-if="record.parseError" color="error">解析失败</a-tag>
@@ -349,14 +392,17 @@ import type { CourseCoverTemplatePack } from '@/utils/course-cover';
 import {
 	DEFAULT_BATCH_COURSE_DEFAULTS,
 	DEFAULT_FILENAME_TEMPLATE,
+	PAPER_EXAM_DEFAULT_PRICE,
 	appendFilenameTemplateVariable,
 	buildBatchGroupsByCategory,
 	buildBatchGroupsByFilenameTemplate,
+	buildPaperExamGroupsFromRows,
 	mergeSelectedFiles,
 	type BatchCoursePreviewGroup,
 	type BatchCourseUploadItem,
 	type FilenameTemplateField,
 	type BatchCourseDefaults,
+	type PaperExamExcelRow,
 } from '@/utils/batch-course-upload';
 import {
 	FALLBACK_COURSE_DEFAULT_PARAMS,
@@ -374,10 +420,12 @@ const emit = defineEmits<{
 	(e: 'success'): void;
 }>();
 
-const activeMode = ref<'category' | 'filename'>('category');
+const activeMode = ref<'category' | 'filename' | 'paperExcel'>('category');
 const categoryValue = ref<string[]>([]);
 const filenameTemplate = ref(DEFAULT_FILENAME_TEMPLATE);
 const selectedFiles = ref<File[]>([]);
+const paperExcelFileName = ref('');
+const paperExcelRows = ref<PaperExamExcelRow[]>([]);
 const previewGroups = ref<BatchCourseUploadItem[]>([]);
 const defaults = ref<BatchCourseDefaults>({ ...DEFAULT_BATCH_COURSE_DEFAULTS, introduction: '' });
 const defaultsExpanded = ref<string[]>([]);
@@ -420,13 +468,27 @@ const categoryOptions = computed(() =>
 	})),
 );
 
-const previewColumns = [
-	{ title: '课程名称', key: 'courseName', width: 220 },
-	{ title: '分类', key: 'category', width: 180 },
-	{ title: '文件', key: 'files', width: 90 },
-	{ title: '状态', key: 'status', width: 90 },
-	{ title: '说明', key: 'message' },
-];
+const previewColumns = computed(() => {
+	if (activeMode.value === 'paperExcel') {
+		return [
+			{ title: '课程名称', key: 'courseName', width: 240 },
+			{ title: '分类', key: 'category', width: 170 },
+			{ title: '学校', key: 'school', width: 140 },
+			{ title: '专业课代码', key: 'major', width: 120 },
+			{ title: '真题年份', key: 'exam_year', width: 110 },
+			{ title: '答案年份', key: 'answer_year', width: 110 },
+			{ title: '状态', key: 'status', width: 90 },
+			{ title: '说明', key: 'message' },
+		];
+	}
+	return [
+		{ title: '课程名称', key: 'courseName', width: 220 },
+		{ title: '分类', key: 'category', width: 180 },
+		{ title: '文件', key: 'files', width: 90 },
+		{ title: '状态', key: 'status', width: 90 },
+		{ title: '说明', key: 'message' },
+	];
+});
 
 const invalidPreviewCount = computed(() => previewGroups.value.filter((item) => item.parseError).length);
 const validPreviewGroups = computed(() => previewGroups.value.filter((item) => !item.parseError));
@@ -440,7 +502,12 @@ const coverPreviewCourseOptions = computed(() =>
 
 const canStartUpload = computed(() => {
 	if (uploading.value) return false;
-	if (selectedFiles.value.length === 0) return false;
+	if (activeMode.value === 'paperExcel') {
+		if (!paperExcelFileName.value) return false;
+		if (categoryValue.value.length === 0) return false;
+	} else if (selectedFiles.value.length === 0) {
+		return false;
+	}
 	if (validPreviewGroups.value.length === 0) return false;
 	if (activeMode.value === 'category' && categoryValue.value.length === 0) return false;
 	if (
@@ -566,7 +633,140 @@ const clearFilenameTemplate = () => {
 	filenameTemplate.value = '';
 };
 
+const normalizeExcelText = (value: any) => {
+	if (value === undefined || value === null) return '';
+	if (typeof value === 'object') {
+		if (Array.isArray(value.richText)) {
+			return value.richText.map((item: any) => item?.text || '').join('').trim();
+		}
+		if (value.text !== undefined) return String(value.text || '').trim();
+		if (value.result !== undefined) return String(value.result || '').trim();
+		if (value.hyperlink && value.text) return String(value.text || '').trim();
+	}
+	return String(value).trim();
+};
+
+const normalizeHeaderText = (value: any) => normalizeExcelText(value).replace(/\s+/g, '');
+
+const parsePaperExamExcelRows = async (file: File) => {
+	const fileName = String(file?.name || '').trim();
+	if (!/\.xlsx$/i.test(fileName)) {
+		throw new Error('仅支持 .xlsx 文件，请将 Excel 另存为 .xlsx 后再导入');
+	}
+	const ExcelJS = await import('exceljs');
+	const WorkbookCtor = ExcelJS.Workbook || (ExcelJS as any).default?.Workbook;
+	if (!WorkbookCtor) {
+		throw new Error('Excel 解析组件加载失败');
+	}
+	const workbook = new WorkbookCtor();
+	await workbook.xlsx.load(await file.arrayBuffer());
+	const worksheet = workbook.worksheets[0];
+	if (!worksheet) {
+		throw new Error('Excel 文件中没有工作表');
+	}
+
+	const requiredHeaders = {
+		school: '学校',
+		major: '专业课代码',
+		exam_year: '真题年份',
+		answer_year: '答案年份',
+	};
+	let headerRowNumber = 0;
+	let headerColumns: Record<keyof typeof requiredHeaders, number> = {
+		school: 0,
+		major: 0,
+		exam_year: 0,
+		answer_year: 0,
+	};
+
+	for (let rowNumber = 1; rowNumber <= Math.min(10, worksheet.rowCount); rowNumber += 1) {
+		const row = worksheet.getRow(rowNumber);
+		const nextColumns = { ...headerColumns };
+		row.eachCell((cell, colNumber) => {
+			const text = normalizeHeaderText(cell.value);
+			(Object.entries(requiredHeaders) as Array<[keyof typeof requiredHeaders, string]>).forEach(([key, label]) => {
+				if (text === label) {
+					nextColumns[key] = colNumber;
+				}
+			});
+		});
+		if (Object.values(nextColumns).every((col) => col > 0)) {
+			headerRowNumber = rowNumber;
+			headerColumns = nextColumns;
+			break;
+		}
+	}
+
+	if (!headerRowNumber) {
+		throw new Error('未找到表头，请确认包含「学校、专业课代码、真题年份、答案年份」四列');
+	}
+
+	const rows: PaperExamExcelRow[] = [];
+	for (let rowNumber = headerRowNumber + 1; rowNumber <= worksheet.rowCount; rowNumber += 1) {
+		const row = worksheet.getRow(rowNumber);
+		const parsed = {
+			rowNumber,
+			school: normalizeExcelText(row.getCell(headerColumns.school).value),
+			major: normalizeExcelText(row.getCell(headerColumns.major).value),
+			exam_year: normalizeExcelText(row.getCell(headerColumns.exam_year).value),
+			answer_year: normalizeExcelText(row.getCell(headerColumns.answer_year).value),
+		};
+		if (!parsed.school && !parsed.major && !parsed.exam_year && !parsed.answer_year) {
+			continue;
+		}
+		rows.push(parsed);
+	}
+
+	if (rows.length === 0) {
+		throw new Error('Excel 中没有可导入的数据行');
+	}
+	return rows;
+};
+
+const beforeSelectPaperExcel = (file: File) => {
+	void (async () => {
+		try {
+			const rows = await parsePaperExamExcelRows(file);
+			paperExcelFileName.value = file.name;
+			paperExcelRows.value = rows;
+			message.success(`已解析 ${rows.length} 行纸质真题数据`);
+			rebuildPreview();
+		} catch (error: any) {
+			paperExcelFileName.value = '';
+			paperExcelRows.value = [];
+			previewGroups.value = [];
+			message.error(error?.message || 'Excel 解析失败');
+		}
+	})();
+	return false;
+};
+
+const clearPaperExcelFile = () => {
+	paperExcelFileName.value = '';
+	paperExcelRows.value = [];
+	previewGroups.value = [];
+	syncCoverPreviewGroupKey();
+};
+
 const rebuildPreview = () => {
+	if (activeMode.value === 'paperExcel') {
+		if (paperExcelRows.value.length === 0) {
+			previewGroups.value = [];
+			return;
+		}
+		const category = categoryValue.value[0] || '';
+		const subCategory = categoryValue.value[1] || '';
+		const groups = buildPaperExamGroupsFromRows(paperExcelRows.value, category, subCategory);
+		previewGroups.value = groups.map((group) => ({
+			...group,
+			status: 'pending' as const,
+			error: '',
+			courseId: undefined,
+		}));
+		syncCoverPreviewGroupKey();
+		return;
+	}
+
 	if (selectedFiles.value.length === 0) {
 		previewGroups.value = [];
 		return;
@@ -612,6 +812,12 @@ watch(
 watch(
 	() => defaults.value.is_free,
 	(value) => {
+		if (activeMode.value === 'paperExcel') {
+			defaults.value.is_free = 0;
+			defaults.value.validity_days = null;
+			defaults.value.allow_source_file = 0;
+			return;
+		}
 		if (value === 1) {
 			defaults.value.validity_days = null;
 		} else if (defaults.value.validity_days == null) {
@@ -664,8 +870,28 @@ const clearSelectedFiles = () => {
 	syncCoverPreviewGroupKey();
 };
 
+const applyPaperExamDefaults = () => {
+	defaults.value.price = PAPER_EXAM_DEFAULT_PRICE;
+	defaults.value.is_free = 0;
+	defaults.value.validity_days = null;
+	defaults.value.allow_source_file = 0;
+	defaults.value.content_type = 'paper_exam';
+};
+
 const handleModeChange = () => {
 	previewGroups.value = [];
+	if (activeMode.value === 'paperExcel') {
+		applyPaperExamDefaults();
+		rebuildPreview();
+		return;
+	}
+	if (defaults.value.content_type === 'paper_exam') {
+		defaults.value.content_type = 'file';
+		if (defaults.value.validity_days == null) {
+			defaults.value.validity_days = 365;
+		}
+	}
+	rebuildPreview();
 };
 
 const handleCourseNameChange = (record: BatchCourseUploadItem) => {
@@ -686,26 +912,33 @@ const getFileListText = (record: BatchCourseUploadItem) =>
 
 const buildSubmitPayload = (
 	group: BatchCourseUploadItem,
-	primary: {
+	primary?: {
 		fileUrl: string;
 		fileName: string;
 		fileType: string;
 		fileSize: number;
 	},
 ) => {
+	const isPaperExam = activeMode.value === 'paperExcel';
 	const payload: Record<string, unknown> = {
 		name: String(group.courseName || '').trim(),
-		content_type: 'file',
+		content_type: isPaperExam ? 'paper_exam' : 'file',
 		status: Number(defaults.value.status) === 1 ? 1 : 0,
-		price: defaults.value.price,
+		price: isPaperExam ? Number(defaults.value.price || PAPER_EXAM_DEFAULT_PRICE) : defaults.value.price,
 		agent_price: defaults.value.agent_price,
-		is_free: defaults.value.is_free,
-		allow_source_file: defaults.value.allow_source_file,
-		file_url: primary.fileUrl,
-		file_name: primary.fileName,
-		file_type: primary.fileType,
-		file_size: primary.fileSize,
+		is_free: isPaperExam ? 0 : defaults.value.is_free,
+		allow_source_file: isPaperExam ? 0 : defaults.value.allow_source_file,
 	};
+
+	if (!isPaperExam) {
+		if (!primary) {
+			throw new Error('文件课程缺少上传后的课程文件');
+		}
+		payload.file_url = primary.fileUrl;
+		payload.file_name = primary.fileName;
+		payload.file_type = primary.fileType;
+		payload.file_size = primary.fileSize;
+	}
 
 	if (group.category) payload.category = group.category;
 	if (group.sub_category) payload.sub_category = group.sub_category;
@@ -720,11 +953,30 @@ const buildSubmitPayload = (
 	if (examYear) payload.exam_year = examYear;
 	if (answerYear) payload.answer_year = answerYear;
 	if (defaults.value.introduction) payload.introduction = defaults.value.introduction;
-	payload.validity_days = defaults.value.is_free === 1 ? null : defaults.value.validity_days ?? 365;
+	payload.validity_days = isPaperExam ? null : defaults.value.is_free === 1 ? null : defaults.value.validity_days ?? 365;
 	return payload;
 };
 
 const uploadSingleGroup = async (group: BatchCourseUploadItem) => {
+	if (activeMode.value === 'paperExcel') {
+		uploadStage.value = `正在生成封面：${group.courseName}`;
+		const coverImg = await generateAndUploadCourseCover(buildCoverGenerateInput(group));
+
+		uploadStage.value = `正在创建纸质真题课程：${group.courseName}`;
+		const payload = buildSubmitPayload(group);
+		if (coverImg) {
+			payload.cover_img = coverImg;
+		}
+		const createdRes = await createCourse(payload);
+		const created = (createdRes as any)?.data ?? createdRes;
+		const courseId = Number(created?.id);
+		if (!courseId) {
+			throw new Error('创建课程失败：未返回课程 ID');
+		}
+		group.courseId = courseId;
+		return;
+	}
+
 	const uploadedFiles: Array<{
 		displayName: string;
 		fileUrl: string;
@@ -785,10 +1037,12 @@ const uploadSingleGroup = async (group: BatchCourseUploadItem) => {
 
 const handleStartUpload = async () => {
 	if (!canStartUpload.value) {
-		if (activeMode.value === 'category' && categoryValue.value.length === 0) {
+		if ((activeMode.value === 'category' || activeMode.value === 'paperExcel') && categoryValue.value.length === 0) {
 			message.warning('请先选择目标分类');
+		} else if (activeMode.value === 'paperExcel' && !paperExcelFileName.value) {
+			message.warning('请先选择纸质真题 Excel 文件');
 		} else if (validPreviewGroups.value.length === 0) {
-			message.warning('没有可上传的有效课程，请检查文件命名或模板');
+			message.warning(activeMode.value === 'paperExcel' ? '没有可导入的有效课程，请检查 Excel 内容' : '没有可上传的有效课程，请检查文件命名或模板');
 		}
 		return;
 	}
@@ -848,6 +1102,9 @@ const loadBatchDefaults = async () => {
 		console.warn('加载课程默认参数失败，使用内置默认值', error);
 		defaults.value = { ...FALLBACK_COURSE_DEFAULT_PARAMS, introduction: '' };
 	}
+	if (activeMode.value === 'paperExcel') {
+		applyPaperExamDefaults();
+	}
 };
 
 const resetState = () => {
@@ -855,6 +1112,8 @@ const resetState = () => {
 	categoryValue.value = [];
 	filenameTemplate.value = DEFAULT_FILENAME_TEMPLATE;
 	selectedFiles.value = [];
+	paperExcelFileName.value = '';
+	paperExcelRows.value = [];
 	previewGroups.value = [];
 	defaults.value = { ...DEFAULT_BATCH_COURSE_DEFAULTS, introduction: '' };
 	defaultsExpanded.value = [];

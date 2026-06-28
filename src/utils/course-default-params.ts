@@ -9,7 +9,7 @@ export type CourseDefaultParams = {
 	is_free: number;
 	validity_days: number | null;
 	allow_source_file: number;
-	content_type: 'normal' | 'file';
+	content_type: 'normal' | 'file' | 'paper_exam';
 	status: number;
 };
 
@@ -31,7 +31,9 @@ export const FALLBACK_COURSE_DEFAULT_PARAMS: CourseDefaultParams = {
 export const normalizeCourseDefaultParams = (input?: Partial<CourseDefaultParams> | null): CourseDefaultParams => {
 	const source = input || {};
 	const isFree = Number(source.is_free ?? FALLBACK_COURSE_DEFAULT_PARAMS.is_free) === 1 ? 1 : 0;
-	const contentType = source.content_type === 'file' ? 'file' : 'normal';
+	const rawContentType = String(source.content_type || 'normal');
+	const contentType: CourseDefaultParams['content_type'] =
+		rawContentType === 'file' || rawContentType === 'paper_exam' ? rawContentType : 'normal';
 	return {
 		subject: String(source.subject || '').trim(),
 		school: String(source.school || '').trim(),

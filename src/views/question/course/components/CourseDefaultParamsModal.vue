@@ -15,7 +15,11 @@
 					<a-radio-group v-model:value="formState.content_type">
 						<a-radio value="normal">普通题库</a-radio>
 						<a-radio value="file">文件课程</a-radio>
+						<a-radio value="paper_exam">纸质专业真题</a-radio>
 					</a-radio-group>
+					<div v-if="formState.content_type === 'paper_exam'" class="form-tip">
+						纸质专业真题为实物发货课程，新增时默认用户售价为 80 元。
+					</div>
 				</a-form-item>
 				<a-form-item label="课程">
 					<a-input v-model:value="formState.subject" allow-clear placeholder="可选" />
@@ -123,6 +127,15 @@ watch(
 			formState.value.validity_days = null;
 		} else if (formState.value.validity_days == null) {
 			formState.value.validity_days = 365;
+		}
+	},
+);
+
+watch(
+	() => formState.value.content_type,
+	(value, oldValue) => {
+		if (value === 'paper_exam' && value !== oldValue && (!formState.value.price || formState.value.price <= 1)) {
+			formState.value.price = 80;
 		}
 	},
 );
