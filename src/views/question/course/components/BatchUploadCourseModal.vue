@@ -119,15 +119,25 @@
 					<a-col :xs="24" :md="14">
 						<a-form :label-col="{ span: 6 }" :wrapper-col="{ span: 18 }">
 							<a-form-item label="封面模板">
-								<a-select
-									v-model:value="selectedCoverTemplateId"
-									:options="coverTemplateOptions"
-									:loading="coverTemplateLoading"
-									placeholder="请选择封面模板"
-									style="width: 100%"
-								/>
+								<div class="batch-upload-cover-template-row">
+									<a-select
+										v-model:value="selectedCoverTemplateId"
+										:options="coverTemplateOptions"
+										:loading="coverTemplateLoading"
+										placeholder="请选择封面模板"
+										class="batch-upload-cover-template-row__select"
+									/>
+									<a-button :disabled="uploading" @click="handleOpenCoverConfig">
+										<setting-outlined />
+										修改配置
+									</a-button>
+								</div>
 								<div class="form-tip">
-									选择「按分类自动匹配」时，将根据每门课程的分类绑定对应模板；指定模板则全部课程统一使用该模板。
+									{{
+										activeMode === 'paperExcel'
+											? '纸质真题 Excel 默认使用「考研真题封面」；可在修改配置中调整模板样式。'
+											: '选择「按分类自动匹配」时，将根据每门课程的分类绑定对应模板；指定模板则全部课程统一使用该模板。'
+									}}
 								</div>
 							</a-form-item>
 							<a-form-item label="预览课程">
@@ -373,14 +383,25 @@
 			<div class="form-tip">{{ uploadStage }}</div>
 		</div>
 	</a-modal>
+	<a-modal
+		:open="coverConfigOpen"
+		title="课程封面配置"
+		width="1280px"
+		:footer="null"
+		destroy-on-close
+		@cancel="coverConfigOpen = false"
+	>
+		<CourseCoverConfig config-type="course" @saved="handleCoverConfigSaved" />
+	</a-modal>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch, onBeforeUnmount } from 'vue';
 import { message } from 'ant-design-vue';
-import { FolderOpenOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons-vue';
+import { FolderOpenOutlined, PlusOutlined, SettingOutlined, UploadOutlined } from '@ant-design/icons-vue';
 import { createCourse, createCourseFile, warmupCoursePreviewCacheAfterSave, getCourseDefaultParams } from '@/api/course';
 import { uploadCourseFile } from '@/api/upload';
+import CourseCoverConfig from '@/views/system/config/components/CourseCoverConfig.vue';
 import {
 	fetchCourseCoverTemplatePack,
 	generateAndUploadCourseCover,
@@ -409,6 +430,8 @@ import {
 	normalizeCourseDefaultParams,
 } from '@/utils/course-default-params';
 
+const PAPER_EXAM_COVER_TEMPLATE_NAME = '考研真题封面';
+
 const props = defineProps<{
 	open: boolean;
 	categoryTree: any[];
@@ -433,6 +456,7 @@ const coverSettingsExpanded = ref<string[]>(['cover']);
 const selectedCoverTemplateId = ref('auto');
 const coverTemplatePack = ref<CourseCoverTemplatePack | null>(null);
 const coverTemplateLoading = ref(false);
+const coverConfigOpen = ref(false);
 const coverPreviewGroupKey = ref('');
 const coverPreviewSrc = ref('');
 const coverPreviewLoading = ref(false);
@@ -527,6 +551,24 @@ const getCoverTemplateIdForUpload = () => {
 	return templateId === 'auto' ? undefined : templateId;
 };
 
+const findPaperExamCoverTemplateId = () => {
+	const templates = coverTemplatePack.value?.templates || [];
+	const exactTemplate = templates.find((item) => String(item.name || '').trim() === PAPER_EXAM_COVER_TEMPLATE_NAME);
+	if (exactTemplate) return exactTemplate.id;
+	const keywordTemplate = templates.find((item) => String(item.name || '').includes('真题'));
+	return keywordTemplate?.id || '';
+};
+
+const applyPaperExamCoverTemplate = (force = false) => {
+	if (activeMode.value !== 'paperExcel') return;
+	const templateId = findPaperExamCoverTemplateId();
+	if (!templateId) return;
+	const currentExists = (coverTemplatePack.value?.templates || []).some((item) => item.id === selectedCoverTemplateId.value);
+	if (force || selectedCoverTemplateId.value === 'auto' || !currentExists) {
+		selectedCoverTemplateId.value = templateId;
+	}
+};
+
 const buildCoverGenerateInput = (group: BatchCourseUploadItem): CourseCoverGenerateInput => {
 	const templateId = getCoverTemplateIdForUpload();
 	return {
@@ -616,6 +658,7 @@ const loadCoverTemplates = async () => {
 	try {
 		resetCourseCoverConfigCache();
 		coverTemplatePack.value = await fetchCourseCoverTemplatePack();
+		applyPaperExamCoverTemplate();
 	} catch (error) {
 		console.warn('加载封面模板失败:', error);
 		coverTemplatePack.value = null;
@@ -882,8 +925,12 @@ const handleModeChange = () => {
 	previewGroups.value = [];
 	if (activeMode.value === 'paperExcel') {
 		applyPaperExamDefaults();
+		applyPaperExamCoverTemplate(true);
 		rebuildPreview();
 		return;
+	}
+	if (selectedCoverTemplateId.value === findPaperExamCoverTemplateId()) {
+		selectedCoverTemplateId.value = 'auto';
 	}
 	if (defaults.value.content_type === 'paper_exam') {
 		defaults.value.content_type = 'file';
@@ -892,6 +939,17 @@ const handleModeChange = () => {
 		}
 	}
 	rebuildPreview();
+};
+
+const handleOpenCoverConfig = () => {
+	coverConfigOpen.value = true;
+};
+
+const handleCoverConfigSaved = async () => {
+	resetCourseCoverConfigCache();
+	await loadCoverTemplates();
+	applyPaperExamCoverTemplate();
+	scheduleCoverPreviewRefresh(0);
 };
 
 const handleCourseNameChange = (record: BatchCourseUploadItem) => {
@@ -1119,6 +1177,7 @@ const resetState = () => {
 	defaultsExpanded.value = [];
 	coverSettingsExpanded.value = ['cover'];
 	selectedCoverTemplateId.value = 'auto';
+	coverConfigOpen.value = false;
 	coverPreviewGroupKey.value = '';
 	clearCoverPreview();
 	coverPreviewHint.value = '选择预览课程后将显示封面效果';
@@ -1190,6 +1249,17 @@ watch(
 
 .batch-upload-cover {
 	margin-bottom: 16px;
+}
+
+.batch-upload-cover-template-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.batch-upload-cover-template-row__select {
+	flex: 1;
+	min-width: 0;
 }
 
 .batch-upload-cover-preview {
