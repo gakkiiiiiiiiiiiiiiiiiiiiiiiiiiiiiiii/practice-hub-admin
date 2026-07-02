@@ -61,6 +61,9 @@
 						/>
 						<span v-else>-</span>
 					</template>
+					<template v-else-if="column.key === 'bundle_price'">
+						<span>¥{{ Number(record.bundle_price ?? 30).toFixed(0) }}</span>
+					</template>
 					<template v-else-if="column.key === 'action'">
 						<a-space>
 							<a-button
@@ -186,6 +189,18 @@
 				</a-form-item>
 				<a-form-item label="排序" name="sort">
 					<a-input-number v-model:value="formState.sort" :min="0" style="width: 100%" />
+				</a-form-item>
+				<a-form-item label="整类购买价" name="bundle_price">
+					<a-input-number
+						v-model:value="formState.bundle_price"
+						:min="0"
+						:step="1"
+						:precision="0"
+						style="width: 100%"
+					/>
+					<div style="margin-top: 4px; color: #999; font-size: 12px">
+						小程序课程列表页展示“购买当前分类全部课程”，默认 30 元。
+					</div>
 				</a-form-item>
 				<a-form-item label="状态" name="status">
 					<a-radio-group v-model:value="formState.status">
@@ -328,6 +343,7 @@ const formState = ref({
 	name: '',
 	parent_id: null as number | null,
 	cover_img: '',
+	bundle_price: 30,
 	sort: 0,
 	status: 1,
 });
@@ -339,6 +355,7 @@ const rules = {
 const baseColumns = [
 	{ title: '分类名称', dataIndex: 'name', key: 'name' },
 	{ title: '封面', key: 'cover', width: 100 },
+	{ title: '整类购买价', dataIndex: 'bundle_price', key: 'bundle_price', width: 130 },
 	{ title: '排序', dataIndex: 'sort', key: 'sort', width: 120 },
 	{ title: '状态', key: 'status', width: 120 },
 	{ title: '操作', key: 'action', width: 360, fixed: 'right' },
@@ -431,6 +448,7 @@ const handleAdd = (record: any | null) => {
 		name: '',
 		parent_id: record?.id ?? null,
 		cover_img: '',
+		bundle_price: 30,
 		sort: 0,
 		status: 1,
 	};
@@ -445,6 +463,7 @@ const handleEdit = (record: any) => {
 		name: record.name || '',
 		parent_id: record.parent_id ?? null,
 		cover_img: record.cover_img || '',
+		bundle_price: Number(record.bundle_price ?? 30),
 		sort: record.sort ?? 0,
 		status: record.status ?? 1,
 	};

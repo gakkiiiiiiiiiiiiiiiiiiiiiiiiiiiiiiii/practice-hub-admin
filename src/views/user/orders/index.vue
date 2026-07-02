@@ -24,6 +24,7 @@
 					<a-select v-model:value="searchForm.order_type" placeholder="全部" style="width: 120px" allow-clear>
 						<a-select-option value="course">课程</a-select-option>
 						<a-select-option value="package">套餐</a-select-option>
+						<a-select-option value="category">分类合集</a-select-option>
 					</a-select>
 				</a-form-item>
 				<a-form-item>
@@ -97,7 +98,7 @@
 						<span v-else class="sub-text">-</span>
 					</template>
 					<template v-else-if="column.key === 'orderType'">
-						<a-tag>{{ record.orderType === 'package' ? '套餐' : '课程' }}</a-tag>
+						<a-tag>{{ getOrderTypeLabel(record.orderType) }}</a-tag>
 					</template>
 					<template v-else-if="column.key === 'createTime'">
 						{{ formatTime(record.createTime) }}
@@ -611,6 +612,15 @@ const handleSyncPayment = async (record: any) => {
 const formatAmount = (value: number | string) => Number(value || 0).toFixed(2)
 
 const formatTime = (value: string) => dayjs(value).format('YYYY-MM-DD HH:mm:ss')
+
+const getOrderTypeLabel = (type?: string) => {
+	const map: Record<string, string> = {
+		course: '课程',
+		package: '套餐',
+		category: '分类合集',
+	}
+	return map[type || 'course'] || type || '课程'
+}
 
 const getStatusLabel = (status: string) => {
 	const map: Record<string, string> = {
