@@ -35,7 +35,7 @@
 			<a-form-item label="发放张数" name="count">
 				<a-input-number v-model:value="formState.count" :min="1" :max="50" style="width: 100%" />
 			</a-form-item>
-			<a-form-item label="有效天数" name="valid_days" extra="留空表示永久有效">
+			<a-form-item label="有效天数" name="valid_days" extra="留空表示长期有效">
 				<a-input-number v-model:value="formState.valid_days" :min="1" style="width: 100%" placeholder="例如 365" />
 			</a-form-item>
 		</a-form>

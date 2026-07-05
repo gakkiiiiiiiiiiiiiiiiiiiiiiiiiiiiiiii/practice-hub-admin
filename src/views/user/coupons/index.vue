@@ -117,7 +117,7 @@ const columns = [
 	{ title: '发放时间', key: 'createTime', width: 170 },
 ]
 
-const formatTime = (value?: string | null) => (value ? dayjs(value).format('YYYY-MM-DD HH:mm:ss') : '永久有效')
+const formatTime = (value?: string | null) => (value ? dayjs(value).format('YYYY-MM-DD HH:mm:ss') : '长期有效')
 
 const getStatusLabel = (status: string) => {
 	const map: Record<string, string> = {

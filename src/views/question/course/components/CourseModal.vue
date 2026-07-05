@@ -283,10 +283,10 @@
 					<a-radio :value="90">90天</a-radio>
 					<a-radio :value="180">180天</a-radio>
 					<a-radio :value="365">365天</a-radio>
-					<a-radio :value="null">永久有效</a-radio>
+					<a-radio :value="null">长期有效</a-radio>
 				</a-radio-group>
 				<div style="margin-top: 8px; color: #999; font-size: 12px">
-					设置用户购买此课程后的有效期，选择"永久有效"则购买后永久可用
+					设置用户购买此课程后的有效期，选择"长期有效"则购买后长期可用
 				</div>
 			</a-form-item>
 				<a-form-item label="课程介绍" name="introduction">

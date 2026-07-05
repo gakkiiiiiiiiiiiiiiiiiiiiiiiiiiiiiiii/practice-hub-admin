@@ -14,7 +14,7 @@
 			<a-form-item label="打卡奖励积分">
 				<a-input-number v-model:value="form.checkin_reward" :min="0" :precision="0" style="width: 100%" />
 			</a-form-item>
-			<a-form-item label="兑换券有效天数（留空表示永久）">
+			<a-form-item label="兑换券有效天数（留空表示长期有效）">
 				<a-input-number v-model:value="form.coupon_valid_days" :min="1" style="width: 100%" placeholder="例如 365" />
 			</a-form-item>
 

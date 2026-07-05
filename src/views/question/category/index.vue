@@ -64,6 +64,15 @@
 					<template v-else-if="column.key === 'bundle_price'">
 						<span>¥{{ Number(record.bundle_price ?? 30).toFixed(0) }}</span>
 					</template>
+					<template v-else-if="column.key === 'bundle_enabled'">
+						<a-switch
+							size="small"
+							:checked="Number(record.bundle_enabled ?? 1) === 1"
+							:checked-children="'显示'"
+							:un-checked-children="'隐藏'"
+							@change="(checked) => handleToggleBundleEnabled(record, checked)"
+						/>
+					</template>
 					<template v-else-if="column.key === 'action'">
 						<a-space>
 							<a-button
@@ -200,6 +209,17 @@
 					/>
 					<div style="margin-top: 4px; color: #999; font-size: 12px">
 						小程序课程列表页展示“购买当前分类全部课程”，默认 30 元。
+					</div>
+				</a-form-item>
+				<a-form-item label="整类购买入口" name="bundle_enabled">
+					<a-switch
+						:checked="Number(formState.bundle_enabled ?? 1) === 1"
+						:checked-children="'显示'"
+						:un-checked-children="'隐藏'"
+						@change="(checked) => (formState.bundle_enabled = checked ? 1 : 0)"
+					/>
+					<div style="margin-top: 4px; color: #999; font-size: 12px">
+						开启后，小程序对应分类课程列表的搜索栏下方会展示整类购买入口。
 					</div>
 				</a-form-item>
 				<a-form-item label="状态" name="status">
@@ -344,6 +364,7 @@ const formState = ref({
 	parent_id: null as number | null,
 	cover_img: '',
 	bundle_price: 30,
+	bundle_enabled: 1,
 	sort: 0,
 	status: 1,
 });
@@ -356,6 +377,7 @@ const baseColumns = [
 	{ title: '分类名称', dataIndex: 'name', key: 'name' },
 	{ title: '封面', key: 'cover', width: 100 },
 	{ title: '整类购买价', dataIndex: 'bundle_price', key: 'bundle_price', width: 130 },
+	{ title: '整类购买入口', dataIndex: 'bundle_enabled', key: 'bundle_enabled', width: 140 },
 	{ title: '排序', dataIndex: 'sort', key: 'sort', width: 120 },
 	{ title: '状态', key: 'status', width: 120 },
 	{ title: '操作', key: 'action', width: 360, fixed: 'right' },
@@ -449,6 +471,7 @@ const handleAdd = (record: any | null) => {
 		parent_id: record?.id ?? null,
 		cover_img: '',
 		bundle_price: 30,
+		bundle_enabled: 1,
 		sort: 0,
 		status: 1,
 	};
@@ -464,6 +487,7 @@ const handleEdit = (record: any) => {
 		parent_id: record.parent_id ?? null,
 		cover_img: record.cover_img || '',
 		bundle_price: Number(record.bundle_price ?? 30),
+		bundle_enabled: Number(record.bundle_enabled ?? 1) === 1 ? 1 : 0,
 		sort: record.sort ?? 0,
 		status: record.status ?? 1,
 	};
@@ -693,6 +717,19 @@ const handleSubmit = async () => {
 	} finally {
 		modalLoading.value = false;
 		autoCoverLoading.value = false;
+	}
+};
+
+const handleToggleBundleEnabled = async (record: any, checked: boolean) => {
+	const nextValue = checked ? 1 : 0;
+	const previousValue = Number(record.bundle_enabled ?? 1) === 1 ? 1 : 0;
+	record.bundle_enabled = nextValue;
+	try {
+		await updateCourseCategory(record.id, { bundle_enabled: nextValue });
+		message.success(nextValue === 1 ? '已显示整类购买入口' : '已隐藏整类购买入口');
+	} catch (error: any) {
+		record.bundle_enabled = previousValue;
+		message.error(error?.message || '更新整类购买入口失败');
 	}
 };
 
