@@ -9,6 +9,7 @@ export function getAdminOrderList(params?: {
 	pageSize?: number
 	status?: string
 	order_type?: string
+	content_type?: string
 	keyword?: string
 }) {
 	return request.get('/admin/orders/list', { params })

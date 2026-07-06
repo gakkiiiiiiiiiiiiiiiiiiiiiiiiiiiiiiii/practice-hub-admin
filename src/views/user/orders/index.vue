@@ -27,6 +27,13 @@
 						<a-select-option value="category">分类合集</a-select-option>
 					</a-select>
 				</a-form-item>
+				<a-form-item label="课程类型">
+					<a-select v-model:value="searchForm.content_type" placeholder="全部" style="width: 140px" allow-clear>
+						<a-select-option value="normal">普通题库</a-select-option>
+						<a-select-option value="file">文件课程</a-select-option>
+						<a-select-option value="paper_exam">纸质真题</a-select-option>
+					</a-select>
+				</a-form-item>
 				<a-form-item>
 					<a-button type="primary" @click="handleSearch">查询</a-button>
 					<a-button style="margin-left: 8px" @click="handleReset">重置</a-button>
@@ -107,7 +114,7 @@
 						{{ record.paidTime ? formatTime(record.paidTime) : '-' }}
 					</template>
 					<template v-else-if="column.key === 'action'">
-						<a-space>
+						<a-space wrap>
 							<a-button type="link" size="small" @click="handleViewDetail(record)">查看详情</a-button>
 							<a-button
 								v-if="canShipOrder(record)"
@@ -381,6 +388,7 @@ const searchForm = ref({
 	keyword: '',
 	status: undefined as string | undefined,
 	order_type: undefined as string | undefined,
+	content_type: undefined as string | undefined,
 })
 
 const pagination = ref({
@@ -398,11 +406,11 @@ const columns = [
 	{ title: '金额', key: 'amount', width: 120 },
 	{ title: '类型', key: 'orderType', width: 90 },
 	{ title: '状态', key: 'status', width: 110 },
-	{ title: '发货', key: 'delivery', width: 150 },
+	{ title: '发货状态', key: 'delivery', width: 150 },
 	{ title: '售后原因', key: 'afterSale', width: 220 },
 	{ title: '下单时间', key: 'createTime', width: 170 },
 	{ title: '支付时间', key: 'paidTime', width: 170 },
-	{ title: '操作', key: 'action', width: 220, fixed: 'right' as const },
+	{ title: '操作', key: 'action', width: 240, fixed: 'right' as const },
 ]
 
 const cartColumns = [
@@ -443,6 +451,7 @@ const fetchData = async () => {
 			keyword: searchForm.value.keyword || undefined,
 			status: searchForm.value.status,
 			order_type: searchForm.value.order_type,
+			content_type: searchForm.value.content_type,
 		})
 		dataSource.value = res.data?.list || []
 		pagination.value.total = res.data?.total || 0
@@ -463,6 +472,7 @@ const handleReset = () => {
 		keyword: '',
 		status: undefined,
 		order_type: undefined,
+		content_type: undefined,
 	}
 	pagination.value.current = 1
 	fetchData()
