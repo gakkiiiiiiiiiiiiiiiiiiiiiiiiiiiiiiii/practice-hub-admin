@@ -59,7 +59,7 @@
 							placeholder="请选择一级或二级分类"
 							style="width: 100%"
 						/>
-						<div class="form-tip">Excel 需包含「学校、专业课代码、真题年份、答案年份」四列；课程介绍使用系统课程介绍模板。</div>
+						<div class="form-tip">Excel 需包含「学校、专业课代码、真题年份、答案年份」四列；课程介绍会按目标分类匹配系统模板。</div>
 					</a-form-item>
 				</a-form>
 			</a-tab-pane>
@@ -400,6 +400,7 @@ import { computed, ref, watch, onBeforeUnmount } from 'vue';
 import { message } from 'ant-design-vue';
 import { FolderOpenOutlined, PlusOutlined, SettingOutlined, UploadOutlined } from '@ant-design/icons-vue';
 import { createCourse, createCourseFile, warmupCoursePreviewCacheAfterSave, getCourseDefaultParams } from '@/api/course';
+import { getCourseIntroTemplate } from '@/api/system';
 import { uploadCourseFile } from '@/api/upload';
 import CourseCoverConfig from '@/views/system/config/components/CourseCoverConfig.vue';
 import {
@@ -429,6 +430,11 @@ import {
 	FALLBACK_COURSE_DEFAULT_PARAMS,
 	normalizeCourseDefaultParams,
 } from '@/utils/course-default-params';
+import {
+	normalizeCourseIntroTemplatePack,
+	resolveCourseIntroTemplateByCategory,
+	type CourseIntroTemplatePack,
+} from '@/utils/course-intro-template';
 
 const PAPER_EXAM_COVER_TEMPLATE_NAME = '考研真题封面';
 
@@ -456,6 +462,7 @@ const coverSettingsExpanded = ref<string[]>(['cover']);
 const selectedCoverTemplateId = ref('auto');
 const coverTemplatePack = ref<CourseCoverTemplatePack | null>(null);
 const coverTemplateLoading = ref(false);
+const introTemplatePack = ref<CourseIntroTemplatePack | null>(null);
 const coverConfigOpen = ref(false);
 const coverPreviewGroupKey = ref('');
 const coverPreviewSrc = ref('');
@@ -664,6 +671,16 @@ const loadCoverTemplates = async () => {
 		coverTemplatePack.value = null;
 	} finally {
 		coverTemplateLoading.value = false;
+	}
+};
+
+const loadIntroTemplates = async () => {
+	try {
+		const res = await getCourseIntroTemplate();
+		introTemplatePack.value = normalizeCourseIntroTemplatePack((res as any)?.data ?? res);
+	} catch (error) {
+		console.warn('加载课程介绍模板失败，将使用后端默认匹配', error);
+		introTemplatePack.value = null;
 	}
 };
 
@@ -968,6 +985,16 @@ const handleCourseNameChange = (record: BatchCourseUploadItem) => {
 const getFileListText = (record: BatchCourseUploadItem) =>
 	record.files.map((item) => `${item.displayName} (${item.fileName})`).join('\n');
 
+const resolveIntroductionTemplateForGroup = (group: BatchCourseUploadItem) => {
+	const customIntro = String(defaults.value.introduction || '').trim();
+	if (customIntro) return customIntro;
+	if (!introTemplatePack.value) return '';
+	return resolveCourseIntroTemplateByCategory(introTemplatePack.value, {
+		category: group.category,
+		sub_category: group.sub_category,
+	});
+};
+
 const buildSubmitPayload = (
 	group: BatchCourseUploadItem,
 	primary?: {
@@ -1010,7 +1037,8 @@ const buildSubmitPayload = (
 	if (major) payload.major = major;
 	if (examYear) payload.exam_year = examYear;
 	if (answerYear) payload.answer_year = answerYear;
-	if (defaults.value.introduction) payload.introduction = defaults.value.introduction;
+	const introduction = resolveIntroductionTemplateForGroup(group);
+	if (introduction) payload.introduction = introduction;
 	payload.validity_days = isPaperExam ? null : defaults.value.is_free === 1 ? null : defaults.value.validity_days ?? 365;
 	return payload;
 };
@@ -1205,7 +1233,7 @@ watch(
 	async (value) => {
 		if (value) {
 			resetState();
-			await Promise.all([loadBatchDefaults(), loadCoverTemplates()]);
+			await Promise.all([loadBatchDefaults(), loadCoverTemplates(), loadIntroTemplates()]);
 			return;
 		}
 		if (!uploading.value) {

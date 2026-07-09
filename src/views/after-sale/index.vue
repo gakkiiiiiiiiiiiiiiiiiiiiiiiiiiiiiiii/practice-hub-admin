@@ -112,7 +112,7 @@
 				v-if="processType === 1"
 				type="info"
 				show-icon
-				message="同意后请在「订单管理」中找到对应订单执行退款，用户微信联系方式见上方列表。"
+				message="同意后请联系用户添加客服 QQ 2705208065 处理，用户联系方式见上方列表。"
 				style="margin-bottom: 16px"
 			/>
 			<a-alert

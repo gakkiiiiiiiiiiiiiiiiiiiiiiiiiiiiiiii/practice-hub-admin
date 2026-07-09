@@ -134,13 +134,21 @@
 								同步支付
 							</a-button>
 							<a-button
-								v-if="record.status === 'after_sale' && !record.refunded"
+								v-if="record.status === 'paid' && !record.refunded"
 								type="link"
 								size="small"
 								danger
 								@click="openRefundModal(record)"
 							>
 								退款
+							</a-button>
+							<a-button
+								v-if="record.status === 'after_sale' && !record.refunded"
+								type="link"
+								size="small"
+								@click="openCustomerServiceModal"
+							>
+								联系客服
 							</a-button>
 						</a-space>
 					</template>
@@ -322,6 +330,26 @@
 		</a-modal>
 
 		<a-modal
+			v-model:open="contactServiceVisible"
+			title="联系客服"
+			:footer="null"
+		>
+			<a-alert
+				type="info"
+				show-icon
+				message="联系QQ:2705208065"
+				style="margin-bottom: 16px"
+			/>
+			<div class="customer-service-qr">
+				<img :src="customerServiceQr" alt="客服 QQ 二维码" />
+			</div>
+			<a-space>
+				<a-button type="primary" @click="handleCopyCustomerServiceContact">复制QQ号</a-button>
+				<a-button @click="contactServiceVisible = false">关闭</a-button>
+			</a-space>
+		</a-modal>
+
+		<a-modal
 			v-model:open="shipVisible"
 			:title="shipTarget?.trackingNo ? '修改运单' : '录入发货'"
 			ok-text="保存"
@@ -362,6 +390,7 @@ import {
 	shipAdminOrder,
 	syncAdminOrderPayment,
 } from '@/api/order'
+import customerServiceQr from '@/assets/customer-service-qq-qr.jpg'
 
 const loading = ref(false)
 const detailLoading = ref(false)
@@ -370,6 +399,8 @@ const refundVisible = ref(false)
 const refunding = ref(false)
 const refundTarget = ref<any>(null)
 const refundRemark = ref('')
+const contactServiceVisible = ref(false)
+const customerServiceQq = '2705208065'
 const shipVisible = ref(false)
 const shipping = ref(false)
 const shipTarget = ref<any>(null)
@@ -504,6 +535,31 @@ const handleViewDetail = async (record: any) => {
 	}
 }
 
+const openCustomerServiceModal = () => {
+	contactServiceVisible.value = true
+}
+
+const handleCopyCustomerServiceContact = async () => {
+	try {
+		if (navigator?.clipboard?.writeText) {
+			await navigator.clipboard.writeText(customerServiceQq)
+		} else {
+			const textarea = document.createElement('textarea')
+			textarea.value = customerServiceQq
+			textarea.style.position = 'fixed'
+			textarea.style.opacity = '0'
+			document.body.appendChild(textarea)
+			textarea.select()
+			document.execCommand('copy')
+			document.body.removeChild(textarea)
+		}
+		message.success('QQ号已复制')
+	} catch (error) {
+		console.warn('复制客服 QQ 失败:', error)
+		message.error('复制失败，请手动复制 2705208065')
+	}
+}
+
 const openRefundModal = (record: any) => {
 	refundTarget.value = record
 	refundRemark.value = ''
@@ -596,8 +652,7 @@ const handleConfirmRefund = async () => {
 		refundVisible.value = false
 		await fetchData()
 	} catch (error: any) {
-		message.error(error?.message || '退款失败')
-		throw error
+		console.warn('退款失败:', error?.message || error)
 	} finally {
 		refunding.value = false
 	}
@@ -767,5 +822,18 @@ onMounted(fetchData)
 	white-space: pre-wrap;
 	word-break: break-word;
 	line-height: 1.6;
+}
+
+.customer-service-qr {
+	display: flex;
+	justify-content: center;
+	margin-bottom: 16px;
+}
+
+.customer-service-qr img {
+	width: 220px;
+	max-width: 100%;
+	border-radius: 8px;
+	border: 1px solid #f0f0f0;
 }
 </style>

@@ -103,7 +103,7 @@ export function getCourseIntroTemplate() {
   return request.get('/admin/settings/course-intro-template')
 }
 
-export function setCourseIntroTemplate(data: { template: string }) {
+export function setCourseIntroTemplate(data: any) {
   return request.put('/admin/settings/course-intro-template', data)
 }
 
