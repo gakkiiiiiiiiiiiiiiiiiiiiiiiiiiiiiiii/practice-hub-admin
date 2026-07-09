@@ -66,12 +66,14 @@
 					</template>
 					<template v-else-if="column.key === 'bundle_enabled'">
 						<a-switch
+							v-if="isSecondaryCategory(record)"
 							size="small"
 							:checked="Number(record.bundle_enabled ?? 1) === 1"
 							:checked-children="'显示'"
 							:un-checked-children="'隐藏'"
 							@change="(checked) => handleToggleBundleEnabled(record, checked)"
 						/>
+						<span v-else>-</span>
 					</template>
 					<template v-else-if="column.key === 'action'">
 						<a-space>
@@ -211,7 +213,7 @@
 						小程序课程列表页展示“购买当前分类全部课程”，默认 30 元。
 					</div>
 				</a-form-item>
-				<a-form-item label="整类购买入口" name="bundle_enabled">
+				<a-form-item v-if="isCategoryBundleSwitchVisible" label="整类购买入口" name="bundle_enabled">
 					<a-switch
 						:checked="Number(formState.bundle_enabled ?? 1) === 1"
 						:checked-children="'显示'"
@@ -405,6 +407,10 @@ const parentOptions = computed(() =>
 const isEditingSecondaryCategory = computed(() => !!currentRecord.value?.parent_id);
 
 const isEditingPrimaryCategory = computed(() => !!currentRecord.value && !currentRecord.value.parent_id);
+
+const isCategoryBundleSwitchVisible = computed(() => !!formState.value.parent_id);
+
+const isSecondaryCategory = (record: any) => !!record?.parent_id;
 
 const findCategoryById = (items: any[], id?: number | null): any | null => {
 	if (!id) return null;
@@ -721,6 +727,7 @@ const handleSubmit = async () => {
 };
 
 const handleToggleBundleEnabled = async (record: any, checked: boolean) => {
+	if (!isSecondaryCategory(record)) return;
 	const nextValue = checked ? 1 : 0;
 	const previousValue = Number(record.bundle_enabled ?? 1) === 1 ? 1 : 0;
 	record.bundle_enabled = nextValue;
