@@ -64,6 +64,17 @@
 						<a-radio :value="1">允许</a-radio>
 					</a-radio-group>
 				</a-form-item>
+				<a-form-item label="试读预览">
+					<a-input-number
+						v-model:value="formState.trial_preview_page_count"
+						:min="0"
+						:max="50"
+						:precision="0"
+						style="width: 160px"
+					/>
+					<span class="form-tip inline-form-tip">页</span>
+					<div class="form-tip">仅作为新增文件课程的默认值；0 表示无预览。</div>
+				</a-form-item>
 				<a-form-item label="状态">
 					<a-radio-group v-model:value="formState.status">
 						<a-radio :value="0">禁用</a-radio>
@@ -134,10 +145,15 @@ watch(
 watch(
 	() => formState.value.content_type,
 	(value, oldValue) => {
-		if (value === 'paper_exam' && value !== oldValue && (!formState.value.price || formState.value.price <= 1)) {
-			formState.value.price = 80;
-		}
-	},
+	if (value === 'paper_exam' && value !== oldValue && (!formState.value.price || formState.value.price <= 1)) {
+		formState.value.price = 80;
+	}
+	if (value === 'paper_exam') {
+		formState.value.trial_preview_page_count = 0;
+	} else if (value === 'file' && formState.value.trial_preview_page_count == null) {
+		formState.value.trial_preview_page_count = 3;
+	}
+},
 );
 
 const handleSave = async () => {
@@ -171,5 +187,9 @@ const handleCancel = () => {
 	color: rgba(0, 0, 0, 0.45);
 	font-size: 12px;
 	line-height: 1.6;
+}
+
+.inline-form-tip {
+	margin-left: 8px;
 }
 </style>

@@ -128,7 +128,18 @@
 				</a-radio-group>
 				<div class="form-tip">关闭后，小程序端不展示“查看完整文件/查看文件”入口，但仍可小程序内在线预览。</div>
 			</a-form-item>
-			<a-form-item v-if="showCoursePreviewSamples" label="前三页预览">
+			<a-form-item v-if="formState.content_type === 'file'" label="试读预览" name="trial_preview_page_count">
+				<a-input-number
+					v-model:value="formState.trial_preview_page_count"
+					:min="0"
+					:max="50"
+					:precision="0"
+					style="width: 160px"
+				/>
+				<span class="form-tip inline-form-tip">页</span>
+				<div class="form-tip">设置未购买用户可试读的页数；填 0 表示不展示试读入口。</div>
+			</a-form-item>
+			<a-form-item v-if="showCoursePreviewSamples" label="试读页预览">
 				<div v-if="previewableCourseFiles.length > 1" class="preview-file-switch">
 					<span class="form-tip">选择文件：</span>
 					<a-select
@@ -419,6 +430,7 @@ const showCoursePreviewSamples = computed(
 	() =>
 		!!props.record?.id &&
 		formState.value.content_type === 'file' &&
+		Number(formState.value.trial_preview_page_count || 0) > 0 &&
 		previewableCourseFiles.value.some((row) => row.id),
 );
 const isPaperExamCourse = computed(() => formState.value.content_type === 'paper_exam');
@@ -700,10 +712,11 @@ watch(
 					content_type: props.record.content_type || 'normal',
 					file_url: props.record.file_url || '',
 					file_name: props.record.file_name || '',
-					file_type: props.record.file_type || '',
-					file_size: Number(props.record.file_size || 0),
-					allow_source_file: props.record.allow_source_file ?? 0,
-				};
+						file_type: props.record.file_type || '',
+						file_size: Number(props.record.file_size || 0),
+						allow_source_file: props.record.allow_source_file ?? 0,
+						trial_preview_page_count: props.record.trial_preview_page_count ?? 3,
+					};
 				if (formState.value.cover_img) {
 					fileList.value = [
 						{
@@ -736,7 +749,12 @@ watch(
 	);
 
 watch(
-	() => [props.record?.id, selectedPreviewFileId.value, formState.value.content_type],
+	() => [
+		props.record?.id,
+		selectedPreviewFileId.value,
+		formState.value.content_type,
+		formState.value.trial_preview_page_count,
+	],
 	() => {
 		if (!props.open) return;
 		scheduleLoadPreviewSamples();
@@ -787,6 +805,7 @@ watch(
 				formState.value.is_free = 0;
 				formState.value.validity_days = null;
 				formState.value.allow_source_file = 0;
+				formState.value.trial_preview_page_count = 0;
 				if (!formState.value.price || Number(formState.value.price) <= 1) {
 					formState.value.price = 80;
 				}
@@ -796,6 +815,8 @@ watch(
 				}
 			} else if (oldValue === 'paper_exam' && formState.value.is_free === 0 && formState.value.validity_days == null) {
 				formState.value.validity_days = 365;
+			} else if (value === 'file' && (formState.value.trial_preview_page_count === undefined || formState.value.trial_preview_page_count === null)) {
+				formState.value.trial_preview_page_count = 3;
 			}
 		},
 	);
@@ -887,7 +908,10 @@ const loadPreviewSamples = async () => {
 		previewSampleSupported.value = true;
 		const pages = Array.isArray(data.samplePages) ? data.samplePages : [];
 		if (pages.length === 0) {
-			previewSampleHint.value = '课程文件暂无可预览页面';
+			previewSampleHint.value =
+				Number(formState.value.trial_preview_page_count || 0) <= 0
+					? '当前课程已关闭试读预览'
+					: '课程文件暂无可预览页面';
 			return;
 		}
 		previewSampleItems.value = pages.map((page: { pageNum: number }) => ({
@@ -1296,12 +1320,17 @@ const handleSubmit = async () => {
 			submitData.file_type = formState.value.file_type || fallbackRecord?.file_type || null;
 			submitData.file_size = Number(formState.value.file_size || fallbackRecord?.file_size || 0);
 			submitData.allow_source_file = formState.value.allow_source_file ?? 0;
+			submitData.trial_preview_page_count = Math.min(
+				50,
+				Math.max(0, Math.trunc(Number(formState.value.trial_preview_page_count ?? 3) || 0)),
+			);
 		} else {
 			submitData.file_url = null;
 			submitData.file_name = null;
 			submitData.file_type = null;
 			submitData.file_size = 0;
 			submitData.allow_source_file = 0;
+			submitData.trial_preview_page_count = 0;
 		}
 
 		let courseId = props.record?.id as number | undefined;
@@ -1394,6 +1423,10 @@ const handleSubmit = async () => {
 
 .preview-sample-hint {
 	margin-bottom: 12px;
+}
+
+.inline-form-tip {
+	margin-left: 8px;
 }
 
 .pdf-health-alert {

@@ -167,13 +167,13 @@ export function checkCourseFilePdfHealth(fileUrl: string, displayName?: string) 
   return request.post('/admin/courses/files/pdf-health-check', { fileUrl, displayName })
 }
 
-// 获取课程文件前三页预览图状态（仅编辑已有文件课程）
+// 获取课程文件试读预览图状态（仅编辑已有文件课程）
 export function getCoursePreviewSamplePages(id: number, fileId?: number) {
   const params = fileId ? { fileId } : {}
   return request.get(`/admin/courses/${id}/preview-sample-pages`, { params })
 }
 
-// 获取课程文件指定预览页图片（blob，仅前 3 页）
+// 获取课程文件指定试读页图片（blob）
 export function fetchCoursePreviewSamplePageBlob(id: number, pageNum: number, fileId?: number) {
   const params = fileId ? { fileId } : undefined
   return request.get(`/admin/courses/${id}/preview-sample-page/${pageNum}`, {
