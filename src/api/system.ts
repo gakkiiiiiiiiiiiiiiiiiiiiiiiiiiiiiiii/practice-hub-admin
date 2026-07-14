@@ -53,6 +53,11 @@ export function getOperationLogs(params?: any) {
   return request.get('/admin/logs', { params })
 }
 
+// 获取错误日志
+export function getErrorLogs(params?: any) {
+  return request.get('/admin/error-logs', { params })
+}
+
 // 获取系统配置（需要根据实际 API 文档调整）
 export function getSystemConfig() {
   return request.get('/admin/settings')

@@ -263,6 +263,14 @@ const routes: RouteRecordRaw[] = [
 					title: '系统操作日志',
 				},
 			},
+			{
+				path: 'error-log',
+				name: 'SystemErrorLog',
+				component: () => import('@/views/system/error-log/index.vue'),
+				meta: {
+					title: '系统错误日志',
+				},
+			},
 		],
 	},
 	{
