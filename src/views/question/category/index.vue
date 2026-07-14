@@ -75,6 +75,14 @@
 						/>
 						<span v-else>-</span>
 					</template>
+					<template v-else-if="column.key === 'book_names'">
+						<a-space v-if="isSecondaryCategory(record) && normalizeBookNames(record.book_names).length" wrap size="small">
+							<a-tag v-for="book in normalizeBookNames(record.book_names)" :key="book" color="blue">
+								{{ book }}
+							</a-tag>
+						</a-space>
+						<span v-else>-</span>
+					</template>
 					<template v-else-if="column.key === 'action'">
 						<a-space>
 							<a-button
@@ -224,6 +232,18 @@
 						开启后，小程序对应分类课程列表的搜索栏下方会展示整类购买入口。
 					</div>
 				</a-form-item>
+				<a-form-item v-if="formState.parent_id" label="所属书本" name="book_names">
+					<a-select
+						v-model:value="formState.book_names"
+						mode="tags"
+						placeholder="输入书本名称后回车，如：基础护理学"
+						:token-separators="[',', '，', '、']"
+						style="width: 100%"
+					/>
+					<div style="margin-top: 4px; color: #999; font-size: 12px">
+						小程序课程列表会展示“所属书本”筛选；点击后筛选课程名称包含该书本名称的课程。
+					</div>
+				</a-form-item>
 				<a-form-item label="状态" name="status">
 					<a-radio-group v-model:value="formState.status">
 						<a-radio :value="1">启用</a-radio>
@@ -367,6 +387,7 @@ const formState = ref({
 	cover_img: '',
 	bundle_price: 30,
 	bundle_enabled: 1,
+	book_names: [] as string[],
 	sort: 0,
 	status: 1,
 });
@@ -380,6 +401,7 @@ const baseColumns = [
 	{ title: '封面', key: 'cover', width: 100 },
 	{ title: '整类购买价', dataIndex: 'bundle_price', key: 'bundle_price', width: 130 },
 	{ title: '整类购买入口', dataIndex: 'bundle_enabled', key: 'bundle_enabled', width: 140 },
+	{ title: '所属书本', dataIndex: 'book_names', key: 'book_names', width: 220 },
 	{ title: '排序', dataIndex: 'sort', key: 'sort', width: 120 },
 	{ title: '状态', key: 'status', width: 120 },
 	{ title: '操作', key: 'action', width: 360, fixed: 'right' },
@@ -411,6 +433,12 @@ const isEditingPrimaryCategory = computed(() => !!currentRecord.value && !curren
 const isCategoryBundleSwitchVisible = computed(() => !!formState.value.parent_id);
 
 const isSecondaryCategory = (record: any) => !!record?.parent_id;
+
+const normalizeBookNames = (input: unknown): string[] => {
+	if (!Array.isArray(input)) return [];
+	const names = input.map((item) => String(item || '').trim()).filter(Boolean);
+	return Array.from(new Set(names));
+};
 
 const findCategoryById = (items: any[], id?: number | null): any | null => {
 	if (!id) return null;
@@ -478,6 +506,7 @@ const handleAdd = (record: any | null) => {
 		cover_img: '',
 		bundle_price: 30,
 		bundle_enabled: 1,
+		book_names: [],
 		sort: 0,
 		status: 1,
 	};
@@ -494,6 +523,7 @@ const handleEdit = (record: any) => {
 		cover_img: record.cover_img || '',
 		bundle_price: Number(record.bundle_price ?? 30),
 		bundle_enabled: Number(record.bundle_enabled ?? 1) === 1 ? 1 : 0,
+		book_names: normalizeBookNames(record.book_names),
 		sort: record.sort ?? 0,
 		status: record.status ?? 1,
 	};
@@ -704,6 +734,7 @@ const handleSubmit = async () => {
 			autoCoverLoading.value = true;
 			await ensureAutoCoverUploaded();
 		}
+		formState.value.book_names = formState.value.parent_id ? normalizeBookNames(formState.value.book_names) : [];
 		if (currentRecord.value) {
 			const res = await updateCourseCategory(currentRecord.value.id, formState.value);
 			const syncedCourseCount = Number((res as any)?.data?.syncedCourseCount ?? (res as any)?.syncedCourseCount ?? 0);
