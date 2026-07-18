@@ -5,18 +5,19 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
 const PROXY_PREFIX = `${API_BASE.replace(/\/$/, '')}/admin/upload/proxy-image?url=`;
 
-const STORAGE_HOST_PATTERN = /(?:\.aliyuncs\.com|\.tcb\.qcloud\.la)/i;
+const STORAGE_HOST_PATTERN = /^(?:cloud:\/\/|https?:\/\/[^/]+(?:\.aliyuncs\.com|\.tcb\.qcloud\.la)\/)/i;
 
 export function getProxiedImageUrl(url: string): string {
 	if (!url || typeof url !== 'string') return url;
-	if (STORAGE_HOST_PATTERN.test(url)) {
-		return `${PROXY_PREFIX}${encodeURIComponent(url.trim())}`;
+	const normalized = url.trim();
+	if (STORAGE_HOST_PATTERN.test(normalized)) {
+		return `${PROXY_PREFIX}${encodeURIComponent(normalized)}`;
 	}
 	return url;
 }
 
-/** 匹配 img 标签内 OSS/TCB 的 src */
-const STORAGE_SRC_REGEX = /(<img[^>]+src=["'])(https?:\/\/[^"']*(?:\.aliyuncs\.com|\.tcb\.qcloud\.la)[^"']*)(["'])/gi;
+/** 匹配 img 标签内 OSS/TCB/微信云文件 ID 的 src */
+const STORAGE_SRC_REGEX = /(<img[^>]+src=["'])((?:https?:\/\/[^"']*(?:\.aliyuncs\.com|\.tcb\.qcloud\.la)[^"']*|cloud:\/\/[^"']+))(["'])/gi;
 
 /**
  * 将 HTML 中所有对象存储图片的 src 替换为代理地址（用于富文本展示/编辑时能正常加载）
