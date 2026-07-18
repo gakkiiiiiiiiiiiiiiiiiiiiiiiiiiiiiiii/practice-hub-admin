@@ -1,32 +1,29 @@
 /**
- * TCB 图片代理：管理端与 TCB 不同源时会出现 CORS，通过后端代理地址访问即可避免。
+ * 对象存储图片代理：支持 OSS 地址，并兼容迁移前已入库的 TCB 地址。
  */
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
 const PROXY_PREFIX = `${API_BASE.replace(/\/$/, '')}/admin/upload/proxy-image?url=`;
 
-const TCB_HOST = 'tcb.qcloud.la';
+const STORAGE_HOST_PATTERN = /(?:\.aliyuncs\.com|\.tcb\.qcloud\.la)/i;
 
 export function getProxiedImageUrl(url: string): string {
 	if (!url || typeof url !== 'string') return url;
-	if (url.includes(TCB_HOST)) {
+	if (STORAGE_HOST_PATTERN.test(url)) {
 		return `${PROXY_PREFIX}${encodeURIComponent(url.trim())}`;
 	}
 	return url;
 }
 
-/** 匹配 img 标签内 TCB 的 src */
-const TCB_SRC_REGEX = new RegExp(
-	`(<img[^>]+src=["'])(https?://[^"']*${TCB_HOST.replace(/\./g, '\\.')}[^"']*)(["'])`,
-	'gi',
-);
+/** 匹配 img 标签内 OSS/TCB 的 src */
+const STORAGE_SRC_REGEX = /(<img[^>]+src=["'])(https?:\/\/[^"']*(?:\.aliyuncs\.com|\.tcb\.qcloud\.la)[^"']*)(["'])/gi;
 
 /**
- * 将 HTML 中所有 TCB 图片的 src 替换为代理地址（用于富文本展示/编辑时能正常加载）
+ * 将 HTML 中所有对象存储图片的 src 替换为代理地址（用于富文本展示/编辑时能正常加载）
  */
 export function proxyImageUrlsInHtml(html: string): string {
 	if (!html || typeof html !== 'string') return html;
-	return html.replace(TCB_SRC_REGEX, (_: string, prefix: string, url: string, suffix: string) => {
+	return html.replace(STORAGE_SRC_REGEX, (_: string, prefix: string, url: string, suffix: string) => {
 		return prefix + getProxiedImageUrl(url) + suffix;
 	});
 }
@@ -38,7 +35,7 @@ const PROXY_SRC_REGEX = (() => {
 })();
 
 /**
- * 将 HTML 中代理地址还原为原始 TCB 地址（保存到后端前调用，避免把代理 URL 存进库）
+ * 将 HTML 中代理地址还原为原始对象存储地址（保存到后端前调用，避免把代理 URL 存进库）
  */
 export function reverseProxyUrlsInHtml(html: string): string {
 	if (!html || typeof html !== 'string') return html;

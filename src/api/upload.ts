@@ -103,29 +103,29 @@ export async function uploadImage(file: File): Promise<{ url: string; imageUrl: 
 	}
 }
 
-/** 获取课程文件直传 COS 凭证（绕过云托管 413，前端直传对象存储） */
+/** 获取课程文件直传 OSS 签名 URL（绕过云托管 413） */
 export async function getCourseFileUploadUrl(fileName: string): Promise<{
 	url: string;
-	token: string;
-	authorization: string;
-	cos_file_id: string;
+	method: 'PUT';
+	contentType: string;
+	headers: Record<string, string>;
 	path: string;
 	finalFileUrl: string;
 	fileName: string;
 	fileType: string;
 }> {
 	const res = (await request.post('/admin/upload/course-file-upload-url', { fileName })) as {
-		data: { url: string; token: string; authorization: string; cos_file_id: string; path: string; finalFileUrl: string; fileName: string; fileType: string };
+		data: { url: string; method: 'PUT'; contentType: string; headers: Record<string, string>; path: string; finalFileUrl: string; fileName: string; fileType: string };
 	};
 	const data = res?.data ?? res;
-	if (!data?.url || !data?.authorization || !data?.cos_file_id) {
+	if (!data?.url || data?.method !== 'PUT' || !data?.contentType) {
 		throw new Error((data as any)?.errmsg || '获取上传凭证失败');
 	}
 	return {
 		url: data.url,
-		token: data.token,
-		authorization: data.authorization,
-		cos_file_id: data.cos_file_id,
+		method: data.method,
+		contentType: data.contentType,
+		headers: data.headers || { 'Content-Type': data.contentType },
 		path: data.path,
 		finalFileUrl: data.finalFileUrl,
 		fileName: data.fileName || fileName,
@@ -156,23 +156,18 @@ async function uploadCourseFileChunkWithRetry(
 	throw lastError;
 }
 
-/** 直传文件到 COS（浏览器直接 POST 到凭证中的 url，不经过后端，无 413） */
-export async function uploadCourseFileToCos(file: File, credentials: {
+/** 直传文件到 OSS（浏览器直接 PUT 到签名 URL，不经过后端，无 413） */
+export async function uploadCourseFileToOss(file: File, credentials: {
 	url: string;
-	token: string;
-	authorization: string;
-	cos_file_id: string;
+	method: 'PUT';
+	contentType: string;
+	headers: Record<string, string>;
 	path: string;
 }, options?: UploadCourseFileOptions): Promise<void> {
-	const form = new FormData();
-	form.append('key', credentials.path);
-	form.append('Signature', credentials.authorization);
-	form.append('x-cos-security-token', credentials.token);
-	form.append('x-cos-meta-fileid', credentials.cos_file_id);
-	form.append('file', file, file.name);
 	await new Promise<void>((resolve, reject) => {
 		const xhr = new XMLHttpRequest();
-		xhr.open('POST', credentials.url);
+		xhr.open(credentials.method, credentials.url);
+		Object.entries(credentials.headers || {}).forEach(([name, value]) => xhr.setRequestHeader(name, value));
 		xhr.timeout = 30 * 60 * 1000;
 		xhr.upload.onprogress = (event) => {
 			if (event.lengthComputable) {
@@ -188,7 +183,7 @@ export async function uploadCourseFileToCos(file: File, credentials: {
 		};
 		xhr.onerror = () => reject(new Error('直传失败：网络异常或跨域限制'));
 		xhr.ontimeout = () => reject(new Error('直传失败：上传超时'));
-		xhr.send(form);
+		xhr.send(file);
 	});
 }
 
@@ -206,7 +201,7 @@ export async function uploadCourseFile(
 	try {
 		options?.onProgress?.(1, '正在获取上传凭证');
 		const credentials = await getCourseFileUploadUrl(name);
-		await uploadCourseFileToCos(file, credentials, options);
+		await uploadCourseFileToOss(file, credentials, options);
 		options?.onProgress?.(100, '上传完成');
 		return {
 			url: credentials.finalFileUrl,
