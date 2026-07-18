@@ -259,7 +259,12 @@
 			:footer="null"
 			@cancel="coverConfigOpen = false"
 		>
-			<CourseCoverConfig config-type="category" @saved="handleCategoryCoverConfigSaved" />
+			<CourseCoverConfig
+				config-type="category"
+				:syncing-template="syncCategoryCoversLoading"
+				@saved="handleCategoryCoverConfigSaved"
+				@sync-template="handleSyncCategoryCoverTemplate"
+			/>
 		</a-modal>
 
 		<!-- 课程选择弹窗 -->
@@ -330,6 +335,7 @@ import CourseCoverConfig from '@/views/system/config/components/CourseCoverConfi
 import {
 	DEFAULT_CATEGORY_COVER_CONFIG,
 	resolveCategoryCoverConfigByCategory,
+	resolveCategoryCoverTemplateByCategory,
 	normalizeCourseCoverTemplatePack,
 	renderCourseCover,
 } from '@/utils/course-cover';
@@ -651,16 +657,18 @@ const flattenSecondLevelCategories = () => {
 	return categories;
 };
 
-const syncAllCategoryCovers = async () => {
-	const categories = flattenSecondLevelCategories();
-	if (!categories.length) {
-		message.info('暂无二级分类需要同步封面');
-		return;
-	}
+type CategoryCoverSyncTarget = ReturnType<typeof flattenSecondLevelCategories>[number];
+
+const syncCategoryCovers = async (
+	categories: CategoryCoverSyncTarget[],
+	options?: { templatePack?: CourseCoverTemplatePack; templateName?: string },
+) => {
 	syncCategoryCoversLoading.value = true;
-	coverConfigCache = null;
-	const progressMessageKey = 'sync-category-covers';
-	message.loading({ content: `正在同步分类封面 0/${categories.length}...`, key: progressMessageKey, duration: 0 });
+	coverConfigCache = options?.templatePack || null;
+	const templateName = options?.templateName;
+	const progressMessageKey = templateName ? 'sync-category-cover-template' : 'sync-category-covers';
+	const progressText = templateName ? `正在同步「${templateName}」` : '正在同步分类封面';
+	message.loading({ content: `${progressText} 0/${categories.length}...`, key: progressMessageKey, duration: 0 });
 	let successCount = 0;
 	try {
 		for (const [index, category] of categories.entries()) {
@@ -673,22 +681,63 @@ const syncAllCategoryCovers = async () => {
 			await updateCourseCategory(category.id, { cover_img: url });
 			successCount += 1;
 			message.loading({
-				content: `正在同步分类封面 ${index + 1}/${categories.length}...`,
+				content: `${progressText} ${index + 1}/${categories.length}...`,
 				key: progressMessageKey,
 				duration: 0,
 			});
 		}
-		message.success({ content: `已同步 ${successCount} 个分类封面`, key: progressMessageKey, duration: 2 });
+		message.success({
+			content: templateName
+				? `模板「${templateName}」已同步 ${successCount} 个分类封面`
+				: `已同步 ${successCount} 个分类封面`,
+			key: progressMessageKey,
+			duration: 2,
+		});
 		await fetchCategories();
 	} catch (error: any) {
 		message.error({
-			content: error?.message || `分类封面同步失败，已完成 ${successCount}/${categories.length}`,
+			content: error?.message || `${templateName ? '模板' : '分类封面'}同步失败，已完成 ${successCount}/${categories.length}`,
 			key: progressMessageKey,
 			duration: 3,
 		});
 	} finally {
 		syncCategoryCoversLoading.value = false;
 	}
+};
+
+const syncAllCategoryCovers = async () => {
+	const categories = flattenSecondLevelCategories();
+	if (!categories.length) {
+		message.info('暂无二级分类需要同步封面');
+		return;
+	}
+	await syncCategoryCovers(categories);
+};
+
+const handleSyncCategoryCoverTemplate = async (payload: {
+	templateId: string;
+	templatePack: CourseCoverTemplatePack;
+}) => {
+	const normalizedPack = normalizeCourseCoverTemplatePack(payload.templatePack, { configType: 'category' });
+	const currentTemplate = normalizedPack.templates.find((template) => template.id === payload.templateId);
+	if (!currentTemplate) {
+		message.error('当前分类封面模板不存在，请刷新后重试');
+		return;
+	}
+	const categories = flattenSecondLevelCategories().filter((category) => {
+		const resolved = resolveCategoryCoverTemplateByCategory(normalizedPack, {
+			category: category.parentName,
+			sub_category: category.name,
+		});
+		return resolved.id === currentTemplate.id;
+	});
+	if (!categories.length) {
+		message.info(`模板「${currentTemplate.name}」当前没有对应分类`);
+		return;
+	}
+
+	await syncCategoryCovers(categories, { templatePack: normalizedPack, templateName: currentTemplate.name });
+	scheduleAutoCoverPreview(0);
 };
 
 const handleCategoryCoverConfigSaved = async () => {

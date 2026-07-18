@@ -301,6 +301,15 @@
           <a-space>
             <a-button :disabled="!canUndo" @click="handleUndo">撤回</a-button>
             <a-button type="primary" :loading="saving" @click="handleSave">保存配置</a-button>
+			<a-tooltip v-if="props.configType === 'category'" title="保存配置后，只更新实际使用当前模板的分类封面">
+				<a-button
+					:loading="props.syncingTemplate"
+					:disabled="saving"
+					@click="handleSyncCurrentTemplate"
+				>
+					仅同步当前模板
+				</a-button>
+			</a-tooltip>
             <a-button :disabled="!activeFieldId" @click="centerActiveField">一键文字居中</a-button>
             <a-button @click="handleReset">恢复默认</a-button>
           </a-space>
@@ -417,14 +426,17 @@ let historyTimer: ReturnType<typeof setTimeout> | null = null;
 const props = withDefaults(
 	defineProps<{
 		configType?: 'course' | 'category';
+		syncingTemplate?: boolean;
 	}>(),
 	{
 		configType: 'course',
+		syncingTemplate: false,
 	},
 );
 
 const emit = defineEmits<{
 	(e: 'saved', config: CourseCoverConfig): void;
+	(e: 'sync-template', payload: { templateId: string; templatePack: CourseCoverTemplatePack }): void;
 }>();
 
 const samplePayload = {
@@ -1024,7 +1036,7 @@ const handleDeleteTemplate = () => {
 	message.success('已删除当前封面模板');
 };
 
-const handleSave = async () => {
+const persistConfig = async (emitSaved: boolean) => {
 	saving.value = true;
 	try {
 		normalizeAllConfig();
@@ -1043,12 +1055,27 @@ const handleSave = async () => {
 		templatePack.value = normalizedPack;
 		activeTemplateId.value = normalizedPack.activeTemplateId;
 		message.success(props.configType === 'category' ? '分类封面配置已保存' : '课程封面配置已保存');
-		emit('saved', getActiveCourseCoverConfig(normalizedPack, { configType: props.configType }));
+		if (emitSaved) {
+			emit('saved', getActiveCourseCoverConfig(normalizedPack, { configType: props.configType }));
+		}
+		return normalizedPack;
 	} catch (error: any) {
 		message.error(error?.message || '保存失败');
+		return null;
 	} finally {
 		saving.value = false;
 	}
+};
+
+const handleSave = async () => {
+	await persistConfig(true);
+};
+
+const handleSyncCurrentTemplate = async () => {
+	const templateId = activeTemplateId.value;
+	const normalizedPack = await persistConfig(false);
+	if (!normalizedPack) return;
+	emit('sync-template', { templateId, templatePack: normalizedPack });
 };
 
 const handleReset = async () => {

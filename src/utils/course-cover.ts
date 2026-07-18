@@ -420,6 +420,14 @@ export function resolveCategoryCoverConfigByCategory(
 	input: CourseCoverTemplatePack | CourseCoverConfig | any,
 	payload: Pick<CourseCoverPayload, 'category' | 'sub_category'>,
 ): CourseCoverConfig {
+	const template = resolveCategoryCoverTemplateByCategory(input, payload);
+	return normalizeCourseCoverConfig(template?.config, DEFAULT_CATEGORY_COVER_CONFIG);
+}
+
+export function resolveCategoryCoverTemplateByCategory(
+	input: CourseCoverTemplatePack | CourseCoverConfig | any,
+	payload: Pick<CourseCoverPayload, 'category' | 'sub_category'>,
+): CourseCoverTemplate {
 	const pack = normalizeCourseCoverTemplatePack(input, { configType: 'category' });
 	const category = String(payload.category || '').trim();
 	const subCategory = String(payload.sub_category || '').trim();
@@ -432,7 +440,7 @@ export function resolveCategoryCoverConfigByCategory(
 		return bind[0] === category && !bind[1];
 	});
 	const active = pack.templates.find((item) => item.id === pack.activeTemplateId) || pack.templates[0];
-	return normalizeCourseCoverConfig((exactMatch || primaryMatch || active)?.config, DEFAULT_CATEGORY_COVER_CONFIG);
+	return exactMatch || primaryMatch || active;
 }
 
 export async function renderCourseCover(
