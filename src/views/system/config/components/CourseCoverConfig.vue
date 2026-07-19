@@ -870,20 +870,26 @@ const getFieldHitAreaStyle = (field: CourseCoverFieldConfig) => {
 	const scale = previewScale.value;
 	const lineHeightCanvas = field.lineHeight || field.fontSize;
 	const maxLines = Math.max(1, Number(field.maxLines) || 1);
-	const heightPx = Math.max(field.fontSize * scale * 0.92, lineHeightCanvas * scale * maxLines);
+	// Canvas 使用 alphabetic 基线：y 是文字基线而非文本框底部。
+	// 按与实际绘制相同的近似 ascent/descent 计算命中框，避免预览虚线框与文案明显错位。
+	const ascentCanvas = field.fontSize * 0.82;
+	const descentCanvas = field.fontSize * 0.18;
+	const topCanvas = field.y - ascentCanvas;
+	const heightCanvas = ascentCanvas + descentCanvas + lineHeightCanvas * (maxLines - 1);
+	const heightPx = Math.max(field.fontSize * scale, heightCanvas * scale);
 	const widthPx = (field.maxWidth || formState.value.width) * scale;
 	const align = field.align || 'center';
 	return {
 		left: `${field.x * scale}px`,
-		top: `${field.y * scale}px`,
+		top: `${topCanvas * scale}px`,
 		width: `${widthPx}px`,
 		height: `${heightPx}px`,
 		transform:
 			align === 'left'
-				? 'translate(0, -100%)'
+				? 'translate(0, 0)'
 				: align === 'right'
-					? 'translate(-100%, -100%)'
-					: 'translate(-50%, -100%)',
+					? 'translate(-100%, 0)'
+					: 'translate(-50%, 0)',
 	};
 };
 

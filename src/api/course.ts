@@ -84,6 +84,17 @@ export function batchAdjustCoursePrice(data: {
   return request.post('/admin/courses/batch-adjust-price', data)
 }
 
+export function batchUpdateCourseContent(data: {
+  scope: 'selected' | 'category'
+  ids?: number[]
+  category?: string
+  subCategory?: string
+  introduction?: string
+  trial_preview_page_count?: number
+}) {
+  return request.post('/admin/courses/batch-update-content', data)
+}
+
 // 获取新增课程默认参数
 export function getCourseDefaultParams() {
   return request.get('/admin/courses/default-params')

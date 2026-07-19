@@ -29,6 +29,7 @@
 					<a-button :disabled="dataSource.length === 0" @click="openBatchAdjustPriceModal">
 						批量调价
 					</a-button>
+					<a-button @click="openBatchUpdateContentModal">批量修改介绍/预览页数</a-button>
 					<a-button :loading="exporting" @click="handleExportCourses">批量导出课程</a-button>
 					<a-button :loading="exportingByCategory" @click="openExportByCategoryModal">按分类导出</a-button>
 					<a-button
@@ -454,6 +455,62 @@
 		</a-modal>
 
 		<a-modal
+			v-model:open="batchUpdateContentVisible"
+			title="批量修改课程内容"
+			width="920px"
+			:confirm-loading="batchUpdateContentLoading"
+			ok-text="确认批量更新"
+			@ok="confirmBatchUpdateContent"
+		>
+			<a-alert
+				type="warning"
+				show-icon
+				message="批量更新会覆盖目标课程原有内容，请确认范围和勾选字段"
+				style="margin-bottom: 16px"
+			/>
+			<a-form :label-col="{ span: 5 }" :wrapper-col="{ span: 18 }">
+				<a-form-item label="更新范围" required>
+					<a-radio-group v-model:value="batchUpdateContentForm.scope">
+						<a-radio value="selected" :disabled="selectedRowKeys.length === 0">
+							已勾选课程（{{ selectedRowKeys.length }} 门）
+						</a-radio>
+						<a-radio value="category">指定类目下所有课程</a-radio>
+					</a-radio-group>
+				</a-form-item>
+				<a-form-item v-if="batchUpdateContentForm.scope === 'category'" label="指定类目" required>
+					<a-cascader
+						v-model:value="batchUpdateContentForm.categoryValue"
+						:options="categoryFilterOptions"
+						:field-names="{ label: 'label', value: 'value', children: 'children' }"
+						:show-search="{ filter: cascaderFilter }"
+						change-on-select
+						placeholder="选择一级分类将包含其全部二级分类"
+						style="width: 100%"
+					/>
+				</a-form-item>
+				<a-form-item label="更新字段" required>
+					<a-space direction="vertical">
+						<a-checkbox v-model:checked="batchUpdateContentForm.updateIntroduction">课程介绍</a-checkbox>
+						<a-checkbox v-model:checked="batchUpdateContentForm.updatePreviewPages">试读预览页数</a-checkbox>
+					</a-space>
+				</a-form-item>
+				<a-form-item v-if="batchUpdateContentForm.updateIntroduction" label="统一课程介绍" required>
+					<WangEditor v-model="batchUpdateContentForm.introduction" placeholder="输入后将覆盖目标课程原有介绍" />
+				</a-form-item>
+				<a-form-item v-if="batchUpdateContentForm.updatePreviewPages" label="试读预览页数" required>
+					<a-input-number
+						v-model:value="batchUpdateContentForm.trialPreviewPageCount"
+						:min="0"
+						:max="50"
+						:precision="0"
+						style="width: 180px"
+					/>
+					<div class="form-tip">仅文件类课程会更新；填写 0 表示关闭未购买试读。</div>
+				</a-form-item>
+			</a-form>
+		</a-modal>
+
+		<a-modal
 			v-model:open="previewCacheProgressVisible"
 			title="图片缓存生成"
 			width="960px"
@@ -671,7 +728,7 @@
 	import { ref, onMounted, watch, computed, onBeforeUnmount, onUnmounted } from 'vue';
 	import { message } from 'ant-design-vue';
 	import { PlusOutlined, DeleteOutlined, CheckOutlined, CloseOutlined, DownOutlined } from '@ant-design/icons-vue';
-	import { getCourseList, getSimilarCourseGroups, getCourseSimilarityConfig, deleteCourse, batchDeleteCourses, batchUpdateCourseStatus, batchAdjustCoursePrice, updateCourseSort, generateMissingCoursePreviewCaches, retryFailedCoursePreviewCaches, getCoursePreviewCacheProgress, interruptCoursePreviewCacheTask, fixBlankCoursePreviewCaches, getPreviewCacheTargetCourses, forceSelectedCoursePreviewCaches } from '@/api/course';
+	import { getCourseList, getSimilarCourseGroups, getCourseSimilarityConfig, deleteCourse, batchDeleteCourses, batchUpdateCourseStatus, batchAdjustCoursePrice, batchUpdateCourseContent, updateCourseSort, generateMissingCoursePreviewCaches, retryFailedCoursePreviewCaches, getCoursePreviewCacheProgress, interruptCoursePreviewCacheTask, fixBlankCoursePreviewCaches, getPreviewCacheTargetCourses, forceSelectedCoursePreviewCaches } from '@/api/course';
 	import { getCourseCategoryTree } from '@/api/course-category';
 	import { getToken } from '@/utils/auth';
 	import { useUserStore } from '@/store/user';
@@ -683,6 +740,7 @@ import ExamConfigDrawer from './components/ExamConfigDrawer.vue';
 import RecommendationDrawer from './components/RecommendationDrawer.vue';
 import TableColumnSetting from '@/components/TableColumnSetting/index.vue';
 import { useTableColumns } from '@/composables/useTableColumns';
+import WangEditor from '@/components/WangEditor/index.vue';
 
 const loading = ref(false);
 const dataSource = ref([]);
@@ -708,6 +766,16 @@ const currentCourseName = ref<string>('');
 	const batchDeleteLoading = ref(false);
 	const batchAdjustPriceVisible = ref(false);
 	const batchAdjustPriceLoading = ref(false);
+	const batchUpdateContentVisible = ref(false);
+	const batchUpdateContentLoading = ref(false);
+	const batchUpdateContentForm = ref({
+		scope: 'selected' as 'selected' | 'category',
+		categoryValue: [] as string[],
+		updateIntroduction: true,
+		introduction: '',
+		updatePreviewPages: false,
+		trialPreviewPageCount: 3,
+	});
 	const batchAdjustPriceForm = ref<{
 		scope: 'selected' | 'all';
 		mode: 'delta' | 'percent' | 'fixed';
@@ -1817,6 +1885,64 @@ const openBatchAdjustPriceModal = () => {
 
 const closeBatchAdjustPriceModal = () => {
 	batchAdjustPriceVisible.value = false;
+};
+
+const openBatchUpdateContentModal = () => {
+	batchUpdateContentForm.value = {
+		scope: selectedRowKeys.value.length ? 'selected' : 'category',
+		categoryValue: searchCategoryValue.value.length ? [...searchCategoryValue.value] : [],
+		updateIntroduction: true,
+		introduction: '',
+		updatePreviewPages: false,
+		trialPreviewPageCount: 3,
+	};
+	batchUpdateContentVisible.value = true;
+};
+
+const confirmBatchUpdateContent = async () => {
+	const form = batchUpdateContentForm.value;
+	if (form.scope === 'selected' && selectedRowKeys.value.length === 0) {
+		message.warning('请先勾选要更新的课程');
+		return;
+	}
+	if (form.scope === 'category' && !form.categoryValue[0]) {
+		message.warning('请选择要更新的类目');
+		return;
+	}
+	if (!form.updateIntroduction && !form.updatePreviewPages) {
+		message.warning('请至少勾选一个更新字段');
+		return;
+	}
+
+	const payload: Parameters<typeof batchUpdateCourseContent>[0] = {
+		scope: form.scope,
+	};
+	if (form.scope === 'selected') {
+		payload.ids = [...selectedRowKeys.value];
+	} else {
+		payload.category = form.categoryValue[0];
+		payload.subCategory = form.categoryValue[1] || undefined;
+	}
+	if (form.updateIntroduction) payload.introduction = form.introduction || '';
+	if (form.updatePreviewPages) payload.trial_preview_page_count = form.trialPreviewPageCount;
+
+	batchUpdateContentLoading.value = true;
+	try {
+		const res = await batchUpdateCourseContent(payload);
+		const data = res.data || res;
+		const parts = [];
+		if (form.updateIntroduction) parts.push(`课程介绍 ${data.introductionCount || 0} 门`);
+		if (form.updatePreviewPages) parts.push(`预览页数 ${data.previewPageCount || 0} 门`);
+		if (data.skippedNonFileCount) parts.push(`跳过非文件课程 ${data.skippedNonFileCount} 门`);
+		message.success(`批量更新完成：${parts.join('，')}`);
+		batchUpdateContentVisible.value = false;
+		selectedRowKeys.value = [];
+		await fetchData();
+	} catch (error: any) {
+		message.error(error?.message || '批量更新失败');
+	} finally {
+		batchUpdateContentLoading.value = false;
+	}
 };
 
 const confirmBatchAdjustPrice = async () => {
