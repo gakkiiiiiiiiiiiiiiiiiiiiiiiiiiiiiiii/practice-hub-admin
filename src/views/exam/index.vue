@@ -180,9 +180,10 @@ const handleSearch = () => {
 };
 
 const handleTableChange = (pag: any) => {
-	pagination.value.current = pag.current;
-	pagination.value.pageSize = pag.pageSize;
-	loadData();
+	const nextPageSize = Math.max(1, Number(pag.pageSize) || pagination.value.pageSize);
+	const pageSizeChanged = pagination.value.pageSize !== nextPageSize;
+	pagination.value.current = pageSizeChanged ? 1 : Math.max(1, Number(pag.current) || 1);
+	pagination.value.pageSize = nextPageSize;
 };
 
 const handleAdd = () => {

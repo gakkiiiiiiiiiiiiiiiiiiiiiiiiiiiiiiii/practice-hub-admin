@@ -903,6 +903,7 @@ const pagination = ref({
 	total: 0,
 	showQuickJumper: true,
 	showSizeChanger: true,
+	pageSizeOptions: ['10', '20', '50', '100'],
 	showTotal: (total: number) => `共 ${total} 条`,
 });
 
@@ -931,9 +932,10 @@ const toggleMobileRowSelection = (id: number, checked: boolean) => {
 };
 
 const handleMobilePaginationChange = (page: number, pageSize: number) => {
-	pagination.value.current = page;
+	const pageSizeChanged = pagination.value.pageSize !== pageSize;
+	pagination.value.current = pageSizeChanged ? 1 : page;
 	pagination.value.pageSize = pageSize;
-	jumpPage.value = page;
+	jumpPage.value = pagination.value.current;
 };
 
 const lastPage = computed(() => Math.max(1, Math.ceil((pagination.value.total || 0) / pagination.value.pageSize)));
@@ -1290,10 +1292,11 @@ const handleResetSearch = () => {
 };
 
 const handleTableChange = (pag: any) => {
-	pagination.value.current = pag.current;
-	pagination.value.pageSize = pag.pageSize;
-	jumpPage.value = pag.current;
-	fetchData();
+	const nextPageSize = Math.max(1, Number(pag.pageSize) || pagination.value.pageSize);
+	const pageSizeChanged = pagination.value.pageSize !== nextPageSize;
+	pagination.value.current = pageSizeChanged ? 1 : Math.max(1, Number(pag.current) || 1);
+	pagination.value.pageSize = nextPageSize;
+	jumpPage.value = pagination.value.current;
 };
 
 const jumpToPage = (page: number) => {
