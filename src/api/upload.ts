@@ -106,7 +106,8 @@ export async function uploadImage(file: File): Promise<{ url: string; imageUrl: 
 /** 获取课程文件直传 OSS 签名 URL（绕过云托管 413） */
 export async function getCourseFileUploadUrl(fileName: string): Promise<{
 	url: string;
-	method: 'PUT';
+	method: 'PUT' | 'SERVER_CHUNK';
+	provider: 'cos' | 'oss';
 	contentType: string;
 	headers: Record<string, string>;
 	path: string;
@@ -115,15 +116,16 @@ export async function getCourseFileUploadUrl(fileName: string): Promise<{
 	fileType: string;
 }> {
 	const res = (await request.post('/admin/upload/course-file-upload-url', { fileName })) as {
-		data: { url: string; method: 'PUT'; contentType: string; headers: Record<string, string>; path: string; finalFileUrl: string; fileName: string; fileType: string };
+		data: { url: string; method: 'PUT' | 'SERVER_CHUNK'; provider: 'cos' | 'oss'; contentType: string; headers: Record<string, string>; path: string; finalFileUrl: string; fileName: string; fileType: string };
 	};
 	const data = res?.data ?? res;
-	if (!data?.url || data?.method !== 'PUT' || !data?.contentType) {
+	if (!data?.method || !['PUT', 'SERVER_CHUNK'].includes(data.method) || !data?.contentType) {
 		throw new Error((data as any)?.errmsg || '获取上传凭证失败');
 	}
 	return {
 		url: data.url,
 		method: data.method,
+		provider: data.provider || 'cos',
 		contentType: data.contentType,
 		headers: data.headers || { 'Content-Type': data.contentType },
 		path: data.path,
@@ -201,14 +203,16 @@ export async function uploadCourseFile(
 	try {
 		options?.onProgress?.(1, '正在获取上传凭证');
 		const credentials = await getCourseFileUploadUrl(name);
-		await uploadCourseFileToOss(file, credentials, options);
-		options?.onProgress?.(100, '上传完成');
-		return {
-			url: credentials.finalFileUrl,
-			fileUrl: credentials.finalFileUrl,
-			fileName: credentials.fileName,
-			fileType: credentials.fileType,
-		};
+		if (credentials.method === 'PUT') {
+			await uploadCourseFileToOss(file, { ...credentials, method: 'PUT' }, options);
+			options?.onProgress?.(100, '上传完成');
+			return {
+				url: credentials.finalFileUrl,
+				fileUrl: credentials.finalFileUrl,
+				fileName: credentials.fileName,
+				fileType: credentials.fileType,
+			};
+		}
 	} catch (directError: any) {
 		console.warn('课程文件直传失败，尝试后端分片上传:', directError?.message || directError);
 	}

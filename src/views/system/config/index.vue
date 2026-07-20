@@ -24,6 +24,9 @@
         <a-tab-pane key="course-intro-template" tab="课程介绍模板">
           <course-intro-template-config />
         </a-tab-pane>
+        <a-tab-pane key="storage-provider" tab="对象存储">
+          <storage-provider-config />
+        </a-tab-pane>
         <a-tab-pane key="faq" tab="常见问题配置">
           <faq-config />
         </a-tab-pane>
@@ -54,10 +57,11 @@ import FaqConfig from './components/FaqConfig.vue'
 import ReferralCouponConfig from './components/ReferralCouponConfig.vue'
 import PointsConfig from './components/PointsConfig.vue'
 import UserTitleConfig from './components/UserTitleConfig.vue'
+import StorageProviderConfig from './components/StorageProviderConfig.vue'
 
 const route = useRoute()
 const router = useRouter()
-const validTabs = new Set(['banner', 'home-popup', 'ai', 'checkin', 'course-cover', 'course-intro-template', 'faq', 'referral-coupon', 'points', 'user-title'])
+const validTabs = new Set(['banner', 'home-popup', 'ai', 'checkin', 'course-cover', 'course-intro-template', 'storage-provider', 'faq', 'referral-coupon', 'points', 'user-title'])
 const activeTab = ref(getInitialTab())
 
 function getInitialTab() {

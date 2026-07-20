@@ -68,6 +68,21 @@ export function updateSystemConfig(data: any) {
   return request.put('/admin/settings', data)
 }
 
+export type StorageProvider = 'cos' | 'oss'
+
+export interface StorageProviderConfig {
+  provider: StorageProvider
+  providers: Record<StorageProvider, { configured: boolean; label: string }>
+}
+
+export function getStorageProviderConfig() {
+  return request.get('/admin/settings/storage-provider')
+}
+
+export function setStorageProvider(provider: StorageProvider) {
+  return request.put('/admin/settings/storage-provider', { provider })
+}
+
 // 获取广播消息列表
 export function getDailyQuotes() {
   return request.get('/admin/settings/daily-quotes')
