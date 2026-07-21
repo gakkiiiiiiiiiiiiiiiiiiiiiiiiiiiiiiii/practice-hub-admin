@@ -23,9 +23,15 @@
 					<a-button @click="coverConfigOpen = true">
 						分类封面配置
 					</a-button>
-					<a-button :loading="syncCategoryCoversLoading" @click="syncAllCategoryCovers">
-						同步分类封面
-					</a-button>
+					<a-tooltip title="只同步表格中已勾选的二级分类">
+						<a-button
+							:loading="syncCategoryCoversLoading"
+							:disabled="selectedCoverSyncTargets.length === 0"
+							@click="syncSelectedCategoryCovers"
+						>
+							同步选中分类封面 ({{ selectedCoverSyncTargets.length }})
+						</a-button>
+					</a-tooltip>
 					<a-button type="primary" @click="handleAdd(null)">
 						<template #icon><plus-outlined /></template>
 						新增一级分类
@@ -659,6 +665,11 @@ const flattenSecondLevelCategories = () => {
 
 type CategoryCoverSyncTarget = ReturnType<typeof flattenSecondLevelCategories>[number];
 
+const selectedCoverSyncTargets = computed(() => {
+	const selectedIds = new Set(selectedRowKeys.value.map(Number));
+	return flattenSecondLevelCategories().filter((category) => selectedIds.has(category.id));
+});
+
 const syncCategoryCovers = async (
 	categories: CategoryCoverSyncTarget[],
 	options?: { templatePack?: CourseCoverTemplatePack; templateName?: string },
@@ -705,10 +716,10 @@ const syncCategoryCovers = async (
 	}
 };
 
-const syncAllCategoryCovers = async () => {
-	const categories = flattenSecondLevelCategories();
+const syncSelectedCategoryCovers = async () => {
+	const categories = selectedCoverSyncTargets.value;
 	if (!categories.length) {
-		message.info('暂无二级分类需要同步封面');
+		message.info('请先勾选需要同步封面的二级分类');
 		return;
 	}
 	await syncCategoryCovers(categories);
@@ -742,8 +753,8 @@ const handleSyncCategoryCoverTemplate = async (payload: {
 
 const handleCategoryCoverConfigSaved = async () => {
 	coverConfigCache = null;
-	await syncAllCategoryCovers();
 	scheduleAutoCoverPreview(0);
+	message.info('配置已保存；如需更新现有封面，请在分类列表中勾选分类后同步');
 };
 
 const sanitizeFileName = (value: string) => value.replace(/[\\/:*?"<>|]+/g, '-').slice(0, 40);
