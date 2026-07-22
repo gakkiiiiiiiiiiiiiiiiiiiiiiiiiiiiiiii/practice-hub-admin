@@ -296,14 +296,14 @@
 							</a-form-item>
 						</a-col>
 						<a-col v-if="activeMode !== 'paperExcel'" :span="12">
-							<a-form-item label="有效期(天)">
-								<a-input-number
-									v-model:value="defaults.validity_days"
-									:min="1"
-									:precision="0"
-									:disabled="defaults.is_free === 1"
-									style="width: 100%"
-								/>
+							<a-form-item label="有效期设置">
+								<a-radio-group v-model:value="defaults.validity_days" :disabled="defaults.is_free === 1">
+									<a-radio :value="30">30天</a-radio>
+									<a-radio :value="90">90天</a-radio>
+									<a-radio :value="180">180天</a-radio>
+									<a-radio :value="365">365天</a-radio>
+									<a-radio :value="null">长期有效</a-radio>
+								</a-radio-group>
 							</a-form-item>
 						</a-col>
 						<a-col v-if="activeMode !== 'paperExcel'" :span="12">
@@ -880,8 +880,6 @@ watch(
 		}
 		if (value === 1) {
 			defaults.value.validity_days = null;
-		} else if (defaults.value.validity_days == null) {
-			defaults.value.validity_days = 365;
 		}
 	},
 );
@@ -951,9 +949,6 @@ const handleModeChange = () => {
 	}
 	if (defaults.value.content_type === 'paper_exam') {
 		defaults.value.content_type = 'file';
-		if (defaults.value.validity_days == null) {
-			defaults.value.validity_days = 365;
-		}
 	}
 	rebuildPreview();
 };
@@ -1039,7 +1034,7 @@ const buildSubmitPayload = (
 	if (answerYear) payload.answer_year = answerYear;
 	const introduction = resolveIntroductionTemplateForGroup(group);
 	if (introduction) payload.introduction = introduction;
-	payload.validity_days = isPaperExam ? null : defaults.value.is_free === 1 ? null : defaults.value.validity_days ?? 365;
+	payload.validity_days = isPaperExam || defaults.value.is_free === 1 ? null : defaults.value.validity_days;
 	return payload;
 };
 

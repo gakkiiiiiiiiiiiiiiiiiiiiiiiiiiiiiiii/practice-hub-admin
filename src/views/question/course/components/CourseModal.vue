@@ -707,7 +707,7 @@ watch(
 					price: props.record.price ?? 1,
 					agent_price: props.record.agent_price ?? 1,
 						is_free: props.record.is_free ?? 0,
-						validity_days: props.record.validity_days ?? 365,
+						validity_days: props.record.validity_days ?? null,
 						introduction: props.record.introduction || '',
 					content_type: props.record.content_type || 'normal',
 					file_url: props.record.file_url || '',
@@ -813,8 +813,6 @@ watch(
 					courseFileRows.value = [];
 					syncPrimaryFromRows();
 				}
-			} else if (oldValue === 'paper_exam' && formState.value.is_free === 0 && formState.value.validity_days == null) {
-				formState.value.validity_days = 365;
 			} else if (value === 'file' && (formState.value.trial_preview_page_count === undefined || formState.value.trial_preview_page_count === null)) {
 				formState.value.trial_preview_page_count = 3;
 			}
@@ -824,8 +822,8 @@ watch(
 	watch(
 		() => formState.value.is_free,
 		(isFree) => {
-			if (isFree === 0 && formState.value.content_type !== 'paper_exam' && formState.value.validity_days == null) {
-				formState.value.validity_days = 365;
+			if (isFree === 1) {
+				formState.value.validity_days = null;
 			}
 		},
 	);

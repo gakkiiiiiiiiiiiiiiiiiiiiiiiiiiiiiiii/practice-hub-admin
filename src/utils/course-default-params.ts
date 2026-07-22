@@ -23,7 +23,7 @@ export const FALLBACK_COURSE_DEFAULT_PARAMS: CourseDefaultParams = {
 	price: 1,
 	agent_price: 1,
 	is_free: 0,
-	validity_days: 365,
+	validity_days: null,
 	allow_source_file: 0,
 	trial_preview_page_count: 3,
 	content_type: 'normal',
@@ -36,6 +36,10 @@ export const normalizeCourseDefaultParams = (input?: Partial<CourseDefaultParams
 	const rawContentType = String(source.content_type || 'normal');
 	const contentType: CourseDefaultParams['content_type'] =
 		rawContentType === 'file' || rawContentType === 'paper_exam' ? rawContentType : 'normal';
+	const rawValidityDays = source.validity_days === undefined
+		? FALLBACK_COURSE_DEFAULT_PARAMS.validity_days
+		: source.validity_days;
+	const parsedValidityDays = Number(rawValidityDays);
 	return {
 		subject: String(source.subject || '').trim(),
 		school: String(source.school || '').trim(),
@@ -45,7 +49,10 @@ export const normalizeCourseDefaultParams = (input?: Partial<CourseDefaultParams
 		price: Math.max(0, Number(source.price ?? FALLBACK_COURSE_DEFAULT_PARAMS.price) || 0),
 		agent_price: Math.max(0, Number(source.agent_price ?? FALLBACK_COURSE_DEFAULT_PARAMS.agent_price) || 0),
 		is_free: isFree,
-		validity_days: isFree === 1 ? null : Math.max(1, Number(source.validity_days ?? FALLBACK_COURSE_DEFAULT_PARAMS.validity_days) || 365),
+		validity_days:
+			isFree === 1 || rawValidityDays === null || !Number.isFinite(parsedValidityDays)
+				? null
+				: Math.max(1, Math.trunc(parsedValidityDays)),
 		allow_source_file: Number(source.allow_source_file ?? FALLBACK_COURSE_DEFAULT_PARAMS.allow_source_file) === 1 ? 1 : 0,
 		trial_preview_page_count: Math.min(
 			50,

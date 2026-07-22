@@ -49,14 +49,15 @@
 						<a-radio :value="1">免费</a-radio>
 					</a-radio-group>
 				</a-form-item>
-				<a-form-item label="有效期(天)">
-					<a-input-number
-						v-model:value="formState.validity_days"
-						:min="1"
-						:precision="0"
-						:disabled="formState.is_free === 1"
-						style="width: 100%"
-					/>
+				<a-form-item label="有效期设置">
+					<a-radio-group v-model:value="formState.validity_days" :disabled="formState.is_free === 1">
+						<a-radio :value="30">30天</a-radio>
+						<a-radio :value="90">90天</a-radio>
+						<a-radio :value="180">180天</a-radio>
+						<a-radio :value="365">365天</a-radio>
+						<a-radio :value="null">长期有效</a-radio>
+					</a-radio-group>
+					<div class="form-tip">选择“长期有效”后，用户购买课程不会设置到期时间。</div>
 				</a-form-item>
 				<a-form-item label="源文件查看">
 					<a-radio-group v-model:value="formState.allow_source_file">
@@ -136,8 +137,6 @@ watch(
 	(value) => {
 		if (value === 1) {
 			formState.value.validity_days = null;
-		} else if (formState.value.validity_days == null) {
-			formState.value.validity_days = 365;
 		}
 	},
 );
