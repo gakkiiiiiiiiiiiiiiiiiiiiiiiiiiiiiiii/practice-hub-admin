@@ -5,7 +5,7 @@
 				<a-space>
 					<a-input-search
 						v-model:value="searchForm.keyword"
-						placeholder="搜索昵称或OpenID"
+						placeholder="搜索用户ID、昵称、OpenID或手机号"
 						style="width: 250px"
 						@search="handleSearch"
 						allow-clear
@@ -63,6 +63,9 @@
               <a-button type="link" size="small" @click="handleIssueCoupon(record)">
                 发券
               </a-button>
+              <a-button type="link" size="small" @click="handleGrantPoints(record)">
+                赠送积分
+              </a-button>
               <a-button type="link" size="small" danger @click="handleResetAsNew(record)">
                 重置为新用户
               </a-button>
@@ -115,6 +118,12 @@
       :preset-user="issueTargetUser"
       @success="fetchData"
     />
+
+    <grant-points-modal
+      v-model:open="pointsModalVisible"
+      :preset-user="pointsTargetUser"
+      @success="fetchData"
+    />
   </div>
 </template>
 
@@ -124,6 +133,7 @@ import { message, Modal } from 'ant-design-vue';
 import { getAppUserList, updateAppUserRole, updateUserStatus, resetAppUserAsNew } from '@/api/user';
 import UserDetailModal from './components/UserDetailModal.vue';
 import IssueCouponModal from './components/IssueCouponModal.vue';
+import GrantPointsModal from './components/GrantPointsModal.vue';
 import dayjs from 'dayjs';
 import TableColumnSetting from '@/components/TableColumnSetting/index.vue';
 import { useTableColumns } from '@/composables/useTableColumns';
@@ -132,8 +142,10 @@ const loading = ref(false);
 const dataSource = ref([]);
 const detailModalVisible = ref(false);
 const issueModalVisible = ref(false);
+const pointsModalVisible = ref(false);
 const selectedUserId = ref<number | null>(null);
 const issueTargetUser = ref<{ id: number; nickname?: string; openId?: string } | null>(null);
+const pointsTargetUser = ref<{ id: number; nickname?: string } | null>(null);
 
 const searchForm = ref({
 	keyword: '',
@@ -149,6 +161,12 @@ const pagination = ref({
 });
 
 const baseColumns = [
+	{
+		title: '用户 ID',
+		dataIndex: 'id',
+		key: 'id',
+		width: 100,
+	},
 	{
 		title: '头像',
 		key: 'avatar',
@@ -172,6 +190,12 @@ const baseColumns = [
 		dataIndex: 'phone',
 		key: 'phone',
 		width: 120,
+	},
+	{
+		title: '积分余额',
+		dataIndex: 'pointsBalance',
+		key: 'pointsBalance',
+		width: 110,
 	},
 	{
 		title: '注册时间',
@@ -209,7 +233,7 @@ const baseColumns = [
 	{
 		title: '操作',
 		key: 'action',
-		width: 520,
+		width: 620,
 		fixed: 'right',
 	},
 ];
@@ -297,6 +321,14 @@ const handleIssueCoupon = (record: any) => {
 		openId: record.openId,
 	};
 	issueModalVisible.value = true;
+};
+
+const handleGrantPoints = (record: any) => {
+	pointsTargetUser.value = {
+		id: record.id,
+		nickname: record.nickname,
+	};
+	pointsModalVisible.value = true;
 };
 
 const handleToggleStatus = async (record: any) => {

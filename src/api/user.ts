@@ -58,3 +58,8 @@ export function updateAppUserRole(id: number, data: { role: 'user' | 'bank_admin
 export function resetAppUserAsNew(id: number) {
   return request.post(`/admin/users/${id}/reset-as-new`)
 }
+
+// 向指定小程序用户赠送积分
+export function grantAppUserPoints(id: number, data: { amount: number; remark?: string }) {
+  return request.post(`/admin/users/${id}/points/grant`, data)
+}
