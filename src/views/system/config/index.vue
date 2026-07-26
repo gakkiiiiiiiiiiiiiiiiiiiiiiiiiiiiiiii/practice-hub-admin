@@ -19,7 +19,11 @@
           <checkin-config />
         </a-tab-pane>
         <a-tab-pane key="course-cover" tab="课程封面配置">
-          <course-cover-config />
+          <course-cover-config
+            enable-template-sync
+            :syncing-template="syncCourseCoversLoading"
+            @sync-template="handleSyncCourseCoverTemplate"
+          />
         </a-tab-pane>
         <a-tab-pane key="course-intro-template" tab="课程介绍模板">
           <course-intro-template-config />
@@ -58,9 +62,14 @@ import ReferralCouponConfig from './components/ReferralCouponConfig.vue'
 import PointsConfig from './components/PointsConfig.vue'
 import UserTitleConfig from './components/UserTitleConfig.vue'
 import StorageProviderConfig from './components/StorageProviderConfig.vue'
+import { useCourseCoverTemplateSync } from './composables/useCourseCoverTemplateSync'
 
 const route = useRoute()
 const router = useRouter()
+const {
+	syncing: syncCourseCoversLoading,
+	syncCurrentTemplate: handleSyncCourseCoverTemplate,
+} = useCourseCoverTemplateSync()
 const validTabs = new Set(['banner', 'home-popup', 'ai', 'checkin', 'course-cover', 'course-intro-template', 'storage-provider', 'faq', 'referral-coupon', 'points', 'user-title'])
 const activeTab = ref(getInitialTab())
 

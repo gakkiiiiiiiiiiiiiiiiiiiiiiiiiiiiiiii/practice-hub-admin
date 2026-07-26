@@ -301,13 +301,13 @@
           <a-space>
             <a-button :disabled="!canUndo" @click="handleUndo">撤回</a-button>
             <a-button type="primary" :loading="saving" @click="handleSave">保存配置</a-button>
-			<a-tooltip v-if="props.configType === 'category'" title="保存配置后，只更新实际使用当前模板的分类封面">
+			<a-tooltip v-if="props.enableTemplateSync" :title="syncTemplateTooltip">
 				<a-button
 					:loading="props.syncingTemplate"
 					:disabled="saving"
 					@click="handleSyncCurrentTemplate"
 				>
-					仅同步当前模板
+					同步当前模板封面
 				</a-button>
 			</a-tooltip>
             <a-button :disabled="!activeFieldId" @click="centerActiveField">一键文字居中</a-button>
@@ -426,10 +426,12 @@ let historyTimer: ReturnType<typeof setTimeout> | null = null;
 const props = withDefaults(
 	defineProps<{
 		configType?: 'course' | 'category';
+		enableTemplateSync?: boolean;
 		syncingTemplate?: boolean;
 	}>(),
 	{
 		configType: 'course',
+		enableTemplateSync: false,
 		syncingTemplate: false,
 	},
 );
@@ -456,6 +458,11 @@ const currentTemplate = computed<CourseCoverTemplate>(() => {
 	return templatePack.value.templates[0];
 });
 const canUndo = computed(() => undoStack.value.length > 1);
+const syncTemplateTooltip = computed(() =>
+	props.configType === 'category'
+		? '保存配置后，只更新实际使用当前模板的分类封面'
+		: '保存配置后，只更新实际使用当前模板的课程封面',
+);
 
 const courseFieldOptions = computed(() => {
 	if (props.configType === 'category') {

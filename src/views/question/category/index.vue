@@ -267,6 +267,7 @@
 		>
 			<CourseCoverConfig
 				config-type="category"
+				enable-template-sync
 				:syncing-template="syncCategoryCoversLoading"
 				@saved="handleCategoryCoverConfigSaved"
 				@sync-template="handleSyncCategoryCoverTemplate"
