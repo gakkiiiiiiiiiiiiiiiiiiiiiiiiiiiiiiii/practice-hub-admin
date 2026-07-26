@@ -373,9 +373,11 @@ export function normalizeCourseCoverTemplatePack(
 		);
 	}
 
-	const activeTemplateId = templates.some((item) => item.id === input?.activeTemplateId)
-		? input.activeTemplateId
-		: templates[0].id;
+	const configuredActive = templates.find((item) => item.id === input?.activeTemplateId) || templates[0];
+	const unboundDefault = templates.find((item) => !(item.bindCategory || []).length);
+	// 兼容旧数据：绑定分类的模板不应同时充当未匹配课程的通用兜底模板。
+	const activeTemplateId =
+		(configuredActive.bindCategory || []).length && unboundDefault ? unboundDefault.id : configuredActive.id;
 
 	return {
 		activeTemplateId,

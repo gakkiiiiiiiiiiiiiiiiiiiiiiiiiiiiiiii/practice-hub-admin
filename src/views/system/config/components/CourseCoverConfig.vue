@@ -537,7 +537,10 @@ const syncCurrentTemplateConfig = () => {
 	current.name = String(current.name || '').trim() || getDefaultTemplateName();
 	current.config = normalizeCourseCoverConfig(formState.value, getDefaultTemplateConfig());
 	current.bindCategory = Array.isArray(current.bindCategory) ? current.bindCategory.filter(Boolean).slice(0, 2) : [];
-	templatePack.value.activeTemplateId = activeTemplateId.value;
+	// activeTemplateId 表示无分类匹配时的通用模板，不能被正在编辑的绑定模板覆盖。
+	if (!current.bindCategory.length) {
+		templatePack.value.activeTemplateId = current.id;
+	}
 };
 
 const applyTemplateToForm = (templateId: string) => {
@@ -545,7 +548,7 @@ const applyTemplateToForm = (templateId: string) => {
 	if (!template) return;
 	formState.value = normalizeCourseCoverConfig(template.config, getDefaultTemplateConfig());
 	activeTemplateId.value = template.id;
-	templatePack.value.activeTemplateId = template.id;
+	// 切换页签只改变编辑对象，不改变课程匹配时使用的通用默认模板。
 	updateBackgroundFileList();
 	scheduleFullPreview(0);
 };
@@ -1066,7 +1069,6 @@ const persistConfig = async (emitSaved: boolean) => {
 			await setCourseCoverConfig(normalizedPack);
 		}
 		templatePack.value = normalizedPack;
-		activeTemplateId.value = normalizedPack.activeTemplateId;
 		message.success(props.configType === 'category' ? '分类封面配置已保存' : '课程封面配置已保存');
 		if (emitSaved) {
 			emit('saved', getActiveCourseCoverConfig(normalizedPack, { configType: props.configType }));
