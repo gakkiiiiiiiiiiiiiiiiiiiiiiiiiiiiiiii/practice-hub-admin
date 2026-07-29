@@ -156,6 +156,10 @@ export function listCourseFiles(courseId: number) {
   return request.get(`/admin/courses/${courseId}/files`)
 }
 
+export function getCourseFileDownloadUrl(courseId: number, fileId: number) {
+  return request.get(`/admin/courses/${courseId}/files/${fileId}/download-url`)
+}
+
 export function createCourseFile(courseId: number, data: Record<string, unknown>) {
   return request.post(`/admin/courses/${courseId}/files`, data)
 }

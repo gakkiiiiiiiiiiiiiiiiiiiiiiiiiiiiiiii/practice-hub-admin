@@ -82,7 +82,8 @@
 										v-if="canDownloadCourseFile && record.file_url"
 										type="link"
 										size="small"
-										@click="openCourseFileUrl(record.file_url)"
+										:loading="downloadingCourseFileId === record.id"
+										@click="openCourseFileUrl(record)"
 									>
 										下载
 									</a-button>
@@ -324,6 +325,7 @@ import {
 	createCourse,
 	updateCourse,
 	listCourseFiles,
+	getCourseFileDownloadUrl,
 	createCourseFile,
 	updateCourseFile,
 	deleteCourseFile,
@@ -385,6 +387,7 @@ type CourseFileRow = {
 	removed?: boolean;
 };
 const courseFileRows = ref<CourseFileRow[]>([]);
+const downloadingCourseFileId = ref<number | null>(null);
 const selectedPreviewFileId = ref<number | undefined>(undefined);
 const courseFileColumns = [
 	{ title: '展示名称', key: 'display_name', width: 200 },
@@ -1053,9 +1056,31 @@ const handleCourseFileUpload = async (options: any) => {
 	}
 };
 
-const openCourseFileUrl = (url: string) => {
-	if (!url) return;
-	window.open(url, '_blank');
+const openCourseFileUrl = async (record: CourseFileRow) => {
+	if (!record.file_url) return;
+	if (!props.record?.id || !record.id) {
+		message.warning('请先保存课程，再下载文件');
+		return;
+	}
+
+	const downloadWindow = window.open('', '_blank');
+	if (!downloadWindow) {
+		message.warning('浏览器阻止了新窗口，请允许弹窗后重试');
+		return;
+	}
+
+	downloadingCourseFileId.value = record.id;
+	try {
+		const res = await getCourseFileDownloadUrl(Number(props.record.id), record.id);
+		const url = String((res as any)?.data?.url || '');
+		if (!url) throw new Error('未获取到文件下载地址');
+		downloadWindow.location.replace(url);
+	} catch (error: any) {
+		downloadWindow.close();
+		message.error(error?.message || '获取文件下载地址失败');
+	} finally {
+		downloadingCourseFileId.value = null;
+	}
 };
 
 const removeCourseFileRow = (key: string) => {
