@@ -7,6 +7,7 @@
 		"dev": "vite",
 		"dev:prod": "vite --mode production",
 		"build": "vite build",
+		"test": "vitest run --config vitest.config.ts",
 		"preview": "vite preview",
 		"lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --ignore-path .gitignore",
 		"format": "prettier --write src/"
@@ -36,6 +37,7 @@
 		"typescript": "^5.3.3",
 		"vite": "^5.2.8",
 		"vite-plugin-mock": "^3.0.0",
+		"vitest": "^2.1.9",
 		"vue-tsc": "^1.8.27"
 	}
 }

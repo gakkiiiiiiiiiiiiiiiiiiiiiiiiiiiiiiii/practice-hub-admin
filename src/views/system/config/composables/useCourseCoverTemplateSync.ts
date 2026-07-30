@@ -8,6 +8,7 @@ import {
 	resolveCourseCoverTemplateByCategory,
 	type CourseCoverTemplatePack,
 } from '@/utils/course-cover';
+import { isCourseCoverSyncTarget } from '@/utils/course-cover-sync-target';
 
 interface CourseCoverSyncTarget {
 	id: number;
@@ -102,7 +103,7 @@ export function useCourseCoverTemplateSync() {
 			const courses = getResponseData<CourseCoverSyncTarget[]>(response);
 			const targets = (Array.isArray(courses) ? courses : []).filter((course) => {
 				const resolved = resolveCourseCoverTemplateByCategory(templatePack, course);
-				return resolved.id === currentTemplate.id;
+				return isCourseCoverSyncTarget(currentTemplate, resolved, course);
 			});
 			if (!targets.length) {
 				message.info(`模板「${currentTemplate.name}」当前没有对应课程`);
