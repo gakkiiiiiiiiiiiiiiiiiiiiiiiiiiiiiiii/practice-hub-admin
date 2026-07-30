@@ -371,11 +371,12 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
-import { message } from 'ant-design-vue';
+import { message, Modal } from 'ant-design-vue';
 import { PlusOutlined } from '@ant-design/icons-vue';
 import { uploadImage } from '@/api/upload';
 import { getCategoryCoverConfig, getCourseCoverConfig, setCategoryCoverConfig, setCourseCoverConfig } from '@/api/system';
 import { getCourseCategoryTree } from '@/api/course-category';
+import { createCourseCoverResetConfirmOptions } from '@/utils/course-cover-reset-confirmation';
 import {
 	COURSE_COVER_FIELD_OPTIONS,
 	COURSE_COVER_FONT_PRESETS,
@@ -1093,12 +1094,16 @@ const handleSyncCurrentTemplate = async () => {
 	emit('sync-template', { templateId, templatePack: normalizedPack });
 };
 
-const handleReset = async () => {
+const resetToDefault = () => {
 	formState.value = cloneCourseCoverConfig(getDefaultTemplateConfig());
 	syncCurrentTemplateConfig();
 	updateBackgroundFileList();
 	scheduleFullPreview(0);
 	message.success(props.configType === 'category' ? '已恢复分类封面默认配置' : '已恢复课程封面默认配置');
+};
+
+const handleReset = () => {
+	Modal.confirm(createCourseCoverResetConfirmOptions(props.configType, resetToDefault));
 };
 
 onMounted(() => {
