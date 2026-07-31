@@ -18,6 +18,7 @@
 				:data-source="dataSource"
 				:loading="loading"
 				:pagination="false"
+				:scroll="{ x: 'max-content' }"
 				row-key="id"
 			>
 				<template #bodyCell="{ column, record }">

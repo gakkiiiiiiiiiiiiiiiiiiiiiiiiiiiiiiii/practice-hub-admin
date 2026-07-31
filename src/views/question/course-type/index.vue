@@ -8,7 +8,7 @@
 				</a-button>
 			</template>
 
-			<a-table :columns="columns" :data-source="list" :loading="loading" row-key="id" :pagination="false">
+			<a-table :columns="columns" :data-source="list" :loading="loading" row-key="id" :pagination="false" :scroll="{ x: 'max-content' }">
 				<template #bodyCell="{ column, record }">
 					<template v-if="column.key === 'status'">
 						<a-tag :color="record.status === 1 ? 'green' : 'default'">

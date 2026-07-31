@@ -50,6 +50,7 @@
 				row-key="id"
 				:row-selection="{ selectedRowKeys, onChange: onSelectChange }"
 				:pagination="false"
+				:scroll="{ x: 'max-content' }"
 			>
 				<template #bodyCell="{ column, record }">
 					<template v-if="column.key === 'status'">
@@ -305,6 +306,7 @@
 				}"
 				row-key="id"
 				:pagination="coursePagination"
+				:scroll="{ x: 'max-content' }"
 				@change="handleCourseTableChange"
 			>
 				<template #bodyCell="{ column, record }">

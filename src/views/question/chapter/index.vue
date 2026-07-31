@@ -55,6 +55,7 @@
 				:data-source="dataSource"
 				:loading="loading"
 				:pagination="pagination"
+				:scroll="{ x: 'max-content' }"
 				:row-selection="{ selectedRowKeys, onChange: onSelectChange }"
 				@change="handleTableChange"
 				row-key="id"

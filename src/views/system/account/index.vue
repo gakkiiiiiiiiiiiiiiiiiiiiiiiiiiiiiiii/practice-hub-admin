@@ -40,6 +40,7 @@
         :data-source="dataSource"
         :loading="loading"
         :pagination="pagination"
+        :scroll="{ x: 'max-content' }"
         @change="handleTableChange"
         row-key="id"
       >
@@ -284,4 +285,3 @@ onMounted(() => {
   // 样式
 }
 </style>
-

@@ -8,7 +8,7 @@
 				</a-space>
 			</template>
 
-			<a-table :columns="columns" :data-source="list" :loading="loading" row-key="id" :pagination="false">
+			<a-table :columns="columns" :data-source="list" :loading="loading" row-key="id" :pagination="false" :scroll="{ x: 'max-content' }">
 				<template #bodyCell="{ column, record }">
 					<template v-if="column.key === 'status'">
 						<a-tag :color="record.status === 1 ? 'green' : 'default'">{{ record.status === 1 ? '启用' : '禁用' }}</a-tag>
@@ -186,7 +186,7 @@
 				<a-button block style="margin-bottom: 16px" @click="addScope">添加绑定</a-button>
 
 				<a-divider>套餐价格</a-divider>
-				<a-table :columns="planColumns" :data-source="form.plans" row-key="plan_type" :pagination="false" size="small">
+				<a-table :columns="planColumns" :data-source="form.plans" row-key="plan_type" :pagination="false" size="small" :scroll="{ x: 'max-content' }">
 					<template #bodyCell="{ column, record }">
 						<template v-if="column.key === 'price'">
 							<a-input-number v-model:value="record.price" :min="1" :step="1" :precision="0" style="width: 100%" />

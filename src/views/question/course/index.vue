@@ -349,6 +349,7 @@
 							:data-source="group.courses || []"
 							:columns="similarGroupColumns"
 							:pagination="false"
+							:scroll="{ x: 'max-content' }"
 							row-key="id"
 							size="small"
 						>
@@ -682,7 +683,7 @@
 							:loading="previewCacheTargetLoading"
 							:row-selection="previewCacheTargetRowSelection"
 							:pagination="previewCacheTargetPagination"
-							:scroll="{ y: 360 }"
+							:scroll="{ x: 'max-content', y: 360 }"
 							@change="handlePreviewCacheTargetTableChange"
 						>
 							<template #bodyCell="{ column, record }">

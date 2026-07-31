@@ -90,6 +90,7 @@
 				:data-source="dataSource"
 				:loading="loading"
 				:pagination="pagination"
+				:scroll="{ x: 'max-content' }"
 				:row-selection="{ selectedRowKeys, onChange: onSelectChange }"
 				:custom-row="customRow"
 				@change="handleTableChange"

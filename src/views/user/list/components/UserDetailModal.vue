@@ -71,6 +71,7 @@
 				:columns="columns"
 				:data-source="wrongQuestions"
 				:pagination="{ pageSize: 5 }"
+				:scroll="{ x: 'max-content' }"
 				size="small"
 				v-if="wrongQuestions.length > 0"
 			>

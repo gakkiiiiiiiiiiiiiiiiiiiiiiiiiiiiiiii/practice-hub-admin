@@ -287,6 +287,7 @@
 						:columns="cartColumns"
 						:data-source="currentRecord.cartItems"
 						:pagination="false"
+						:scroll="{ x: 'max-content' }"
 						row-key="courseId"
 						size="small"
 					>

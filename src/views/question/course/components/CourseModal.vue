@@ -51,6 +51,7 @@
 						:data-source="visibleCourseFileRows"
 						:columns="courseFileColumns"
 						:pagination="false"
+						:scroll="{ x: 'max-content' }"
 						size="small"
 						row-key="key"
 					>

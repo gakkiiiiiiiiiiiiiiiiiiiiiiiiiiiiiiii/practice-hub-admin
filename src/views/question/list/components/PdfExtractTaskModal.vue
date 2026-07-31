@@ -38,6 +38,7 @@
 				:data-source="tableData"
 				:row-key="(r) => r.taskId"
 				:pagination="false"
+				:scroll="{ x: 'max-content' }"
 				size="small"
 				class="task-table"
 			>

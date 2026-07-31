@@ -44,6 +44,7 @@
 				:data-source="dataSource"
 				:loading="loading"
 				:pagination="pagination"
+				:scroll="{ x: 'max-content' }"
 				row-key="id"
 				@change="handleTableChange"
 			>

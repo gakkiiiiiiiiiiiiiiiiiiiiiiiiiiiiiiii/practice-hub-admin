@@ -5,7 +5,7 @@
 			添加轮播图
 		</a-button>
 
-		<a-table :columns="columns" :data-source="banners" :loading="loading" row-key="id" :pagination="false">
+		<a-table :columns="columns" :data-source="banners" :loading="loading" row-key="id" :pagination="false" :scroll="{ x: 'max-content' }">
 			<template #bodyCell="{ column, record }">
 				<template v-if="column.key === 'image'">
 					<a-image

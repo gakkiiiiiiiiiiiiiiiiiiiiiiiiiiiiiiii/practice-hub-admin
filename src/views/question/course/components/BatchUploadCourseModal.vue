@@ -340,7 +340,7 @@
 				:pagination="previewGroups.length > 8 ? { pageSize: 8 } : false"
 				size="small"
 				row-key="key"
-				:scroll="{ y: 280 }"
+				:scroll="{ x: 'max-content', y: 280 }"
 			>
 				<template #bodyCell="{ column, record }">
 					<template v-if="column.key === 'courseName'">

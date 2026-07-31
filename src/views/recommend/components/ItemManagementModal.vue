@@ -14,7 +14,7 @@
 				</a-button>
 			</div>
 
-			<a-table :columns="columns" :data-source="itemList" :loading="loading" :pagination="false" row-key="id">
+			<a-table :columns="columns" :data-source="itemList" :loading="loading" :pagination="false" row-key="id" :scroll="{ x: 'max-content' }">
 				<template #bodyCell="{ column, record, index }">
 					<template v-if="column.key === 'index'">
 						{{ index + 1 }}
