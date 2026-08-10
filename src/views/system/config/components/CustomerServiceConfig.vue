@@ -82,7 +82,7 @@ import {
 import { uploadImage } from '@/api/upload'
 import { getProxiedImageUrl } from '@/utils/imageProxy'
 
-const DEFAULT_QRCODE = '/static/customer-service-qq-qr.jpg'
+const DEFAULT_QRCODE = '/customer-service-qq-qr.jpg'
 const defaults: CustomerServiceConfig = {
 	enabled: true,
 	floatingButtonText: '客服',
