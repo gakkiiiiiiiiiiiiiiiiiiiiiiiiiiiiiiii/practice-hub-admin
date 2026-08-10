@@ -9,6 +9,9 @@
         <a-tab-pane key="home-popup" tab="首页弹窗">
           <home-popup-config />
         </a-tab-pane>
+        <a-tab-pane key="customer-service" tab="客服配置">
+          <customer-service-config />
+        </a-tab-pane>
         <!-- <a-tab-pane key="countdown" tab="倒计时配置">
           <countdown-config />
         </a-tab-pane> -->
@@ -53,6 +56,7 @@ import { ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import BannerConfig from './components/BannerConfig.vue'
 import HomePopupConfig from './components/HomePopupConfig.vue'
+import CustomerServiceConfig from './components/CustomerServiceConfig.vue'
 import AiPromptConfig from './components/AiPromptConfig.vue'
 import CheckinConfig from './components/CheckinConfig.vue'
 import CourseCoverConfig from './components/CourseCoverConfig.vue'
@@ -70,7 +74,7 @@ const {
 	syncing: syncCourseCoversLoading,
 	syncCurrentTemplate: handleSyncCourseCoverTemplate,
 } = useCourseCoverTemplateSync()
-const validTabs = new Set(['banner', 'home-popup', 'ai', 'checkin', 'course-cover', 'course-intro-template', 'storage-provider', 'faq', 'referral-coupon', 'points', 'user-title'])
+const validTabs = new Set(['banner', 'home-popup', 'customer-service', 'ai', 'checkin', 'course-cover', 'course-intro-template', 'storage-provider', 'faq', 'referral-coupon', 'points', 'user-title'])
 const activeTab = ref(getInitialTab())
 
 function getInitialTab() {

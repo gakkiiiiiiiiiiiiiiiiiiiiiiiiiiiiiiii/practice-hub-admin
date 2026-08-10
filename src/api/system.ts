@@ -166,6 +166,23 @@ export function setHomePopupConfig(data: {
   return request.put('/admin/settings/home-popup', data)
 }
 
+export interface CustomerServiceConfig {
+  enabled: boolean
+  floatingButtonText: string
+  title: string
+  guideText: string
+  contactValue: string
+  qrCodeUrl: string
+}
+
+export function getCustomerServiceConfig() {
+  return request.get('/admin/settings/customer-service')
+}
+
+export function setCustomerServiceConfig(data: CustomerServiceConfig) {
+  return request.put('/admin/settings/customer-service', data)
+}
+
 export function getReferralCouponConfig() {
   return request.get('/admin/settings/referral-coupon')
 }
