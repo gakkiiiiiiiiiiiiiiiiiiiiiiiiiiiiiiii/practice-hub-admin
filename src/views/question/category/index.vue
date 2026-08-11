@@ -73,14 +73,12 @@
 					</template>
 					<template v-else-if="column.key === 'bundle_enabled'">
 						<a-switch
-							v-if="isSecondaryCategory(record)"
 							size="small"
 							:checked="Number(record.bundle_enabled ?? 1) === 1"
-							:checked-children="'显示'"
-							:un-checked-children="'隐藏'"
+							:checked-children="'开启'"
+							:un-checked-children="'关闭'"
 							@change="(checked) => handleToggleBundleEnabled(record, checked)"
 						/>
-						<span v-else>-</span>
 					</template>
 					<template v-else-if="column.key === 'book_names'">
 						<a-space v-if="isSecondaryCategory(record) && normalizeBookNames(record.book_names).length" wrap size="small">
@@ -216,27 +214,30 @@
 				<a-form-item label="排序" name="sort">
 					<a-input-number v-model:value="formState.sort" :min="0" style="width: 100%" />
 				</a-form-item>
+				<a-form-item label="开启整类购" name="bundle_enabled">
+					<a-switch
+						:checked="Number(formState.bundle_enabled ?? 1) === 1"
+						:checked-children="'开启'"
+						:un-checked-children="'关闭'"
+						@change="(checked) => (formState.bundle_enabled = checked ? 1 : 0)"
+					/>
+					<div style="margin-top: 4px; color: #999; font-size: 12px">
+						关闭后，小程序不展示整类购买入口，用户也无法通过接口购买该分类。
+					</div>
+				</a-form-item>
 				<a-form-item label="整类购买价" name="bundle_price">
 					<a-input-number
 						v-model:value="formState.bundle_price"
 						:min="0"
 						:step="1"
 						:precision="0"
+						:disabled="Number(formState.bundle_enabled ?? 1) !== 1"
 						style="width: 100%"
 					/>
 					<div style="margin-top: 4px; color: #999; font-size: 12px">
-						小程序课程列表页展示“购买当前分类全部课程”，默认 30 元。
-					</div>
-				</a-form-item>
-				<a-form-item v-if="isCategoryBundleSwitchVisible" label="整类购买入口" name="bundle_enabled">
-					<a-switch
-						:checked="Number(formState.bundle_enabled ?? 1) === 1"
-						:checked-children="'显示'"
-						:un-checked-children="'隐藏'"
-						@change="(checked) => (formState.bundle_enabled = checked ? 1 : 0)"
-					/>
-					<div style="margin-top: 4px; color: #999; font-size: 12px">
-						开启后，小程序对应分类课程列表的搜索栏下方会展示整类购买入口。
+						{{ Number(formState.bundle_enabled ?? 1) === 1
+							? '小程序课程列表页展示“购买当前分类全部课程”，默认 30 元。'
+							: '开启整类购后可设置购买价格。' }}
 					</div>
 				</a-form-item>
 				<a-form-item v-if="formState.parent_id" label="所属书本" name="book_names">
@@ -415,7 +416,7 @@ const baseColumns = [
 	{ title: '分类名称', dataIndex: 'name', key: 'name' },
 	{ title: '封面', key: 'cover', width: 100 },
 	{ title: '整类购买价', dataIndex: 'bundle_price', key: 'bundle_price', width: 130 },
-	{ title: '整类购买入口', dataIndex: 'bundle_enabled', key: 'bundle_enabled', width: 140 },
+	{ title: '开启整类购', dataIndex: 'bundle_enabled', key: 'bundle_enabled', width: 140 },
 	{ title: '所属书本', dataIndex: 'book_names', key: 'book_names', width: 220 },
 	{ title: '排序', dataIndex: 'sort', key: 'sort', width: 120 },
 	{ title: '状态', key: 'status', width: 120 },
@@ -444,8 +445,6 @@ const parentOptions = computed(() =>
 const isEditingSecondaryCategory = computed(() => !!currentRecord.value?.parent_id);
 
 const isEditingPrimaryCategory = computed(() => !!currentRecord.value && !currentRecord.value.parent_id);
-
-const isCategoryBundleSwitchVisible = computed(() => !!formState.value.parent_id);
 
 const isSecondaryCategory = (record: any) => !!record?.parent_id;
 
@@ -821,16 +820,15 @@ const handleSubmit = async () => {
 };
 
 const handleToggleBundleEnabled = async (record: any, checked: boolean) => {
-	if (!isSecondaryCategory(record)) return;
 	const nextValue = checked ? 1 : 0;
 	const previousValue = Number(record.bundle_enabled ?? 1) === 1 ? 1 : 0;
 	record.bundle_enabled = nextValue;
 	try {
 		await updateCourseCategory(record.id, { bundle_enabled: nextValue });
-		message.success(nextValue === 1 ? '已显示整类购买入口' : '已隐藏整类购买入口');
+		message.success(nextValue === 1 ? '已开启整类购' : '已关闭整类购');
 	} catch (error: any) {
 		record.bundle_enabled = previousValue;
-		message.error(error?.message || '更新整类购买入口失败');
+		message.error(error?.message || '更新整类购状态失败');
 	}
 };
 
