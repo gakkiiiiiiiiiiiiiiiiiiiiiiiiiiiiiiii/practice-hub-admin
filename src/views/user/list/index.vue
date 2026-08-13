@@ -20,6 +20,17 @@
 						<a-select-option :value="1">正常</a-select-option>
 						<a-select-option :value="0">已封禁</a-select-option>
 					</a-select>
+					<a-select
+						v-model:value="searchForm.role"
+						placeholder="小程序角色"
+						style="width: 180px"
+						allow-clear
+						@change="handleSearch"
+					>
+						<a-select-option value="user">普通用户</a-select-option>
+						<a-select-option value="bank_admin">题库管理员</a-select-option>
+						<a-select-option value="admin">小程序超级管理员</a-select-option>
+					</a-select>
 					<a-button type="primary" @click="handleSearch">查询</a-button>
 					<a-button @click="handleReset">重置</a-button>
 					<TableColumnSetting :items="settingItems" @update:items="updatePreference" @reset="resetColumns" />
@@ -151,6 +162,7 @@ const pointsTargetUser = ref<{ id: number; nickname?: string } | null>(null);
 const searchForm = ref({
 	keyword: '',
 	status: undefined as number | undefined,
+	role: undefined as 'user' | 'bank_admin' | 'admin' | undefined,
 });
 
 const pagination = ref({
@@ -280,6 +292,10 @@ const fetchData = async () => {
 			params.status = searchForm.value.status;
 		}
 
+		if (searchForm.value.role) {
+			params.role = searchForm.value.role;
+		}
+
 		const res = await getAppUserList(params);
 		dataSource.value = res.data?.list || [];
 		pagination.value.total = res.data?.total || 0;
@@ -305,6 +321,7 @@ const handleReset = () => {
 	searchForm.value = {
 		keyword: '',
 		status: undefined,
+		role: undefined,
 	};
 	pagination.value.current = 1;
 	fetchData();
