@@ -11,6 +11,7 @@ export function getSimilarCourseGroups(params?: {
   subject?: string
   category?: string
   subCategory?: string
+  uncategorizedOnly?: number | boolean
   status?: number
 }) {
   return request.get('/admin/courses/similar-groups', { params })
@@ -77,6 +78,7 @@ export function batchAdjustCoursePrice(data: {
   subject?: string
   category?: string
   subCategory?: string
+  uncategorizedOnly?: boolean
   mode: 'delta' | 'percent' | 'fixed'
   value: number
   fields?: 'price' | 'agent_price' | 'both'

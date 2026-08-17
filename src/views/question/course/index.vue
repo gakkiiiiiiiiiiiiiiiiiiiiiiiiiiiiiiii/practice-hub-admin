@@ -850,6 +850,7 @@ const currentCourseName = ref<string>('');
 		subject: '',
 		category: '',
 		subCategory: '',
+		uncategorizedOnly: false,
 		status: undefined as number | undefined,
 		similarOnly: false,
 	});
@@ -881,9 +882,14 @@ const currentCourseName = ref<string>('');
 	];
 	const searchCategoryValue = ref<string[]>([]);
 	const categoryTree = ref<any[]>([]);
+	const uncategorizedFilterValue = '__uncategorized__';
 
-	const categoryFilterOptions = computed(() =>
-		categoryTree.value.map((parent) => ({
+	const categoryFilterOptions = computed(() => [
+		{
+			label: '未设置分类',
+			value: uncategorizedFilterValue,
+		},
+		...categoryTree.value.map((parent) => ({
 			label: parent.status === 0 ? `${parent.name}（已禁用）` : parent.name,
 			value: parent.name,
 			children: Array.isArray(parent.children)
@@ -893,7 +899,7 @@ const currentCourseName = ref<string>('');
 					}))
 				: [],
 		})),
-	);
+	]);
 
 	const cascaderFilter = (inputValue: string, path: any[]) =>
 		path.some((option) => String(option.label || '').toLowerCase().includes(inputValue.toLowerCase()));
@@ -1176,6 +1182,7 @@ const buildCourseFilterParams = () => ({
 	subject: searchForm.value.subject || undefined,
 	category: searchForm.value.category || undefined,
 	subCategory: searchForm.value.subCategory || undefined,
+	uncategorizedOnly: searchForm.value.uncategorizedOnly ? 1 : undefined,
 	status: searchForm.value.status ?? undefined,
 });
 
@@ -1268,8 +1275,11 @@ const fetchCategoryTree = async () => {
 watch(
 	() => searchCategoryValue.value,
 	(value) => {
-		searchForm.value.category = Array.isArray(value) ? value[0] || '' : '';
-		searchForm.value.subCategory = Array.isArray(value) ? value[1] || '' : '';
+		const selectedPath = Array.isArray(value) ? value : [];
+		const uncategorizedOnly = selectedPath[0] === uncategorizedFilterValue;
+		searchForm.value.uncategorizedOnly = uncategorizedOnly;
+		searchForm.value.category = uncategorizedOnly ? '' : selectedPath[0] || '';
+		searchForm.value.subCategory = uncategorizedOnly ? '' : selectedPath[1] || '';
 	},
 );
 
@@ -1284,6 +1294,7 @@ const handleResetSearch = () => {
 		subject: '',
 		category: '',
 		subCategory: '',
+		uncategorizedOnly: false,
 		status: undefined,
 		similarOnly: false,
 	};
@@ -1866,6 +1877,7 @@ const buildBatchAdjustPricePayload = () => {
 		payload.subject = searchForm.value.subject || undefined;
 		payload.category = searchForm.value.category || undefined;
 		payload.subCategory = searchForm.value.subCategory || undefined;
+		payload.uncategorizedOnly = searchForm.value.uncategorizedOnly || undefined;
 		payload.status = searchForm.value.status ?? undefined;
 	} else {
 		payload.ids = [...selectedRowKeys.value];
