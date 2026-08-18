@@ -155,10 +155,10 @@
 							<div class="course-card__row">
 								<span class="course-card__label">价格</span>
 								<span class="course-card__value">
-									<a-tag :color="record.is_free === 1 ? 'green' : 'default'" size="small">
-										{{ record.is_free === 1 ? '免费' : `¥${record.price ?? 0}` }}
+									<a-tag :color="isCourseFree(record) ? 'green' : 'default'" size="small">
+										{{ isCourseFree(record) ? '免费' : `¥${record.price ?? 0}` }}
 									</a-tag>
-									<span v-if="record.is_free !== 1" class="course-card__sub">代理 ¥{{ record.agent_price || 0 }}</span>
+									<span v-if="!isCourseFree(record)" class="course-card__sub">代理 ¥{{ record.agent_price || 0 }}</span>
 								</span>
 							</div>
 							<div class="course-card__row">
@@ -233,8 +233,8 @@
 						/>
 					</template>
 					<template v-else-if="column.key === 'is_free'">
-						<a-tag :color="record.is_free === 1 ? 'green' : 'default'">
-							{{ record.is_free === 1 ? '免费' : '付费' }}
+						<a-tag :color="isCourseFree(record) ? 'green' : 'default'">
+							{{ isCourseFree(record) ? '免费' : '付费' }}
 						</a-tag>
 					</template>
 					<template v-else-if="column.key === 'status'">
@@ -732,6 +732,7 @@
 	import { getCourseList, getSimilarCourseGroups, getCourseSimilarityConfig, deleteCourse, batchDeleteCourses, batchUpdateCourseStatus, batchAdjustCoursePrice, batchUpdateCourseContent, updateCourseSort, generateMissingCoursePreviewCaches, retryFailedCoursePreviewCaches, getCoursePreviewCacheProgress, interruptCoursePreviewCacheTask, fixBlankCoursePreviewCaches, getPreviewCacheTargetCourses, forceSelectedCoursePreviewCaches } from '@/api/course';
 	import { getCourseCategoryTree } from '@/api/course-category';
 	import { getToken } from '@/utils/auth';
+	import { isCourseFree } from '@/utils/course-pricing';
 	import { useUserStore } from '@/store/user';
 import CourseModal from './components/CourseModal.vue';
 import BatchUploadCourseModal from './components/BatchUploadCourseModal.vue';
