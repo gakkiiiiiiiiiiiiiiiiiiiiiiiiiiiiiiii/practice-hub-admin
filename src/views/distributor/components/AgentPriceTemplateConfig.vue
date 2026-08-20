@@ -75,13 +75,28 @@
           />
           <div class="field-help">排除套餐不会连带排除套餐内的单门课程。</div>
         </a-form-item>
+        <a-form-item label="排除类目套餐">
+          <a-select
+            v-model:value="formState.category_bundle_ids"
+            mode="multiple"
+            allow-clear
+            show-search
+            :filter-option="selectFilter"
+            :options="categoryBundleOptions"
+            placeholder="选择不允许使用代理价的类目套餐"
+          />
+          <div class="field-help">
+            排除类目套餐不会连带排除该类目下的单门课程。
+          </div>
+        </a-form-item>
       </a-form>
     </a-card>
 
     <div class="action-bar">
       <div class="scope-summary">
         当前排除 {{ Number(serverSummary.excluded_course_count || 0) }} 门课程、
-        {{ formState.package_section_ids.length }} 个套餐
+        {{ formState.package_section_ids.length }} 个套餐、
+        {{ formState.category_bundle_ids.length }} 个类目套餐
       </div>
       <a-space>
         <a-button :disabled="loading || saving" @click="loadConfig"
@@ -142,6 +157,7 @@ const formState = ref({
   templates: defaultTemplates(),
   category_ids: [] as number[],
   package_section_ids: [] as number[],
+  category_bundle_ids: [] as number[],
 });
 
 const responseData = (response: any) => response?.data ?? response ?? {};
@@ -171,6 +187,19 @@ const packageOptions = computed(() =>
     value: Number(section.id),
   })),
 );
+const categoryBundleOptions = computed(() =>
+  categoryTree.value.flatMap((parent: any) => [
+    ...(Number(parent.bundle_enabled ?? 1) === 1
+      ? [{ label: `整个${parent.name}`, value: Number(parent.id) }]
+      : []),
+    ...(parent.children || [])
+      .filter((child: any) => Number(child.bundle_enabled ?? 1) === 1)
+      .map((child: any) => ({
+        label: `${parent.name} / ${child.name}`,
+        value: Number(child.id),
+      })),
+  ]),
+);
 
 const loadConfig = async () => {
   loading.value = true;
@@ -194,6 +223,7 @@ const loadConfig = async () => {
         : defaultTemplates(),
       category_ids: (config.category_ids || []).map(Number),
       package_section_ids: (config.package_section_ids || []).map(Number),
+      category_bundle_ids: (config.category_bundle_ids || []).map(Number),
     };
     serverSummary.value = {
       excluded_course_count: Number(config.excluded_course_count || 0),

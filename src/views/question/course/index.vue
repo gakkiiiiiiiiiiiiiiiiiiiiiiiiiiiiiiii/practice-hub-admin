@@ -1331,7 +1331,11 @@ const sanitizeExportFileName = (value: string) =>
 		.replace(/[\\/:*?"<>|]+/g, '-')
 		.slice(0, 80);
 
-const exportCoursesToExcel = async (rows: any[], fileNamePrefix: string) => {
+const exportCoursesToExcel = async (
+	rows: any[],
+	fileNamePrefix: string,
+	includeYearColumns = false,
+) => {
 	const ExcelJS = await import('exceljs');
 	const workbook = new ExcelJS.Workbook();
 	const worksheet = workbook.addWorksheet('课程列表');
@@ -1340,6 +1344,12 @@ const exportCoursesToExcel = async (rows: any[], fileNamePrefix: string) => {
 		{ header: '课程', key: 'subject', width: 18 },
 		{ header: '一级分类', key: 'category', width: 18 },
 		{ header: '二级分类', key: 'sub_category', width: 18 },
+		...(includeYearColumns
+			? [
+					{ header: '真题年份', key: 'exam_year', width: 14 },
+					{ header: '答案年份', key: 'answer_year', width: 14 },
+				]
+			: []),
 		{ header: '价格', key: 'price', width: 12 },
 		{ header: '文件类型', key: 'file_type', width: 12 },
 		{ header: '文件大小', key: 'file_size', width: 14 },
@@ -1350,6 +1360,8 @@ const exportCoursesToExcel = async (rows: any[], fileNamePrefix: string) => {
 			subject: record.subject || '',
 			category: record.category || '',
 			sub_category: record.sub_category || '',
+			exam_year: record.exam_year || '',
+			answer_year: record.answer_year || '',
 			price: Number(record.price || 0),
 			file_type: record.file_type || '',
 			file_size: formatFileSize(record),
@@ -1412,7 +1424,11 @@ const handleExportByCategory = async () => {
 			message.warning('该分类下暂无可导出的课程');
 			return;
 		}
-		await exportCoursesToExcel(rows, `课程列表_${subCategory ? `${category}-${subCategory}` : category}`);
+		await exportCoursesToExcel(
+			rows,
+			`课程列表_${subCategory ? `${category}-${subCategory}` : category}`,
+			true,
+		);
 		message.success(`已导出 ${rows.length} 个课程`);
 		exportByCategoryVisible.value = false;
 		exportCategoryValue.value = [];
