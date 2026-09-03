@@ -91,7 +91,7 @@
 						<div v-if="record.retryAfter" class="sub-text">{{ getRetryText(record.retryAfter) }}</div>
 					</template>
 					<template v-else-if="column.key === 'summary'">
-						<div>{{ formatSummary(record.summary, record.rowCount) }}</div>
+						<div>{{ formatPaymentBillSummary(record) }}</div>
 						<div v-if="record.notice" class="sub-text notice-text">{{ record.notice }}</div>
 					</template>
 					<template v-else-if="column.key === 'size'">
@@ -136,7 +136,7 @@
 								:loading="fetchingRecordKey === `${record.channel}-${record.billDate}`"
 								@click="handleFetch(record.channel, record.billDate, false)"
 							>
-								{{ record.status === 'pending' ? '手动查询' : '手动重试' }}
+								{{ record.status === 'pending' ? '手动查询' : record.status === 'empty' ? '重新获取' : '手动重试' }}
 							</a-button>
 						</a-space>
 						<div v-if="record.status === 'failed' && record.errorMessage" class="error-text">
@@ -207,6 +207,7 @@ import {
 import {
 	getFetchFeedback,
 	getPaymentBillDownloadFileName,
+	formatPaymentBillSummary,
 	supportsOrderMatching,
 } from './payment-bill-model'
 
@@ -216,7 +217,7 @@ dayjs.extend(timezone)
 const SHANGHAI_TIME_ZONE = 'Asia/Shanghai'
 const shanghaiNow = () => dayjs().tz(SHANGHAI_TIME_ZONE)
 const yesterday = () => shanghaiNow().subtract(1, 'day').startOf('day')
-const maxBillHistory = () => shanghaiNow().subtract(90, 'day').startOf('day')
+const maxBillHistory = () => shanghaiNow().subtract(89, 'day').startOf('day')
 const toShanghaiBillDate = (value: Dayjs) => value.tz(SHANGHAI_TIME_ZONE, true).format('YYYY-MM-DD')
 const parseShanghaiBillDate = (value: string) => dayjs.tz(value, 'YYYY-MM-DD', SHANGHAI_TIME_ZONE)
 
@@ -310,21 +311,12 @@ const formatSize = (bytes: number | null | undefined) => {
 	return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
-const formatSummary = (summary: PaymentBillRecord['summary'], rowCount: number | null) => {
-	if (!summary) return rowCount == null ? '-' : `共 ${rowCount} 行`
-	const entries = Object.entries(summary)
-		.filter(([key]) => /count|rows|scope|description|条数|口径/i.test(key))
-		.filter(([, value]) => value !== null && value !== undefined && value !== '')
-		.map(([key, value]) => `${key}: ${value}`)
-	return entries.join('；') || (rowCount == null ? '-' : `共 ${rowCount} 行`)
-}
-
 const getRetryText = (retryAfter: string) => {
 	const time = dayjs(retryAfter)
 	return time.isAfter(dayjs()) ? `可重试：${time.format('MM-DD HH:mm')}` : '可手动重试'
 }
 
-const canManuallyRetry = (record: PaymentBillRecord) => ['pending', 'failed'].includes(record.status)
+const canManuallyRetry = (record: PaymentBillRecord) => ['pending', 'failed', 'empty'].includes(record.status)
 const isRetryBlocked = (record: PaymentBillRecord) => Boolean(record.retryAfter && dayjs(record.retryAfter).isAfter(dayjs()))
 
 const getDateParams = () => ({
@@ -383,7 +375,7 @@ const handleFetch = async (
 ) => {
 	const date = parseShanghaiBillDate(billDate)
 	if (!date.isValid() || isFetchDateOutOfRange(date)) {
-		message.warning('仅支持获取昨天及此前 90 天内的单日账单')
+		message.warning('仅支持获取昨天及此前 89 天内的单日账单')
 		return
 	}
 	const recordKey = `${channel}-${date.format('YYYY-MM-DD')}`

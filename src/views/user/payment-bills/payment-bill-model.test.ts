@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+	formatPaymentBillSummary,
 	getFetchFeedback,
 	getPaymentBillDownloadFileName,
 	supportsOrderMatching,
@@ -40,5 +41,12 @@ describe('payment bill UI model', () => {
 
 	it('uses bin rather than incorrectly labelling unknown originals as CSV', () => {
 		expect(getPaymentBillDownloadFileName(xpayBill, 'original')).toBe('xpay-bill-2026-09-02.bin')
+	})
+
+	it('uses a Chinese, channel-specific row summary instead of backend JSON keys', () => {
+		expect(formatPaymentBillSummary({ ...xpayBill, summary: { rowCount: 1, scope: '每日结算汇总' } })).toBe(
+			'1 行结算汇总；统计口径：每日结算汇总',
+		)
+		expect(formatPaymentBillSummary({ ...xpayBill, channel: 'wechat', rowCount: 2 })).toBe('2 行交易记录')
 	})
 })

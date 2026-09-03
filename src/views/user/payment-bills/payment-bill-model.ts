@@ -26,3 +26,19 @@ export function getPaymentBillDownloadFileName(record: PaymentBillRecord, format
 	const extension = record.contentType === 'text/csv' ? 'csv' : 'bin'
 	return `${channel}-bill-${record.billDate}.${extension}`
 }
+
+export function formatPaymentBillSummary(record: Pick<PaymentBillRecord, 'channel' | 'rowCount' | 'summary'>) {
+	const rowLabel = record.channel === 'xpay' ? '行结算汇总' : '行交易记录'
+	const rowText = record.rowCount == null ? null : `${record.rowCount} ${rowLabel}`
+	const safeLabels: Record<string, string> = {
+		scope: '统计口径',
+		description: '说明',
+		notice: '说明',
+		note: '说明',
+		source: '来源',
+	}
+	const details = Object.entries(record.summary || {})
+		.filter(([key, value]) => safeLabels[key] && value !== null && value !== undefined && value !== '')
+		.map(([key, value]) => `${safeLabels[key]}：${value}`)
+	return [rowText, ...details].filter(Boolean).join('；') || '-'
+}
