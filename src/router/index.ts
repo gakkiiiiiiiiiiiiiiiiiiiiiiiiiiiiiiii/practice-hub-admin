@@ -181,6 +181,14 @@ const routes: RouteRecordRaw[] = [
 					title: '订单列表',
 				},
 			},
+			{
+				path: 'payment-bills',
+				name: 'PaymentBills',
+				component: () => import('@/views/user/payment-bills/index.vue'),
+				meta: {
+					title: '支付账单',
+				},
+			},
 		],
 	},
 	{

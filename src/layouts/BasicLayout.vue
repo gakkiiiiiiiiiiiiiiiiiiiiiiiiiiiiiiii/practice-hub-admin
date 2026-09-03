@@ -245,6 +245,7 @@ const menuItems = computed(() => {
 			children: [
 				{ key: '/user/list', label: '用户列表' },
 				{ key: '/user/orders', label: '订单列表' },
+				{ key: '/user/payment-bills', label: '支付账单' },
 				{ key: '/user/coupons', label: '优惠券管理' },
 			],
 		});
