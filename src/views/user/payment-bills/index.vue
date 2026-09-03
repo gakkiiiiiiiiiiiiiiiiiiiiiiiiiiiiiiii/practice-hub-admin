@@ -16,7 +16,7 @@
 				type="warning"
 				show-icon
 				class="notice"
-				message="虚拟支付账单中的充值是现金充值；虚拟币消费不是新的现金收入，请勿与普通微信支付账单叠加统计。"
+				message="虚拟支付当前提供每日结算汇总，不含逐笔订单；充值与代币消费不可重复计入现金收入。"
 			/>
 
 			<a-form layout="vertical" class="filter-form" @finish="handleSearch">
@@ -34,7 +34,7 @@
 							<a-range-picker
 								v-model:value="filters.dateRange"
 								format="YYYY-MM-DD"
-								:disabled-date="isDateOutOfRange"
+								:disabled-date="isFutureDate"
 								:placeholder="['开始日期', '结束日期']"
 								style="width: 100%"
 							/>
@@ -64,7 +64,7 @@
 					<a-date-picker
 						v-model:value="fetchForm.billDate"
 						format="YYYY-MM-DD"
-						:disabled-date="isDateOutOfRange"
+						:disabled-date="isFetchDateOutOfRange"
 						:allow-clear="false"
 					/>
 					<a-button type="primary" :loading="fetching" @click="handleFetch()">获取账单</a-button>
@@ -190,6 +190,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import dayjs, { type Dayjs } from 'dayjs'
+import utc from 'dayjs/plugin/utc'
+import timezone from 'dayjs/plugin/timezone'
 import { message } from 'ant-design-vue'
 import {
 	downloadPaymentBill,
@@ -202,9 +204,21 @@ import {
 	type PaymentBillRecord,
 	type PaymentBillStatus,
 } from '@/api/payment-bill'
+import {
+	getFetchFeedback,
+	getPaymentBillDownloadFileName,
+	supportsOrderMatching,
+} from './payment-bill-model'
 
-const yesterday = () => dayjs().subtract(1, 'day').startOf('day')
-const maxBillHistory = () => dayjs().subtract(90, 'day').startOf('day')
+dayjs.extend(utc)
+dayjs.extend(timezone)
+
+const SHANGHAI_TIME_ZONE = 'Asia/Shanghai'
+const shanghaiNow = () => dayjs().tz(SHANGHAI_TIME_ZONE)
+const yesterday = () => shanghaiNow().subtract(1, 'day').startOf('day')
+const maxBillHistory = () => shanghaiNow().subtract(90, 'day').startOf('day')
+const toShanghaiBillDate = (value: Dayjs) => value.tz(SHANGHAI_TIME_ZONE, true).format('YYYY-MM-DD')
+const parseShanghaiBillDate = (value: string) => dayjs.tz(value, 'YYYY-MM-DD', SHANGHAI_TIME_ZONE)
 
 const loading = ref(false)
 const fetching = ref(false)
@@ -241,6 +255,8 @@ const previewPagination = ref({
 	showSizeChanger: true,
 	showTotal: (total: number) => `共 ${total} 条`,
 })
+let listRequestId = 0
+let previewRequestId = 0
 
 const columns = [
 	{ title: '账单日期', dataIndex: 'billDate', key: 'billDate', width: 120 },
@@ -261,7 +277,11 @@ const previewRowKey = (record: PaymentBillPreviewResponse['rows'][number], index
 	return `${previewBill.value?.id || 'bill'}-${index}-${JSON.stringify(record.cells)}`
 }
 
-const isDateOutOfRange = (date: Dayjs) => date.isAfter(yesterday(), 'day') || date.isBefore(maxBillHistory(), 'day')
+const isFutureDate = (date: Dayjs) => date.isAfter(yesterday(), 'day')
+const isFetchDateOutOfRange = (date: Dayjs) => {
+	const billDate = toShanghaiBillDate(date)
+	return billDate > toShanghaiBillDate(yesterday()) || billDate < toShanghaiBillDate(maxBillHistory())
+}
 
 const getChannelLabel = (channel: PaymentBillChannel) => (channel === 'wechat' ? '微信支付' : '虚拟支付')
 
@@ -291,12 +311,12 @@ const formatSize = (bytes: number | null | undefined) => {
 }
 
 const formatSummary = (summary: PaymentBillRecord['summary'], rowCount: number | null) => {
-	if (!summary) return rowCount == null ? '-' : `共 ${rowCount} 条`
+	if (!summary) return rowCount == null ? '-' : `共 ${rowCount} 行`
 	const entries = Object.entries(summary)
 		.filter(([key]) => /count|rows|scope|description|条数|口径/i.test(key))
 		.filter(([, value]) => value !== null && value !== undefined && value !== '')
 		.map(([key, value]) => `${key}: ${value}`)
-	return entries.join('；') || (rowCount == null ? '-' : `共 ${rowCount} 条`)
+	return entries.join('；') || (rowCount == null ? '-' : `共 ${rowCount} 行`)
 }
 
 const getRetryText = (retryAfter: string) => {
@@ -308,11 +328,12 @@ const canManuallyRetry = (record: PaymentBillRecord) => ['pending', 'failed'].in
 const isRetryBlocked = (record: PaymentBillRecord) => Boolean(record.retryAfter && dayjs(record.retryAfter).isAfter(dayjs()))
 
 const getDateParams = () => ({
-	startDate: filters.value.dateRange?.[0]?.format('YYYY-MM-DD'),
-	endDate: filters.value.dateRange?.[1]?.format('YYYY-MM-DD'),
+	startDate: filters.value.dateRange?.[0] ? toShanghaiBillDate(filters.value.dateRange[0]) : undefined,
+	endDate: filters.value.dateRange?.[1] ? toShanghaiBillDate(filters.value.dateRange[1]) : undefined,
 })
 
 const loadBills = async () => {
+	const requestId = ++listRequestId
 	loading.value = true
 	try {
 		const res = await getPaymentBillList({
@@ -322,23 +343,20 @@ const loadBills = async () => {
 			pageSize: pagination.value.pageSize,
 		})
 		const data = res.data || res
+		if (requestId !== listRequestId) return
 		bills.value = data.list || []
 		pagination.value.total = data.total || 0
 		pagination.value.current = data.page || pagination.value.current
 		pagination.value.pageSize = data.pageSize || pagination.value.pageSize
 	} catch (error) {
+		if (requestId !== listRequestId) return
 		console.error('获取支付账单缓存列表失败', error)
 	} finally {
-		loading.value = false
+		if (requestId === listRequestId) loading.value = false
 	}
 }
 
 const handleSearch = () => {
-	const [startDate, endDate] = filters.value.dateRange || []
-	if (startDate && endDate && endDate.diff(startDate, 'day') > 90) {
-		message.warning('账单日期范围最多 90 天')
-		return
-	}
 	pagination.value.current = 1
 	loadBills()
 }
@@ -360,11 +378,11 @@ const handleTableChange = (pager: { current?: number; pageSize?: number }) => {
 
 const handleFetch = async (
 	channel = fetchForm.value.channel,
-	billDate = fetchForm.value.billDate.format('YYYY-MM-DD'),
+	billDate = toShanghaiBillDate(fetchForm.value.billDate),
 	isPrimaryFetch = true,
 ) => {
-	const date = dayjs(billDate)
-	if (!date.isValid() || isDateOutOfRange(date)) {
+	const date = parseShanghaiBillDate(billDate)
+	if (!date.isValid() || isFetchDateOutOfRange(date)) {
 		message.warning('仅支持获取昨天及此前 90 天内的单日账单')
 		return
 	}
@@ -374,13 +392,13 @@ const handleFetch = async (
 	try {
 		const res = await fetchPaymentBill({ channel, billDate: date.format('YYYY-MM-DD') })
 		const data = res.data || res
-		if (data.status === 'pending' || data.status === 'fetching') {
-			message.info(data.notice || '账单正在生成，请稍后手动刷新或点击手动查询')
-		} else if (data.status === 'empty') {
-			message.info(data.notice || '该日期暂无账单')
-		} else {
-			message.success(data.notice || '账单已获取并缓存')
+		if (isPrimaryFetch) {
+			filters.value.channel = channel
+			filters.value.dateRange = [date, date]
+			pagination.value.current = 1
 		}
+		const feedback = getFetchFeedback(data)
+		message[feedback.type](feedback.text)
 		await loadBills()
 	} catch (error) {
 		message.error(await getErrorMessage(error, '获取账单失败'))
@@ -399,6 +417,8 @@ const openPreview = async (record: PaymentBillRecord) => {
 
 const loadPreview = async () => {
 	if (!previewBill.value) return
+	const billId = previewBill.value.id
+	const requestId = ++previewRequestId
 	previewLoading.value = true
 	try {
 		const res = await getPaymentBillPreview(previewBill.value.id, {
@@ -406,23 +426,25 @@ const loadPreview = async () => {
 			pageSize: previewPagination.value.pageSize,
 		})
 		const data = (res.data || res) as PaymentBillPreviewResponse
+		if (requestId !== previewRequestId || previewBill.value?.id !== billId) return
 		previewSupported.value = data.previewSupported
 		previewNotice.value = data.notice || null
 		previewRows.value = data.rows || []
 		previewColumns.value = [
 			...(data.columns || []),
-			{ key: '__matchedOrders', title: '关联业务订单', width: 220 },
+			...(supportsOrderMatching(previewBill.value.channel) ? [{ key: '__matchedOrders', title: '关联业务订单', width: 220 }] : []),
 		]
 		previewPagination.value.total = data.total || 0
 		previewPagination.value.current = data.page || previewPagination.value.current
 		previewPagination.value.pageSize = data.pageSize || previewPagination.value.pageSize
 	} catch (error) {
+		if (requestId !== previewRequestId || previewBill.value?.id !== billId) return
 		previewRows.value = []
 		previewColumns.value = []
 		previewSupported.value = false
 		message.error(await getErrorMessage(error, '加载账单预览失败'))
 	} finally {
-		previewLoading.value = false
+		if (requestId === previewRequestId && previewBill.value?.id === billId) previewLoading.value = false
 	}
 }
 
@@ -430,14 +452,6 @@ const handlePreviewTableChange = (pager: { current?: number; pageSize?: number }
 	previewPagination.value.current = pager.current || 1
 	previewPagination.value.pageSize = pager.pageSize || 50
 	loadPreview()
-}
-
-const getDownloadFileName = (record: PaymentBillRecord, format: 'original' | 'xlsx') => {
-	const channel = record.channel === 'wechat' ? 'wechat-payment' : 'xpay'
-	if (format === 'original' && record.originalFileName && /^[A-Za-z0-9._-]+$/.test(record.originalFileName)) {
-		return record.originalFileName
-	}
-	return `${channel}-bill-${record.billDate}.${format === 'xlsx' ? 'xlsx' : 'csv'}`
 }
 
 const handleDownload = async (record: PaymentBillRecord, format: 'original' | 'xlsx') => {
@@ -450,7 +464,7 @@ const handleDownload = async (record: PaymentBillRecord, format: 'original' | 'x
 		const url = URL.createObjectURL(blob)
 		const link = document.createElement('a')
 		link.href = url
-		link.download = getDownloadFileName(record, format)
+		link.download = getPaymentBillDownloadFileName(record, format)
 		document.body.appendChild(link)
 		link.click()
 		link.remove()

@@ -21,7 +21,8 @@ export interface PaymentBillRecord {
 	previewSupported: boolean
 	notice: string | null
 	sha256: string | null
-	originalFileName?: string | null
+	filename?: string | null
+	contentType?: string | null
 }
 
 export interface PaymentBillListParams {
