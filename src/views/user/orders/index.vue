@@ -282,7 +282,7 @@
 				</div>
 
 				<div v-if="currentRecord.cartItems?.length" class="cart-items">
-					<div class="cart-title">购物车课程明细</div>
+					<div class="cart-title">购买资料明细</div>
 					<a-table
 						:columns="cartColumns"
 						:data-source="currentRecord.cartItems"
@@ -293,8 +293,10 @@
 					>
 						<template #bodyCell="{ column, record }">
 							<template v-if="column.key === 'price'">¥{{ formatAmount(record.price) }}</template>
+							<template v-else-if="column.key === 'quantity'">{{ record.quantity || 1 }}</template>
+							<template v-else-if="column.key === 'unitPrice'">¥{{ formatAmount(record.unitPrice ?? record.price) }}</template>
 							<template v-else-if="column.key === 'contentType'">
-								<a-tag>{{ getCartItemTypeLabel(record.contentType) }}</a-tag>
+								<a-tag>{{ currentRecord.fulfillmentType === 'paper' ? '纸质资料' : getCartItemTypeLabel(record.contentType) }}</a-tag>
 							</template>
 						</template>
 					</a-table>
@@ -449,7 +451,9 @@ const cartColumns = [
 	{ title: '课程ID', dataIndex: 'courseId', key: 'courseId', width: 100 },
 	{ title: '课程名称', dataIndex: 'name', key: 'name' },
 	{ title: '类型', key: 'contentType', width: 110 },
-	{ title: '价格', key: 'price', width: 100 },
+	{ title: '单价', key: 'unitPrice', width: 100 },
+	{ title: '数量', key: 'quantity', width: 80 },
+	{ title: '小计', key: 'price', width: 100 },
 ]
 
 const getCartItemTypeLabel = (contentType?: string) => {
