@@ -196,6 +196,23 @@
       </a-col>
     </a-row>
 
+    <a-card title="各用户生成统计" class="generator-statistics-card">
+      <a-table
+        :columns="generatorStatisticsColumns"
+        :data-source="statistics.generators"
+        :pagination="false"
+        :scroll="{ x: 720 }"
+        size="small"
+        row-key="key"
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'source_text'">
+            <a-tag>{{ record.source_text }}</a-tag>
+          </template>
+        </template>
+      </a-table>
+    </a-card>
+
     <!-- 详情弹窗 -->
     <a-modal
       v-model:open="detailModalVisible"
@@ -305,6 +322,7 @@ const statistics = ref({
   pending: 0,
   used: 0,
   invalid: 0,
+  generators: [] as GeneratorStatistic[],
 })
 const detailModalVisible = ref(false)
 const currentDetail = ref<any>(null)
@@ -323,6 +341,27 @@ const pagination = ref({
   pageSize: 10,
   total: 0,
 })
+
+type GeneratorStatistic = {
+  key: string
+  source_type: string
+  source_text: string
+  source_id: number | null
+  generator_user: string
+  total: number
+  pending: number
+  used: number
+  invalid: number
+}
+
+const generatorStatisticsColumns = [
+  { title: '生成用户', dataIndex: 'generator_user', key: 'generator_user', width: 180 },
+  { title: '生成来源', dataIndex: 'source_text', key: 'source_text', width: 160 },
+  { title: '生成总数', dataIndex: 'total', key: 'total', width: 110 },
+  { title: '待使用', dataIndex: 'pending', key: 'pending', width: 100 },
+  { title: '已使用', dataIndex: 'used', key: 'used', width: 100 },
+  { title: '已作废', dataIndex: 'invalid', key: 'invalid', width: 100 },
+]
 
 const baseColumns = [
   {
@@ -412,7 +451,13 @@ const fetchData = async () => {
 const fetchStatistics = async () => {
   try {
     const res = await getActivationCodeStatistics()
-    statistics.value = res.data
+    statistics.value = {
+      total: Number(res.data?.total) || 0,
+      pending: Number(res.data?.pending) || 0,
+      used: Number(res.data?.used) || 0,
+      invalid: Number(res.data?.invalid) || 0,
+      generators: Array.isArray(res.data?.generators) ? res.data.generators : [],
+    }
   } catch (error) {
     console.error('获取统计信息失败:', error)
   }
@@ -603,6 +648,10 @@ onMounted(() => {
       padding: 0;
       line-height: 1.4;
     }
+  }
+
+  .generator-statistics-card {
+    margin-top: 16px;
   }
 }
 </style>
