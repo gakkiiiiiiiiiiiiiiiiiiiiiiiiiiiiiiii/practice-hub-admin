@@ -134,7 +134,7 @@
 								同步支付
 							</a-button>
 							<a-button
-								v-if="record.status === 'paid' && !record.refunded"
+								v-if="canRefundOrder(record)"
 								type="link"
 								size="small"
 								danger
@@ -316,7 +316,7 @@
 			<a-alert
 				type="warning"
 				show-icon
-				message="退款将撤销用户课程/套餐权限，并原路退回微信代币或充值金额。"
+				:message="getRefundWarning(refundTarget)"
 				style="margin-bottom: 16px"
 			/>
 			<a-form layout="vertical">
@@ -394,6 +394,7 @@ import {
 	syncAdminOrderPayment,
 } from '@/api/order'
 import customerServiceQr from '@/assets/customer-service-qq-qr.jpg'
+import { canRefundOrder, getRefundWarning, isPaperShippingOrder } from './order-refund-policy'
 
 const loading = ref(false)
 const detailLoading = ref(false)
@@ -466,14 +467,6 @@ const formatShippingAddress = (address: any) => {
 	if (!address) return '-'
 	const detail = [address.province, address.city, address.district, address.detail].filter(Boolean).join('')
 	return detail || address.fullAddress || '-'
-}
-
-const isPaperShippingOrder = (record: any) => {
-	return Boolean(
-		record?.requiresShipping ||
-		record?.contentType === 'paper_exam' ||
-		record?.cartItems?.some((item: any) => item.contentType === 'paper_exam')
-	)
 }
 
 const canShipOrder = (record: any) => record?.status === 'paid' && isPaperShippingOrder(record)
