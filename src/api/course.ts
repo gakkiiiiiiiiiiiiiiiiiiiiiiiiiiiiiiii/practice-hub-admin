@@ -12,6 +12,7 @@ export function getSimilarCourseGroups(params?: {
   category?: string
   subCategory?: string
   uncategorizedOnly?: number | boolean
+  contentType?: 'normal' | 'file' | 'paper_exam'
   status?: number
 }) {
   return request.get('/admin/courses/similar-groups', { params })
@@ -79,6 +80,7 @@ export function batchAdjustCoursePrice(data: {
   category?: string
   subCategory?: string
   uncategorizedOnly?: boolean
+  contentType?: 'normal' | 'file' | 'paper_exam'
   mode: 'delta' | 'percent' | 'fixed'
   value: number
   fields?: 'price' | 'agent_price' | 'both'

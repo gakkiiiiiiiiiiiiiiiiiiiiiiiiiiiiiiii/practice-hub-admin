@@ -79,6 +79,18 @@
 						style="width: 220px"
 					/>
 				</a-form-item>
+				<a-form-item label="课程类型">
+					<a-select
+						v-model:value="searchForm.contentType"
+						placeholder="全部"
+						allow-clear
+						style="width: 160px"
+					>
+						<a-select-option value="normal">普通题库</a-select-option>
+						<a-select-option value="file">文件课程</a-select-option>
+						<a-select-option value="paper_exam">纸质专业真题</a-select-option>
+					</a-select>
+				</a-form-item>
 				<a-form-item label="状态">
 					<a-select
 						v-model:value="searchForm.status"
@@ -852,6 +864,7 @@ const currentCourseName = ref<string>('');
 		category: '',
 		subCategory: '',
 		uncategorizedOnly: false,
+		contentType: undefined as 'normal' | 'file' | 'paper_exam' | undefined,
 		status: undefined as number | undefined,
 		similarOnly: false,
 	});
@@ -1184,6 +1197,7 @@ const buildCourseFilterParams = () => ({
 	category: searchForm.value.category || undefined,
 	subCategory: searchForm.value.subCategory || undefined,
 	uncategorizedOnly: searchForm.value.uncategorizedOnly ? 1 : undefined,
+	contentType: searchForm.value.contentType,
 	status: searchForm.value.status ?? undefined,
 });
 
@@ -1296,6 +1310,7 @@ const handleResetSearch = () => {
 		category: '',
 		subCategory: '',
 		uncategorizedOnly: false,
+		contentType: undefined,
 		status: undefined,
 		similarOnly: false,
 	};
@@ -1895,6 +1910,7 @@ const buildBatchAdjustPricePayload = () => {
 		payload.category = searchForm.value.category || undefined;
 		payload.subCategory = searchForm.value.subCategory || undefined;
 		payload.uncategorizedOnly = searchForm.value.uncategorizedOnly || undefined;
+		payload.contentType = searchForm.value.contentType;
 		payload.status = searchForm.value.status ?? undefined;
 	} else {
 		payload.ids = [...selectedRowKeys.value];
