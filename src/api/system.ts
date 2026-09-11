@@ -83,6 +83,31 @@ export function setStorageProvider(provider: StorageProvider) {
   return request.put('/admin/settings/storage-provider', { provider })
 }
 
+export interface CloudPrintConfig {
+  autoEnabled: boolean
+  paperSize: number
+  duplex: number
+  color: number
+  paperMedia: number
+  pagesInOne: number
+  bindType: number
+  printCollate: number
+  orientation: number
+  shipSupplierId: number
+  maxSingleAmountCents: number
+  configured?: boolean
+  callbackConfigured?: boolean
+  workerEnabled?: boolean
+}
+
+export function getCloudPrintConfig() {
+  return request.get('/admin/settings/cloud-print')
+}
+
+export function setCloudPrintConfig(data: CloudPrintConfig) {
+  return request.put('/admin/settings/cloud-print', data)
+}
+
 // 获取广播消息列表
 export function getDailyQuotes() {
   return request.get('/admin/settings/daily-quotes')

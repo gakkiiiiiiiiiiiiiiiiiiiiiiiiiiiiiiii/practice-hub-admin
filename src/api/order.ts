@@ -35,3 +35,17 @@ export function queryAdminOrderLogistics(orderId: number) {
 export function refundAdminOrder(orderId: number, data?: { remark?: string }) {
 	return request.post(`/admin/orders/${orderId}/refund`, data || {})
 }
+
+export function submitAdminOrderCloudPrint(orderId: number, expectedTotalAmountCents?: number) {
+	return request.post(`/admin/orders/${orderId}/cloud-print`, expectedTotalAmountCents
+		? { expectedTotalAmountCents }
+		: {})
+}
+
+export function getAdminOrderCloudPrint(orderId: number) {
+	return request.get(`/admin/orders/${orderId}/cloud-print`)
+}
+
+export function confirmAdminCloudPrintCancelled(orderId: number) {
+	return request.post(`/admin/orders/${orderId}/cloud-print/confirm-cancelled`)
+}

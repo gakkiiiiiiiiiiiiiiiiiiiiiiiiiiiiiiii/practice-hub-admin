@@ -104,6 +104,16 @@
 						</template>
 						<span v-else class="sub-text">-</span>
 					</template>
+					<template v-else-if="column.key === 'cloudPrint'">
+						<template v-if="record.fulfillmentType === 'paper'">
+							<a-tag :color="getCloudPrintStatusColor(record.cloudPrint?.status)">
+								{{ getCloudPrintStatusLabel(record.cloudPrint?.status) }}
+							</a-tag>
+							<div v-if="record.cloudPrint?.externalOrderId" class="sub-text">{{ record.cloudPrint.externalOrderId }}</div>
+							<div v-if="record.cloudPrint?.lastError" class="sub-text cloud-print-error">{{ record.cloudPrint.lastError }}</div>
+						</template>
+						<span v-else class="sub-text">-</span>
+					</template>
 					<template v-else-if="column.key === 'orderType'">
 						<a-tag>{{ getOrderTypeLabel(record.orderType) }}</a-tag>
 					</template>
@@ -132,6 +142,25 @@
 								@click="handleSyncPayment(record)"
 							>
 								同步支付
+							</a-button>
+							<a-button
+								v-if="canCloudPrintOrder(record)"
+								type="link"
+								size="small"
+								:loading="cloudPrintingOrderId === record.id"
+								@click="handleCloudPrint(record)"
+							>
+								{{ record.cloudPrint ? '继续云打印' : '云打印' }}
+							</a-button>
+							<a-button
+								v-if="canConfirmCloudPrintCancelled(record)"
+								type="link"
+								size="small"
+								danger
+								:loading="cloudPrintingOrderId === record.id"
+								@click="handleConfirmCloudPrintCancelled(record)"
+							>
+								确认云印已取消
 							</a-button>
 							<a-button
 								v-if="canRefundOrder(record)"
@@ -187,6 +216,12 @@
 						<a-tag :color="getDeliveryStatusColor(currentRecord.deliveryStatus)">
 							{{ getDeliveryStatusLabel(currentRecord.deliveryStatus) }}
 						</a-tag>
+					</a-descriptions-item>
+					<a-descriptions-item v-if="currentRecord.fulfillmentType === 'paper'" label="云打印状态" :span="2">
+						<a-tag :color="getCloudPrintStatusColor(currentRecord.cloudPrint?.status)">
+							{{ getCloudPrintStatusLabel(currentRecord.cloudPrint?.status) }}
+						</a-tag>
+						<span v-if="currentRecord.cloudPrint?.externalOrderId" class="sub-text cloud-order-id">云印单号：{{ currentRecord.cloudPrint.externalOrderId }}</span>
 					</a-descriptions-item>
 					<a-descriptions-item v-if="isPaperShippingOrder(currentRecord)" label="运单号">
 						{{ currentRecord.trackingNo || '-' }}
@@ -384,13 +419,15 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import dayjs from 'dayjs'
-import { message } from 'ant-design-vue'
+import { Modal, message } from 'ant-design-vue'
 import {
+	confirmAdminCloudPrintCancelled,
 	getAdminOrderDetail,
 	getAdminOrderList,
 	queryAdminOrderLogistics,
 	refundAdminOrder,
 	shipAdminOrder,
+	submitAdminOrderCloudPrint,
 	syncAdminOrderPayment,
 } from '@/api/order'
 import customerServiceQr from '@/assets/customer-service-qq-qr.jpg'
@@ -409,6 +446,7 @@ const shipVisible = ref(false)
 const shipping = ref(false)
 const shipTarget = ref<any>(null)
 const logisticsQueryingId = ref<number | null>(null)
+const cloudPrintingOrderId = ref<number | null>(null)
 const shipForm = ref({
 	tracking_no: '',
 	shipper_code: '',
@@ -442,10 +480,11 @@ const columns = [
 	{ title: '类型', key: 'orderType', width: 90 },
 	{ title: '状态', key: 'status', width: 110 },
 	{ title: '发货状态', key: 'delivery', width: 150 },
+	{ title: '云打印', key: 'cloudPrint', width: 180 },
 	{ title: '售后原因', key: 'afterSale', width: 220 },
 	{ title: '下单时间', key: 'createTime', width: 170 },
 	{ title: '支付时间', key: 'paidTime', width: 170 },
-	{ title: '操作', key: 'action', width: 240, fixed: 'right' as const },
+	{ title: '操作', key: 'action', width: 300, fixed: 'right' as const },
 ]
 
 const cartColumns = [
@@ -470,6 +509,91 @@ const formatShippingAddress = (address: any) => {
 }
 
 const canShipOrder = (record: any) => record?.status === 'paid' && isPaperShippingOrder(record)
+const canCloudPrintOrder = (record: any) => record?.status === 'paid' &&
+	record?.fulfillmentType === 'paper' &&
+	!['submitted', 'review_required', 'processing', 'submitting', 'refund_reserved'].includes(record?.cloudPrint?.status)
+
+const canConfirmCloudPrintCancelled = (record: any) => record?.status === 'paid' &&
+	['submitted', 'review_required'].includes(record?.cloudPrint?.status)
+
+const handleConfirmCloudPrintCancelled = (record: any) => {
+	Modal.confirm({
+		title: `确认订单 ${record.orderNo} 已在刺猬云印取消？`,
+		content: '系统会对已有供应商订单调用取消接口；若任务没有供应商订单号，请先在供应商后台按业务订单号核对确实未创建。成功后本地将永久阻止重新送印，并允许继续退款。',
+		okText: '已核对，确认取消',
+		okType: 'danger',
+		cancelText: '返回核对',
+		async onOk() {
+			cloudPrintingOrderId.value = record.id
+			try {
+				await confirmAdminCloudPrintCancelled(record.id)
+				message.success('已记录供应商取消确认，可以继续退款')
+				await fetchData()
+			} catch (error: any) {
+				message.error(error?.message || '记录取消确认失败')
+			} finally {
+				cloudPrintingOrderId.value = null
+			}
+		},
+	})
+}
+
+const handleCloudPrint = (record: any) => {
+	if (record?.cloudPrint?.status === 'awaiting_confirm' && record?.cloudPrint?.quote) {
+		return confirmCloudPrintQuote(record, record.cloudPrint.quote)
+	}
+	Modal.confirm({
+		title: `为订单 ${record.orderNo} 获取云打印报价？`,
+		content: '本次只上传文件并获取供应商结算价，不会生成付费打印订单。报价完成后还需再次确认金额。',
+		okText: '获取报价',
+		cancelText: '取消',
+		async onOk() {
+			cloudPrintingOrderId.value = record.id
+			try {
+				const res = await submitAdminOrderCloudPrint(record.id)
+				const result = res.data
+				if (result?.status === 'awaiting_confirm' && result?.quote) {
+					confirmCloudPrintQuote(record, result.quote)
+				} else {
+					message.success('云打印文件正在准备，请稍后点击“继续云打印”获取最终报价')
+				}
+				await fetchData()
+			} catch (error: any) {
+				message.error(error?.message || '云打印提交失败')
+			} finally {
+				cloudPrintingOrderId.value = null
+			}
+		},
+	})
+}
+
+const confirmCloudPrintQuote = (record: any, quote: any) => {
+	const total = Number(quote.totalAmountCents || 0)
+	Modal.confirm({
+		title: `确认云打印扣款 ¥${(total / 100).toFixed(2)}？`,
+		content: `打印结算价 ¥${(Number(quote.printAmountCents || 0) / 100).toFixed(2)}，运费预估 ¥${(Number(quote.shippingAmountCents || 0) / 100).toFixed(2)}。后端会在下单前重新计价，金额变化时必须重新确认。`,
+		okText: '确认金额并下单',
+		cancelText: '取消',
+		async onOk() {
+			cloudPrintingOrderId.value = record.id
+			try {
+				const res = await submitAdminOrderCloudPrint(record.id, total)
+				const result = res.data
+				if (result?.status === 'awaiting_confirm' && result?.quote) {
+					message.warning('供应商价格已变化，请确认最新金额')
+					confirmCloudPrintQuote(record, result.quote)
+				} else {
+					message.success(result?.status === 'submitted' ? '云打印订单已提交' : '云打印任务已推进')
+				}
+				await fetchData()
+			} catch (error: any) {
+				message.error(error?.message || '云打印提交失败')
+			} finally {
+				cloudPrintingOrderId.value = null
+			}
+		},
+	})
+}
 
 const fetchData = async () => {
 	loading.value = true
@@ -722,6 +846,30 @@ const getDeliveryStatusColor = (status?: string) => {
 	return map[status || 'pending'] || 'default'
 }
 
+const getCloudPrintStatusLabel = (status?: string) => {
+	const map: Record<string, string> = {
+		pending: '待处理',
+		processing: '处理中',
+		submitting: '提交中·待核对',
+		waiting_files: '文件处理中',
+		awaiting_confirm: '待确认金额',
+		retryable_failed: '可重试',
+		review_required: '待人工核对',
+		submitted: '已提交',
+		refund_reserved: '退款已预留',
+		cancelled: '已取消',
+	}
+	return status ? (map[status] || status) : '未提交'
+}
+
+const getCloudPrintStatusColor = (status?: string) => {
+	const map: Record<string, string> = {
+		pending: 'orange', processing: 'blue', submitting: 'red', waiting_files: 'cyan', awaiting_confirm: 'gold',
+		retryable_failed: 'orange', review_required: 'red', submitted: 'green', refund_reserved: 'default', cancelled: 'default',
+	}
+	return map[status || ''] || 'default'
+}
+
 const getAfterSaleStatusLabel = (status: number) => {
 	const map: Record<number, string> = {
 		0: '待处理',
@@ -775,6 +923,18 @@ onMounted(fetchData)
 .amount-text {
 	font-weight: 600;
 	color: #111827;
+}
+
+.cloud-print-error {
+	max-width: 160px;
+	color: #cf1322;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.cloud-order-id {
+	margin-left: 8px;
 }
 
 .cart-items {
