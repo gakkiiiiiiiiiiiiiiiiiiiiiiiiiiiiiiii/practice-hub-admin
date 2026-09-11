@@ -10,6 +10,8 @@ export function getAdminOrderList(params?: {
 	status?: string
 	order_type?: string
 	content_type?: string
+	paper_only?: boolean
+	cloud_print_status?: string
 	keyword?: string
 }) {
 	return request.get('/admin/orders/list', { params })

@@ -182,6 +182,14 @@ const routes: RouteRecordRaw[] = [
 				},
 			},
 			{
+				path: 'paper-print',
+				name: 'PaperPrintOrders',
+				component: () => import('@/views/user/paper-print/index.vue'),
+				meta: {
+					title: '纸质打印',
+				},
+			},
+			{
 				path: 'payment-bills',
 				name: 'PaymentBills',
 				component: () => import('@/views/user/payment-bills/index.vue'),

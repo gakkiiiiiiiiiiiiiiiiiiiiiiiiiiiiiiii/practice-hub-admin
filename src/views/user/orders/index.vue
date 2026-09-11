@@ -1,6 +1,6 @@
 <template>
 	<div class="order-list">
-		<a-card>
+		<a-card :bordered="!embedded">
 
 			<a-form :model="searchForm" layout="inline" class="search-form">
 				<a-form-item label="关键词">
@@ -20,18 +20,30 @@
 						<a-select-option value="after_sale">售后</a-select-option>
 					</a-select>
 				</a-form-item>
-				<a-form-item label="订单类型">
+				<a-form-item v-if="!paperOnly" label="订单类型">
 					<a-select v-model:value="searchForm.order_type" placeholder="全部" style="width: 120px" allow-clear>
 						<a-select-option value="course">课程</a-select-option>
 						<a-select-option value="package">套餐</a-select-option>
 						<a-select-option value="category">分类合集</a-select-option>
 					</a-select>
 				</a-form-item>
-				<a-form-item label="课程类型">
+				<a-form-item v-if="!paperOnly" label="课程类型">
 					<a-select v-model:value="searchForm.content_type" placeholder="全部" style="width: 140px" allow-clear>
 						<a-select-option value="normal">普通题库</a-select-option>
 						<a-select-option value="file">文件课程</a-select-option>
 						<a-select-option value="paper_exam">纸质真题</a-select-option>
+					</a-select>
+				</a-form-item>
+				<a-form-item v-if="paperOnly" label="云打印状态">
+					<a-select v-model:value="searchForm.cloud_print_status" placeholder="全部" style="width: 160px" allow-clear>
+						<a-select-option value="unsubmitted">未提交</a-select-option>
+						<a-select-option value="pending">待处理</a-select-option>
+						<a-select-option value="waiting_files">文件处理中</a-select-option>
+						<a-select-option value="awaiting_confirm">待确认金额</a-select-option>
+						<a-select-option value="retryable_failed">可重试</a-select-option>
+						<a-select-option value="review_required">待人工核对</a-select-option>
+						<a-select-option value="submitted">已提交</a-select-option>
+						<a-select-option value="cancelled">已取消</a-select-option>
 					</a-select>
 				</a-form-item>
 				<a-form-item>
@@ -110,6 +122,9 @@
 								{{ getCloudPrintStatusLabel(record.cloudPrint?.status) }}
 							</a-tag>
 							<div v-if="record.cloudPrint?.externalOrderId" class="sub-text">{{ record.cloudPrint.externalOrderId }}</div>
+							<div v-if="record.cloudPrint?.quote" class="sub-text">
+								打印 ¥{{ formatCloudPrintAmount(record.cloudPrint.quote.printAmountCents) }} · 运费 ¥{{ formatCloudPrintAmount(record.cloudPrint.quote.shippingAmountCents) }}
+							</div>
 							<div v-if="record.cloudPrint?.lastError" class="sub-text cloud-print-error">{{ record.cloudPrint.lastError }}</div>
 						</template>
 						<span v-else class="sub-text">-</span>
@@ -433,6 +448,17 @@ import {
 import customerServiceQr from '@/assets/customer-service-qq-qr.jpg'
 import { canRefundOrder, getRefundWarning, isPaperShippingOrder } from './order-refund-policy'
 
+const props = withDefaults(defineProps<{
+	paperOnly?: boolean
+	embedded?: boolean
+}>(), {
+	paperOnly: false,
+	embedded: false,
+})
+
+const paperOnly = props.paperOnly
+const embedded = props.embedded
+
 const loading = ref(false)
 const detailLoading = ref(false)
 const syncingOrderId = ref<number | null>(null)
@@ -462,6 +488,7 @@ const searchForm = ref({
 	status: undefined as string | undefined,
 	order_type: undefined as string | undefined,
 	content_type: undefined as string | undefined,
+	cloud_print_status: undefined as string | undefined,
 })
 
 const pagination = ref({
@@ -605,6 +632,8 @@ const fetchData = async () => {
 			status: searchForm.value.status,
 			order_type: searchForm.value.order_type,
 			content_type: searchForm.value.content_type,
+			paper_only: paperOnly || undefined,
+			cloud_print_status: paperOnly ? searchForm.value.cloud_print_status : undefined,
 		})
 		dataSource.value = res.data?.list || []
 		pagination.value.total = res.data?.total || 0
@@ -626,6 +655,7 @@ const handleReset = () => {
 		status: undefined,
 		order_type: undefined,
 		content_type: undefined,
+		cloud_print_status: undefined,
 	}
 	pagination.value.current = 1
 	fetchData()
@@ -797,6 +827,8 @@ const handleSyncPayment = async (record: any) => {
 }
 
 const formatAmount = (value: number | string) => Number(value || 0).toFixed(2)
+
+const formatCloudPrintAmount = (value: number | string) => (Number(value || 0) / 100).toFixed(2)
 
 const formatTime = (value: string) => dayjs(value).format('YYYY-MM-DD HH:mm:ss')
 
