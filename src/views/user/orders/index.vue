@@ -168,6 +168,14 @@
 								{{ record.cloudPrint ? '继续云打印' : '云打印' }}
 							</a-button>
 							<a-button
+								v-if="record.cloudPrint"
+								type="link"
+								size="small"
+								@click="openCloudPrintProgress(record)"
+							>
+								查看进度
+							</a-button>
+							<a-button
 								v-if="canConfirmCloudPrintCancelled(record)"
 								type="link"
 								size="small"
@@ -428,15 +436,25 @@
 				</a-form-item>
 			</a-form>
 		</a-modal>
+
+		<cloud-print-progress-modal
+			v-model:open="cloudPrintProgressVisible"
+			:order-no="cloudPrintProgressTarget?.orderNo"
+			:job="cloudPrintProgressJob"
+			:loading="cloudPrintingOrderId === cloudPrintProgressTarget?.id"
+			@retry="runCloudPrintStep()"
+			@confirm="handleProgressConfirm"
+		/>
 	</div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import dayjs from 'dayjs'
 import { Modal, message } from 'ant-design-vue'
 import {
 	confirmAdminCloudPrintCancelled,
+	getAdminOrderCloudPrint,
 	getAdminOrderDetail,
 	getAdminOrderList,
 	queryAdminOrderLogistics,
@@ -446,6 +464,7 @@ import {
 	syncAdminOrderPayment,
 } from '@/api/order'
 import customerServiceQr from '@/assets/customer-service-qq-qr.jpg'
+import CloudPrintProgressModal from './CloudPrintProgressModal.vue'
 import { canRefundOrder, getRefundWarning, isPaperShippingOrder } from './order-refund-policy'
 
 const props = withDefaults(defineProps<{
@@ -473,6 +492,11 @@ const shipping = ref(false)
 const shipTarget = ref<any>(null)
 const logisticsQueryingId = ref<number | null>(null)
 const cloudPrintingOrderId = ref<number | null>(null)
+const cloudPrintProgressVisible = ref(false)
+const cloudPrintProgressTarget = ref<any>(null)
+const cloudPrintProgressJob = ref<any>(null)
+const cloudPrintProgressSyncing = ref(false)
+let cloudPrintProgressTimer: number | null = null
 const shipForm = ref({
 	tracking_no: '',
 	shipper_code: '',
@@ -567,7 +591,8 @@ const handleConfirmCloudPrintCancelled = (record: any) => {
 
 const handleCloudPrint = (record: any) => {
 	if (record?.cloudPrint?.status === 'awaiting_confirm' && record?.cloudPrint?.quote) {
-		return confirmCloudPrintQuote(record, record.cloudPrint.quote)
+		openCloudPrintProgress(record)
+		return
 	}
 	Modal.confirm({
 		title: `为订单 ${record.orderNo} 获取云打印报价？`,
@@ -575,23 +600,60 @@ const handleCloudPrint = (record: any) => {
 		okText: '获取报价',
 		cancelText: '取消',
 		async onOk() {
-			cloudPrintingOrderId.value = record.id
-			try {
-				const res = await submitAdminOrderCloudPrint(record.id)
-				const result = res.data
-				if (result?.status === 'awaiting_confirm' && result?.quote) {
-					confirmCloudPrintQuote(record, result.quote)
-				} else {
-					message.success('云打印文件正在准备，请稍后点击“继续云打印”获取最终报价')
-				}
-				await fetchData()
-			} catch (error: any) {
-				message.error(error?.message || '云打印提交失败')
-			} finally {
-				cloudPrintingOrderId.value = null
-			}
+			openCloudPrintProgress(record)
+			await runCloudPrintStep()
 		},
 	})
+}
+
+const openCloudPrintProgress = (record: any) => {
+	cloudPrintProgressTarget.value = record
+	cloudPrintProgressJob.value = record.cloudPrint || null
+	cloudPrintProgressVisible.value = true
+}
+
+const syncCloudPrintProgress = async (showError = false) => {
+	const target = cloudPrintProgressTarget.value
+	if (!target || cloudPrintProgressSyncing.value) return
+	cloudPrintProgressSyncing.value = true
+	try {
+		const res = await getAdminOrderCloudPrint(target.id)
+		cloudPrintProgressJob.value = res.data || null
+		target.cloudPrint = res.data || target.cloudPrint
+	} catch (error: any) {
+		if (showError) message.error(error?.message || '获取云打印进度失败')
+	} finally {
+		cloudPrintProgressSyncing.value = false
+	}
+}
+
+const runCloudPrintStep = async (expectedTotalAmountCents?: number) => {
+	const target = cloudPrintProgressTarget.value
+	if (!target) return null
+	cloudPrintingOrderId.value = target.id
+	try {
+		const res = await submitAdminOrderCloudPrint(target.id, expectedTotalAmountCents)
+		cloudPrintProgressJob.value = res.data || null
+		if (res.data?.status === 'awaiting_confirm') {
+			message.info(expectedTotalAmountCents == null ? '报价已生成，请核对金额' : '价格已变化，请核对最新金额')
+		} else if (res.data?.status === 'submitted') {
+			message.success('云打印订单已提交')
+		}
+		return res.data
+	} catch (error: any) {
+		message.error(error?.message || '云打印任务推进失败')
+		return null
+	} finally {
+		cloudPrintingOrderId.value = null
+		await syncCloudPrintProgress()
+		await fetchData()
+	}
+}
+
+const handleProgressConfirm = () => {
+	const target = cloudPrintProgressTarget.value
+	const quote = cloudPrintProgressJob.value?.quote
+	if (target && quote) confirmCloudPrintQuote(target, quote)
 }
 
 const confirmCloudPrintQuote = (record: any, quote: any) => {
@@ -602,22 +664,8 @@ const confirmCloudPrintQuote = (record: any, quote: any) => {
 		okText: '确认金额并下单',
 		cancelText: '取消',
 		async onOk() {
-			cloudPrintingOrderId.value = record.id
-			try {
-				const res = await submitAdminOrderCloudPrint(record.id, total)
-				const result = res.data
-				if (result?.status === 'awaiting_confirm' && result?.quote) {
-					message.warning('供应商价格已变化，请确认最新金额')
-					confirmCloudPrintQuote(record, result.quote)
-				} else {
-					message.success(result?.status === 'submitted' ? '云打印订单已提交' : '云打印任务已推进')
-				}
-				await fetchData()
-			} catch (error: any) {
-				message.error(error?.message || '云打印提交失败')
-			} finally {
-				cloudPrintingOrderId.value = null
-			}
+			openCloudPrintProgress(record)
+			await runCloudPrintStep(total)
 		},
 	})
 }
@@ -920,7 +968,20 @@ const getAfterSaleStatusColor = (status: number) => {
 	return map[status] || 'default'
 }
 
+watch(cloudPrintProgressVisible, (open) => {
+	if (cloudPrintProgressTimer != null) {
+		window.clearInterval(cloudPrintProgressTimer)
+		cloudPrintProgressTimer = null
+	}
+	if (!open) return
+	syncCloudPrintProgress()
+	cloudPrintProgressTimer = window.setInterval(() => syncCloudPrintProgress(), 2000)
+})
+
 onMounted(fetchData)
+onUnmounted(() => {
+	if (cloudPrintProgressTimer != null) window.clearInterval(cloudPrintProgressTimer)
+})
 </script>
 
 <style scoped>
