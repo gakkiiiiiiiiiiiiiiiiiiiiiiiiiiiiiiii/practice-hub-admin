@@ -91,6 +91,12 @@ export interface CloudPrintConfig {
   paperMedia: number
   pagesInOne: number
   bindType: number
+  autoBindByPageCount: boolean
+  coverMedia: number
+  coverColor: number
+  coverContentType: number
+  coverContentValue: string
+  coverContentValue2: string
   printCollate: number
   orientation: number
   shipSupplierId: number

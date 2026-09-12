@@ -62,13 +62,57 @@
         </a-form-item>
         <a-form-item label="装订方式">
           <a-select v-model:value="form.bindType">
-            <a-select-option :value="0">不装订</a-select-option>
-            <a-select-option :value="1">胶装（白色皮纹纸封面）</a-select-option>
-            <a-select-option :value="2">骑马钉</a-select-option>
-            <a-select-option :value="3">订书钉</a-select-option>
-            <a-select-option :value="4">圈装</a-select-option>
+            <a-select-option :value="0">不装订 · 无装订费</a-select-option>
+            <a-select-option :value="1">胶装 · 8–600 页 · ¥3/本起</a-select-option>
+            <a-select-option :value="2">骑马钉 · 8–60 页 · ¥1/本</a-select-option>
+            <a-select-option :value="3">订书钉 · 2–160 页 · ¥0.20/本</a-select-option>
+            <a-select-option :value="4">圈装 · 8–200 页 · ¥5/本</a-select-option>
           </a-select>
         </a-form-item>
+        <a-form-item label="超页自动胶装">
+          <a-switch v-model:checked="form.autoBindByPageCount" checked-children="开启" un-checked-children="关闭" />
+          <div class="hint-inline">所选装订超过最大页数时，自动改为下方胶装配置；默认皮纹纸、白色封面，最多支持 600 页。</div>
+        </a-form-item>
+        <template v-if="showGlueOptions">
+          <a-form-item label="胶装/超页胶装封面材质">
+            <a-select v-model:value="form.coverMedia">
+              <a-select-option :value="1">皮纹纸 · 8–600 页 · ¥3/本</a-select-option>
+              <a-select-option :value="2">铜版纸 · 8–600 页 · ¥4/本</a-select-option>
+            </a-select>
+          </a-form-item>
+          <a-form-item v-if="form.coverMedia === 1" label="皮纹纸封面颜色">
+            <a-select v-model:value="form.coverColor">
+              <a-select-option :value="1">绿色</a-select-option>
+              <a-select-option :value="2">黄色</a-select-option>
+              <a-select-option :value="3">蓝色</a-select-option>
+              <a-select-option :value="4">粉色</a-select-option>
+              <a-select-option :value="5">白色（默认）</a-select-option>
+              <a-select-option :value="6">青蓝色</a-select-option>
+            </a-select>
+          </a-form-item>
+          <a-form-item label="胶装封面内容">
+            <a-select v-model:value="form.coverContentType">
+              <a-select-option :value="1">纯色封面 · 不加价</a-select-option>
+              <a-select-option :value="2">文字封面 · +¥1/本</a-select-option>
+              <a-select-option :value="3">空白封面 · 不加价</a-select-option>
+              <a-select-option :value="4">文件首页为封面 · +¥1/本</a-select-option>
+              <a-select-option :value="5">上传封面图片 · +¥1/本</a-select-option>
+              <a-select-option :value="6">上传封面、封底图片 · +¥1/本</a-select-option>
+              <a-select-option :value="7">上传封面封底合并图 · +¥1/本</a-select-option>
+              <a-select-option :value="8">文件首尾为封面封底 · +¥1/本</a-select-option>
+              <a-select-option :value="9">文件首页为封面封底 · +¥1/本</a-select-option>
+            </a-select>
+          </a-form-item>
+          <a-form-item v-if="form.coverContentType === 2" label="封面文字">
+            <a-input v-model:value="form.coverContentValue" :maxlength="2000" placeholder="请输入封面文字" />
+          </a-form-item>
+          <a-form-item v-if="[5, 6, 7].includes(form.coverContentType)" label="封面图片 URL">
+            <a-input v-model:value="form.coverContentValue" :maxlength="2000" placeholder="请输入可公开访问的 HTTPS 图片 URL" />
+          </a-form-item>
+          <a-form-item v-if="form.coverContentType === 6" label="封底图片 URL">
+            <a-input v-model:value="form.coverContentValue2" :maxlength="2000" placeholder="请输入可公开访问的 HTTPS 图片 URL" />
+          </a-form-item>
+        </template>
         <a-form-item label="打印顺序">
           <a-select v-model:value="form.printCollate">
             <a-select-option :value="0">逐份打印</a-select-option>
@@ -113,12 +157,18 @@ import { getCloudPrintConfig, setCloudPrintConfig, type CloudPrintConfig } from 
 
 const defaults: CloudPrintConfig = {
   autoEnabled: false, paperSize: 9, duplex: 2, color: 1, paperMedia: 1,
-  pagesInOne: 1, bindType: 1, printCollate: 0, orientation: 0, shipSupplierId: 82,
+  pagesInOne: 1, bindType: 3, autoBindByPageCount: true,
+  coverMedia: 1, coverColor: 5, coverContentType: 1,
+  coverContentValue: '', coverContentValue2: '',
+  printCollate: 0, orientation: 0, shipSupplierId: 82,
   maxSingleAmountCents: 5000,
 }
 const form = reactive<CloudPrintConfig>({ ...defaults })
 const loading = ref(false)
 const saving = ref(false)
+const showGlueOptions = computed(() => form.bindType === 1 || (
+  form.autoBindByPageCount && [2, 3, 4].includes(form.bindType)
+))
 const maxSingleAmountYuan = computed({
   get: () => form.maxSingleAmountCents / 100,
   set: (value: number) => { form.maxSingleAmountCents = Math.round(Number(value || 0) * 100) },
@@ -141,7 +191,12 @@ function persist() {
   return setCloudPrintConfig({
     autoEnabled: form.autoEnabled, paperSize: form.paperSize, duplex: form.duplex,
     color: form.color, paperMedia: form.paperMedia, pagesInOne: form.pagesInOne,
-    bindType: form.bindType, printCollate: form.printCollate,
+    bindType: form.bindType, autoBindByPageCount: form.autoBindByPageCount,
+    coverMedia: form.coverMedia, coverColor: form.coverColor,
+    coverContentType: form.coverContentType,
+    coverContentValue: form.coverContentValue,
+    coverContentValue2: form.coverContentValue2,
+    printCollate: form.printCollate,
     orientation: form.orientation, shipSupplierId: form.shipSupplierId,
     maxSingleAmountCents: form.maxSingleAmountCents,
   }).then((response: any) => {
@@ -150,7 +205,31 @@ function persist() {
   }).finally(() => { saving.value = false })
 }
 
+function validateCoverConfig() {
+  if (!showGlueOptions.value) return true
+  const type = form.coverContentType
+  const value = form.coverContentValue.trim()
+  const value2 = form.coverContentValue2.trim()
+  if (type === 2 && !value) {
+    message.error('请填写封面文字')
+    return false
+  }
+  const isHttpsUrl = (input: string) => {
+    try { return new URL(input).protocol === 'https:' } catch { return false }
+  }
+  if ([5, 7].includes(type) && !isHttpsUrl(value)) {
+    message.error('请填写可公开访问的 HTTPS 封面图片 URL')
+    return false
+  }
+  if (type === 6 && (!isHttpsUrl(value) || !isHttpsUrl(value2))) {
+    message.error('请填写可公开访问的 HTTPS 封面和封底图片 URL')
+    return false
+  }
+  return true
+}
+
 function save() {
+  if (!validateCoverConfig()) return
   if (!form.autoEnabled) return persist()
   Modal.confirm({
     title: '确认开启自动云打印？',
