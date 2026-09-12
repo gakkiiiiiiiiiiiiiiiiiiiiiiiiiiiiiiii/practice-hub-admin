@@ -171,9 +171,7 @@ const form = ref<OrderCloudPrintConfig>({ ...defaults })
 const loading = ref(false)
 const saving = ref(false)
 const editable = ref(true)
-const showGlueOptions = computed(() => form.value.bindType === 1 || (
-	form.value.autoBindByPageCount && [2, 3, 4].includes(form.value.bindType)
-))
+const showGlueOptions = computed(() => form.value.bindType === 1)
 
 const load = async () => {
 	if (!props.orderId) return

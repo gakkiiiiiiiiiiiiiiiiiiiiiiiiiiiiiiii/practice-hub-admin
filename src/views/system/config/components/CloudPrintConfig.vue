@@ -166,9 +166,7 @@ const defaults: CloudPrintConfig = {
 const form = reactive<CloudPrintConfig>({ ...defaults })
 const loading = ref(false)
 const saving = ref(false)
-const showGlueOptions = computed(() => form.bindType === 1 || (
-  form.autoBindByPageCount && [2, 3, 4].includes(form.bindType)
-))
+const showGlueOptions = computed(() => form.bindType === 1)
 const maxSingleAmountYuan = computed({
   get: () => form.maxSingleAmountCents / 100,
   set: (value: number) => { form.maxSingleAmountCents = Math.round(Number(value || 0) * 100) },
