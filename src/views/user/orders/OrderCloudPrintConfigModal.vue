@@ -2,7 +2,7 @@
 	<a-modal
 		:open="open"
 		:title="`订单打印参数 · ${orderNo || '-'}`"
-		width="880px"
+		width="1040px"
 		:confirm-loading="saving"
 		:ok-button-props="{ disabled: !editable || loading }"
 		ok-text="保存订单参数"
@@ -136,6 +136,7 @@
 						<a-select-option :value="121">顺丰特快</a-select-option>
 					</a-select>
 				</a-form-item>
+				<cloud-print-pricing-guide class="full-row" :config="form" :files="estimateFiles" />
 			</a-form>
 		</a-spin>
 	</a-modal>
@@ -144,10 +145,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
+import CloudPrintPricingGuide from '@/components/CloudPrintPricingGuide/index.vue'
 import {
 	getAdminOrderCloudPrintConfig,
 	updateAdminOrderCloudPrintConfig,
 	type OrderCloudPrintConfig,
+	type OrderCloudPrintEstimateFile,
 } from '@/api/order'
 
 const props = defineProps<{
@@ -171,14 +174,17 @@ const form = ref<OrderCloudPrintConfig>({ ...defaults })
 const loading = ref(false)
 const saving = ref(false)
 const editable = ref(true)
+const estimateFiles = ref<OrderCloudPrintEstimateFile[]>([])
 const showGlueOptions = computed(() => form.value.bindType === 1)
 
 const load = async () => {
 	if (!props.orderId) return
 	loading.value = true
+	estimateFiles.value = []
 	try {
 		const response = await getAdminOrderCloudPrintConfig(props.orderId)
 		form.value = { ...defaults, ...(response.data?.config || {}) }
+		estimateFiles.value = Array.isArray(response.data?.estimateFiles) ? response.data.estimateFiles : []
 		editable.value = response.data?.editable !== false
 	} catch (error: any) {
 		message.error(error?.message || '获取订单打印参数失败')
@@ -224,6 +230,7 @@ watch(() => [props.open, props.orderId], ([open]) => {
 <style scoped>
 .modal-alert { margin-bottom: 20px; }
 .config-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 20px; }
+.full-row { grid-column: 1 / -1; }
 .hint { margin-top: 6px; color: rgba(0, 0, 0, 0.45); font-size: 12px; }
-@media (max-width: 720px) { .config-grid { grid-template-columns: 1fr; } }
+@media (max-width: 720px) { .config-grid { grid-template-columns: 1fr; } .full-row { grid-column: auto; } }
 </style>

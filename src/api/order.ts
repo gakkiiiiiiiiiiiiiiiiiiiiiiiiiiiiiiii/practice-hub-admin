@@ -18,6 +18,11 @@ export interface OrderCloudPrintConfig {
 	shipSupplierId: number
 }
 
+export interface OrderCloudPrintEstimateFile {
+	pageCount: number
+	quantity: number
+}
+
 export function getAdminOrderDetail(orderId: number) {
 	return request.get(`/admin/orders/${orderId}`)
 }

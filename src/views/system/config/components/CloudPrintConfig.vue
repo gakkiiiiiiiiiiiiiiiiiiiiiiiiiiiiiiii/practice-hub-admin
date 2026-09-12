@@ -137,6 +137,7 @@
           <a-input-number v-model:value="maxSingleAmountYuan" :min="0.01" :max="100000" :precision="2" style="width: 100%" />
           <div class="hint-inline">打印结算价与运费预估合计超过此金额时转人工核对，不会自动下单。</div>
         </a-form-item>
+        <cloud-print-pricing-guide class="full-row pricing-guide" :config="form" />
         <a-form-item class="full-row">
           <a-button type="primary" :loading="saving" :disabled="form.autoEnabled && (!form.configured || !form.callbackConfigured)" @click="save">
             保存云打印配置
@@ -154,6 +155,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { Modal, message } from 'ant-design-vue'
 import { getCloudPrintConfig, setCloudPrintConfig, type CloudPrintConfig } from '@/api/system'
+import CloudPrintPricingGuide from '@/components/CloudPrintPricingGuide/index.vue'
 
 const defaults: CloudPrintConfig = {
   autoEnabled: false, paperSize: 9, duplex: 2, color: 1, paperMedia: 1,
@@ -246,6 +248,7 @@ onMounted(load)
 .full-row { grid-column: 1 / -1; }
 .hint, .error-hint { margin-left: 12px; color: rgba(0, 0, 0, 0.55); }
 .hint-inline { margin-top: 6px; color: rgba(0, 0, 0, 0.55); font-size: 12px; }
+.pricing-guide { margin-bottom: 24px; }
 .error-hint { color: #ff4d4f; }
 @media (max-width: 720px) { .form-grid { grid-template-columns: 1fr; } .full-row { grid-column: auto; } }
 </style>
