@@ -658,12 +658,12 @@ const syncCloudPrintProgress = async (showError = false) => {
 	}
 }
 
-const runCloudPrintStep = async (expectedTotalAmountCents?: number) => {
+const runCloudPrintStep = async (expectedTotalAmountCents?: number, payAfter = false) => {
 	const target = cloudPrintProgressTarget.value
 	if (!target) return null
 	cloudPrintingOrderId.value = target.id
 	try {
-		const res = await submitAdminOrderCloudPrint(target.id, expectedTotalAmountCents)
+		const res = await submitAdminOrderCloudPrint(target.id, expectedTotalAmountCents, payAfter)
 		cloudPrintProgressJob.value = res.data || null
 		if (res.data?.status === 'awaiting_confirm') {
 			message.info(expectedTotalAmountCents == null ? '报价已生成，请核对金额' : '价格已变化，请核对最新金额')
@@ -690,13 +690,13 @@ const handleProgressConfirm = () => {
 const confirmCloudPrintQuote = (record: any, quote: any) => {
 	const total = Number(quote.totalAmountCents || 0)
 	Modal.confirm({
-		title: `确认云打印扣款 ¥${(total / 100).toFixed(2)}？`,
-		content: `打印结算价 ¥${(Number(quote.printAmountCents || 0) / 100).toFixed(2)}，运费预估 ¥${(Number(quote.shippingAmountCents || 0) / 100).toFixed(2)}。后端会在下单前重新计价，金额变化时必须重新确认。`,
-		okText: '确认金额并下单',
+		title: `确认生成 ¥${(total / 100).toFixed(2)} 的待付款订单？`,
+		content: `打印结算价 ¥${(Number(quote.printAmountCents || 0) / 100).toFixed(2)}，运费预估 ¥${(Number(quote.shippingAmountCents || 0) / 100).toFixed(2)}。本次 pay_after=true，不会立即扣除刺猬云余额；后端仍会在生成前重新计价，金额变化时必须重新确认。`,
+		okText: '生成待付款订单',
 		cancelText: '取消',
 		async onOk() {
 			openCloudPrintProgress(record)
-			await runCloudPrintStep(total)
+			await runCloudPrintStep(total, true)
 		},
 	})
 }

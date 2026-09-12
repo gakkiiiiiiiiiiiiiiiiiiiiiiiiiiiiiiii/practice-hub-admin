@@ -56,10 +56,15 @@ export function refundAdminOrder(orderId: number, data?: { remark?: string }) {
 	return request.post(`/admin/orders/${orderId}/refund`, data || {})
 }
 
-export function submitAdminOrderCloudPrint(orderId: number, expectedTotalAmountCents?: number) {
-	return request.post(`/admin/orders/${orderId}/cloud-print`, expectedTotalAmountCents
-		? { expectedTotalAmountCents }
-		: {})
+export function submitAdminOrderCloudPrint(
+  orderId: number,
+  expectedTotalAmountCents?: number,
+  payAfter = false,
+) {
+  return request.post(`/admin/orders/${orderId}/cloud-print`, {
+    ...(expectedTotalAmountCents != null ? { expectedTotalAmountCents } : {}),
+    ...(payAfter ? { payAfter: true } : {}),
+  })
 }
 
 export function getAdminOrderCloudPrint(orderId: number) {

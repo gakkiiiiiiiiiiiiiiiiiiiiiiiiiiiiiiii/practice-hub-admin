@@ -89,8 +89,8 @@
 			<div class="modal-actions">
 				<a-button @click="emit('update:open', false)">关闭</a-button>
 				<a-button v-if="canRetry" :loading="loading" @click="emit('retry')">继续获取报价</a-button>
-				<a-button v-if="canConfirm" type="primary" danger :loading="loading" @click="emit('confirm')">
-					确认金额并下单
+				<a-button v-if="canConfirm" type="primary" :loading="loading" @click="emit('confirm')">
+					确认金额并生成待付款订单
 				</a-button>
 			</div>
 		</div>
@@ -146,7 +146,7 @@ const stepItems = [
 	{ title: '创建任务', description: '锁定订单与文件' },
 	{ title: '处理文件', description: '上传并等待解析' },
 	{ title: '获取报价', description: '打印费与运费' },
-	{ title: '提交生产', description: '需人工确认金额' },
+	{ title: '生成待付款订单', description: '需人工确认金额' },
 ]
 
 const formatAmount = (value: number | string) => (Number(value || 0) / 100).toFixed(2)
