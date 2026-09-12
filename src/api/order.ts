@@ -1,5 +1,23 @@
 import request from '@/utils/request'
 
+export interface OrderCloudPrintConfig {
+	paperSize: number
+	duplex: number
+	color: number
+	paperMedia: number
+	pagesInOne: number
+	bindType: number
+	autoBindByPageCount: boolean
+	coverMedia: number
+	coverColor: number
+	coverContentType: number
+	coverContentValue: string
+	coverContentValue2: string
+	printCollate: number
+	orientation: number
+	shipSupplierId: number
+}
+
 export function getAdminOrderDetail(orderId: number) {
 	return request.get(`/admin/orders/${orderId}`)
 }
@@ -46,6 +64,14 @@ export function submitAdminOrderCloudPrint(orderId: number, expectedTotalAmountC
 
 export function getAdminOrderCloudPrint(orderId: number) {
 	return request.get(`/admin/orders/${orderId}/cloud-print`)
+}
+
+export function getAdminOrderCloudPrintConfig(orderId: number) {
+	return request.get(`/admin/orders/${orderId}/cloud-print/config`)
+}
+
+export function updateAdminOrderCloudPrintConfig(orderId: number, data: OrderCloudPrintConfig) {
+	return request.put(`/admin/orders/${orderId}/cloud-print/config`, data)
 }
 
 export function confirmAdminCloudPrintCancelled(orderId: number) {

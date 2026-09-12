@@ -159,6 +159,14 @@
 								同步支付
 							</a-button>
 							<a-button
+								v-if="canEditOrderPrintConfig(record)"
+								type="link"
+								size="small"
+								@click="openOrderPrintConfig(record)"
+							>
+								打印参数
+							</a-button>
+							<a-button
 								v-if="canCloudPrintOrder(record)"
 								type="link"
 								size="small"
@@ -445,6 +453,12 @@
 			@retry="runCloudPrintStep()"
 			@confirm="handleProgressConfirm"
 		/>
+		<order-cloud-print-config-modal
+			v-model:open="orderPrintConfigVisible"
+			:order-id="orderPrintConfigTarget?.id"
+			:order-no="orderPrintConfigTarget?.orderNo"
+			@saved="handleOrderPrintConfigSaved"
+		/>
 	</div>
 </template>
 
@@ -465,6 +479,7 @@ import {
 } from '@/api/order'
 import customerServiceQr from '@/assets/customer-service-qq-qr.jpg'
 import CloudPrintProgressModal from './CloudPrintProgressModal.vue'
+import OrderCloudPrintConfigModal from './OrderCloudPrintConfigModal.vue'
 import { canRefundOrder, getRefundWarning, isPaperShippingOrder } from './order-refund-policy'
 
 const props = withDefaults(defineProps<{
@@ -496,6 +511,8 @@ const cloudPrintProgressVisible = ref(false)
 const cloudPrintProgressTarget = ref<any>(null)
 const cloudPrintProgressJob = ref<any>(null)
 const cloudPrintProgressSyncing = ref(false)
+const orderPrintConfigVisible = ref(false)
+const orderPrintConfigTarget = ref<any>(null)
 let cloudPrintProgressTimer: number | null = null
 const shipForm = ref({
 	tracking_no: '',
@@ -566,6 +583,20 @@ const canCloudPrintOrder = (record: any) => record?.status === 'paid' &&
 
 const canConfirmCloudPrintCancelled = (record: any) => record?.status === 'paid' &&
 	['submitted', 'review_required'].includes(record?.cloudPrint?.status)
+
+const canEditOrderPrintConfig = (record: any) => record?.status === 'paid' &&
+	record?.fulfillmentType === 'paper' &&
+	!['processing', 'submitting', 'submitted', 'review_required', 'refund_reserved'].includes(record?.cloudPrint?.status)
+
+const openOrderPrintConfig = (record: any) => {
+	orderPrintConfigTarget.value = record
+	orderPrintConfigVisible.value = true
+}
+
+const handleOrderPrintConfigSaved = async () => {
+	await fetchData()
+	if (cloudPrintProgressVisible.value) await syncCloudPrintProgress()
+}
 
 const handleConfirmCloudPrintCancelled = (record: any) => {
 	Modal.confirm({
