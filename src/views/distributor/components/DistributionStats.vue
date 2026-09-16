@@ -41,10 +41,18 @@
 			</a-col>
 		</a-row>
 
-		<a-card>
-			<div style="text-align: center; padding: 40px; color: #999">
-				更多详细统计数据功能开发中...
-			</div>
+		<a-card title="代理等级分布">
+			<a-row :gutter="16">
+				<a-col :span="8">
+					<a-statistic title="初级代理" :value="stats.junior_distributors || 0" />
+				</a-col>
+				<a-col :span="8">
+					<a-statistic title="中级代理" :value="stats.middle_distributors || 0" />
+				</a-col>
+				<a-col :span="8">
+					<a-statistic title="高级代理" :value="stats.senior_distributors || 0" />
+				</a-col>
+			</a-row>
 		</a-card>
 	</div>
 </template>
@@ -59,6 +67,9 @@ const stats = ref({
 	approved_distributors: 0,
 	total_relations: 0,
 	total_commissions: 0,
+	junior_distributors: 0,
+	middle_distributors: 0,
+	senior_distributors: 0,
 });
 
 onMounted(() => {
@@ -74,6 +85,9 @@ const loadStats = async () => {
 				approved_distributors: res.approved_distributors || 0,
 				total_relations: res.total_relations || 0,
 				total_commissions: Number(res.total_commissions || 0),
+				junior_distributors: res.junior_distributors || 0,
+				middle_distributors: res.middle_distributors || 0,
+				senior_distributors: res.senior_distributors || 0,
 			};
 		}
 	} catch (error: any) {
@@ -87,4 +101,3 @@ const loadStats = async () => {
 	padding: 24px;
 }
 </style>
-

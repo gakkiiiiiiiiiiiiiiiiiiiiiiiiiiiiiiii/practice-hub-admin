@@ -35,6 +35,13 @@
 						{{ getStatusText(record.status) }}
 					</a-tag>
 				</template>
+				<template v-else-if="column.key === 'agent_level'">
+					<a-select :value="record.agent_level" style="width: 100px" @change="(value) => handleLevelChange(record, value)">
+						<a-select-option :value="1">初级</a-select-option>
+						<a-select-option :value="2">中级</a-select-option>
+						<a-select-option :value="3">高级</a-select-option>
+					</a-select>
+				</template>
 				<template v-else-if="column.key === 'action'">
 					<a-space>
 						<a-button
@@ -133,6 +140,12 @@ const baseColumns = [
 		width: 100,
 	},
 	{
+		title: '代理等级',
+		dataIndex: 'agent_level',
+		key: 'agent_level',
+		width: 120,
+	},
+	{
 		title: '累计收益',
 		dataIndex: 'total_earnings',
 		key: 'total_earnings',
@@ -143,6 +156,13 @@ const baseColumns = [
 		title: '可提现',
 		dataIndex: 'withdrawable_amount',
 		key: 'withdrawable_amount',
+		width: 120,
+		customRender: ({ text }: any) => `¥${Number(text || 0).toFixed(2)}`,
+	},
+	{
+		title: '冻结中',
+		dataIndex: 'frozen_amount',
+		key: 'frozen_amount',
 		width: 120,
 		customRender: ({ text }: any) => `¥${Number(text || 0).toFixed(2)}`,
 	},
@@ -322,6 +342,16 @@ const handleEnable = async (record: any) => {
 			}
 		},
 	});
+};
+
+const handleLevelChange = async (record: any, agentLevel: number) => {
+	try {
+		await updateDistributorStatus(record.id, { status: record.status, agent_level: agentLevel });
+		message.success(`已调整为${['初级', '中级', '高级'][agentLevel - 1]}代理`);
+		loadData();
+	} catch (error: any) {
+		message.error(error?.message || error?.msg || '等级调整失败');
+	}
 };
 
 const getStatusText = (status: number) => {

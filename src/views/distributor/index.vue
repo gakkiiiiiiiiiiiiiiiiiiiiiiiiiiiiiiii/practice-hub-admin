@@ -8,8 +8,8 @@
         <a-tab-pane key="config" tab="分销配置">
           <distribution-config />
         </a-tab-pane>
-        <a-tab-pane key="agent-template" tab="代理模板">
-          <agent-price-template-config />
+        <a-tab-pane key="withdrawals" tab="提现管理">
+          <withdrawal-list />
         </a-tab-pane>
         <a-tab-pane key="stats" tab="数据统计">
           <distribution-stats />
@@ -24,7 +24,7 @@ import { ref } from "vue";
 import DistributorList from "./components/DistributorList.vue";
 import DistributionConfig from "./components/DistributionConfig.vue";
 import DistributionStats from "./components/DistributionStats.vue";
-import AgentPriceTemplateConfig from "./components/AgentPriceTemplateConfig.vue";
+import WithdrawalList from "./components/WithdrawalList.vue";
 
 const activeTab = ref("list");
 </script>

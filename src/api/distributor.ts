@@ -52,3 +52,11 @@ export function applyAgentPriceTemplates(agentLevel?: number) {
 export function getDistributionStats() {
   return request.get("/admin/distributor/stats");
 }
+
+export function getDistributorWithdrawals(status?: number) {
+  return request.get("/admin/distributor/withdrawals", { params: status === undefined ? {} : { status } });
+}
+
+export function updateDistributorWithdrawal(id: number, data: { status: 1 | 2; remark?: string }) {
+  return request.patch(`/admin/distributor/withdrawals/${id}`, data);
+}
