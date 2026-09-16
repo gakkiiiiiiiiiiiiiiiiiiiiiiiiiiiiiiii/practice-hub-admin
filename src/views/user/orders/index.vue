@@ -76,7 +76,9 @@
 					</template>
 					<template v-else-if="column.key === 'product'">
 						<div>{{ record.productName }}</div>
-						<div v-if="record.isCart" class="sub-text">含 {{ record.cartItems?.length || 0 }} 门课程</div>
+						<div v-if="record.isCart" class="sub-text">
+							{{ getCartContentsLabel(record.cartItems?.length || 0, record.fulfillmentType) }}
+						</div>
 						<div v-else-if="record.orderType === 'course' && record.courseName" class="sub-text">
 							课程ID: {{ record.courseId }}
 						</div>
@@ -130,7 +132,7 @@
 						<span v-else class="sub-text">-</span>
 					</template>
 					<template v-else-if="column.key === 'orderType'">
-						<a-tag>{{ getOrderTypeLabel(record.orderType) }}</a-tag>
+						<a-tag>{{ getOrderTypeLabel(record.orderType, record.fulfillmentType) }}</a-tag>
 					</template>
 					<template v-else-if="column.key === 'createTime'">
 						{{ formatTime(record.createTime) }}
@@ -480,6 +482,7 @@ import {
 import customerServiceQr from '@/assets/customer-service-qq-qr.jpg'
 import CloudPrintProgressModal from './CloudPrintProgressModal.vue'
 import OrderCloudPrintConfigModal from './OrderCloudPrintConfigModal.vue'
+import { getCartContentsLabel, getOrderTypeLabel } from './order-display'
 import { canRefundOrder, getRefundWarning, isPaperShippingOrder } from './order-refund-policy'
 
 const props = withDefaults(defineProps<{
@@ -910,15 +913,6 @@ const formatAmount = (value: number | string) => Number(value || 0).toFixed(2)
 const formatCloudPrintAmount = (value: number | string) => (Number(value || 0) / 100).toFixed(2)
 
 const formatTime = (value: string) => dayjs(value).format('YYYY-MM-DD HH:mm:ss')
-
-const getOrderTypeLabel = (type?: string) => {
-	const map: Record<string, string> = {
-		course: '课程',
-		package: '套餐',
-		category: '分类合集',
-	}
-	return map[type || 'course'] || type || '课程'
-}
 
 const getStatusLabel = (status: string) => {
 	const map: Record<string, string> = {
