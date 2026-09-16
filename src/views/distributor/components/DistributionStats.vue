@@ -85,9 +85,9 @@ const loadStats = async () => {
 				approved_distributors: res.approved_distributors || 0,
 				total_relations: res.total_relations || 0,
 				total_commissions: Number(res.total_commissions || 0),
-				junior_distributors: res.junior_distributors || 0,
-				middle_distributors: res.middle_distributors || 0,
-				senior_distributors: res.senior_distributors || 0,
+				junior_distributors: res.level_counts?.['1'] || 0,
+				middle_distributors: res.level_counts?.['2'] || 0,
+				senior_distributors: res.level_counts?.['3'] || 0,
 			};
 		}
 	} catch (error: any) {
