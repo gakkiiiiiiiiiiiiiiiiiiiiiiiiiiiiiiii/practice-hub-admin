@@ -110,6 +110,7 @@ import {
 } from '@/api/distributor';
 import TableColumnSetting from '@/components/TableColumnSetting/index.vue';
 import { useTableColumns } from '@/composables/useTableColumns';
+import { responseData } from '@/api/response-data';
 
 const baseColumns = [
 	{
@@ -235,9 +236,9 @@ const loadData = async () => {
 			params.status = filters.value.status;
 		}
 
-		const res = await getDistributorList(params);
-		dataSource.value = res.data?.list || [];
-		pagination.value.total = res.data?.total || 0;
+		const result = responseData<any>(await getDistributorList(params), {});
+		dataSource.value = result.list || [];
+		pagination.value.total = result.total || 0;
 	} catch (error: any) {
 		message.error(error?.message || error?.msg || '加载失败');
 	} finally {

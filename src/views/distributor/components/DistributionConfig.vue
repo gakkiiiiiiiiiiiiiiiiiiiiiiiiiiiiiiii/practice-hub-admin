@@ -62,6 +62,7 @@
 import { ref, onMounted } from 'vue';
 import { message } from 'ant-design-vue';
 import { getDistributionConfig, updateDistributionConfig } from '@/api/distributor';
+import { responseData } from '@/api/response-data';
 
 const loading = ref(false);
 const formState = ref({
@@ -92,21 +93,21 @@ onMounted(() => {
 
 const loadConfig = async () => {
 	try {
-		const res = await getDistributionConfig();
+		const res = responseData<any>(await getDistributionConfig(), {});
 		if (res) {
 			formState.value = {
-				max_level: res.max_level || 3,
+				max_level: res.max_level ?? 3,
 				commission_rates: Array.isArray(res.commission_rates)
 					? res.commission_rates
 					: JSON.parse(res.commission_rates || '[20, 25, 30]'),
 				base_commission_rates: res.base_commission_rates || [20, 25, 30],
 				direct_commission_rates: res.direct_commission_rates || [5, 6, 8],
 				indirect_commission_rates: res.indirect_commission_rates || [0, 3, 4],
-				min_withdraw_amount: Number(res.min_withdraw_amount || 100),
-				withdraw_reserve_amount: Number(res.withdraw_reserve_amount || 20),
-				withdraw_fee_rate: Number(res.withdraw_fee_rate || 5),
-				commission_freeze_days: Number(res.commission_freeze_days || 15),
-				paper_commission_per_kind: Number(res.paper_commission_per_kind || 1),
+				min_withdraw_amount: Number(res.min_withdraw_amount ?? 100),
+				withdraw_reserve_amount: Number(res.withdraw_reserve_amount ?? 20),
+				withdraw_fee_rate: Number(res.withdraw_fee_rate ?? 5),
+				commission_freeze_days: Number(res.commission_freeze_days ?? 15),
+				paper_commission_per_kind: Number(res.paper_commission_per_kind ?? 1),
 				is_enabled: res.is_enabled !== undefined ? res.is_enabled : 1,
 				description: res.description || '',
 			};

@@ -61,6 +61,7 @@
 import { ref, onMounted } from 'vue';
 import { message } from 'ant-design-vue';
 import { getDistributionStats } from '@/api/distributor';
+import { responseData } from '@/api/response-data';
 
 const stats = ref({
 	total_distributors: 0,
@@ -78,7 +79,7 @@ onMounted(() => {
 
 const loadStats = async () => {
 	try {
-		const res = await getDistributionStats();
+		const res = responseData<any>(await getDistributionStats(), {});
 		if (res) {
 			stats.value = {
 				total_distributors: res.total_distributors || 0,

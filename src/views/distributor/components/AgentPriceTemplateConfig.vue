@@ -128,6 +128,7 @@ import {
 } from "@/api/distributor";
 import { getCourseCategoryTree } from "@/api/course-category";
 import { getPackageSectionList } from "@/api/package";
+import { responseData } from "@/api/response-data";
 
 type AgentTemplate = {
   level: number;
@@ -160,7 +161,6 @@ const formState = ref({
   category_bundle_ids: [] as number[],
 });
 
-const responseData = (response: any) => response?.data ?? response ?? {};
 const levelLabel = (level: number) =>
   ["一级代理", "二级代理", "三级代理"][Number(level) - 1] || `${level}级代理`;
 const levelColor = (level: number) =>
@@ -210,9 +210,9 @@ const loadConfig = async () => {
         getCourseCategoryTree(),
         getPackageSectionList(),
       ]);
-    const config = responseData(configResponse);
-    const categories = responseData(categoryResponse);
-    const packages = responseData(packageResponse);
+    const config = responseData<any>(configResponse, {});
+    const categories = responseData<any>(categoryResponse, {});
+    const packages = responseData<any>(packageResponse, {});
     formState.value = {
       templates: Array.isArray(config.templates)
         ? config.templates.map((item: any) => ({
@@ -265,7 +265,7 @@ const saveConfig = async () => {
   saving.value = true;
   try {
     const response = await updateAgentPriceTemplates(formState.value);
-    const config = responseData(response);
+    const config = responseData<any>(response, {});
     serverSummary.value = {
       excluded_course_count: Number(config.excluded_course_count || 0),
     };
@@ -294,7 +294,7 @@ const applyTemplates = async () => {
   applying.value = true;
   try {
     const response = await applyAgentPriceTemplates();
-    const result = responseData(response);
+    const result = responseData<any>(response, {});
     message.success(
       `已更新 ${Number(result.updated_course_count || 0)} 门课程，跳过 ${Number(result.excluded_course_count || 0)} 门`,
     );

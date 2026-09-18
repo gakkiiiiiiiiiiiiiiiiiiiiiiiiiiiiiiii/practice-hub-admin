@@ -28,6 +28,7 @@
 import { h, onMounted, ref } from 'vue';
 import { message, Modal } from 'ant-design-vue';
 import { getDistributorWithdrawals, updateDistributorWithdrawal } from '@/api/distributor';
+import { responseData } from '@/api/response-data';
 
 const loading = ref(false);
 const status = ref<number | undefined>(0);
@@ -49,7 +50,7 @@ const columns = [
 
 const loadData = async () => {
   loading.value = true;
-  try { rows.value = (await getDistributorWithdrawals(status.value)) || []; }
+  try { rows.value = responseData<any[]>(await getDistributorWithdrawals(status.value), []); }
   catch (error: any) { message.error(error?.msg || error?.message || '加载提现申请失败'); }
   finally { loading.value = false; }
 };
