@@ -162,7 +162,7 @@ const formState = ref({
 });
 
 const levelLabel = (level: number) =>
-  ["一级代理", "二级代理", "三级代理"][Number(level) - 1] || `${level}级代理`;
+  ["初级代理", "中级代理", "高级代理"][Number(level) - 1] || `${level}级代理`;
 const levelColor = (level: number) =>
   ["blue", "purple", "gold"][Number(level) - 1] || "default";
 const calculateExample = (discount: number) =>
