@@ -33,13 +33,7 @@
 			</a-table>
 		</a-card>
 
-		<a-modal
-			v-model:open="modalVisible"
-			:title="editingId ? '编辑套餐' : '新增套餐'"
-			width="760px"
-			:confirm-loading="submitLoading"
-			@ok="handleSubmit"
-		>
+		<a-modal v-model:open="modalVisible" :title="editingId ? '编辑套餐' : '新增套餐'" width="760px" :confirm-loading="submitLoading" @ok="handleSubmit">
 			<a-form layout="vertical">
 				<a-row :gutter="16">
 					<a-col :span="12">
@@ -75,11 +69,7 @@
 										:value="toColorPickerValue(form.cover_style.backgroundColor, defaultCoverStyle.backgroundColor)"
 										@input="handleCoverStyleColorPick('backgroundColor', $event)"
 									/>
-									<a-input
-										v-model:value="form.cover_style.backgroundColor"
-										placeholder="#F4F7FB"
-										@blur="normalizeCoverStyleField('backgroundColor')"
-									/>
+									<a-input v-model:value="form.cover_style.backgroundColor" placeholder="#F4F7FB" @blur="normalizeCoverStyleField('backgroundColor')" />
 								</div>
 							</a-col>
 							<a-col :span="8">
@@ -91,11 +81,7 @@
 										:value="toColorPickerValue(form.cover_style.titleColor, defaultCoverStyle.titleColor)"
 										@input="handleCoverStyleColorPick('titleColor', $event)"
 									/>
-									<a-input
-										v-model:value="form.cover_style.titleColor"
-										placeholder="#8A9AB3"
-										@blur="normalizeCoverStyleField('titleColor')"
-									/>
+									<a-input v-model:value="form.cover_style.titleColor" placeholder="#8A9AB3" @blur="normalizeCoverStyleField('titleColor')" />
 								</div>
 							</a-col>
 							<a-col :span="8">
@@ -107,11 +93,7 @@
 										:value="toColorPickerValue(form.cover_style.categoriesColor, defaultCoverStyle.categoriesColor)"
 										@input="handleCoverStyleColorPick('categoriesColor', $event)"
 									/>
-									<a-input
-										v-model:value="form.cover_style.categoriesColor"
-										placeholder="#6F7F99"
-										@blur="normalizeCoverStyleField('categoriesColor')"
-									/>
+									<a-input v-model:value="form.cover_style.categoriesColor" placeholder="#6F7F99" @blur="normalizeCoverStyleField('categoriesColor')" />
 								</div>
 							</a-col>
 						</a-row>
@@ -143,12 +125,7 @@
 
 				<a-divider>绑定范围</a-divider>
 				<div v-for="(scope, index) in form.scopes" :key="index" class="scope-row">
-					<a-select
-						v-model:value="scope.scope_type"
-						style="width: 140px"
-						:options="scopeTypeOptions"
-						@change="() => handleScopeTypeChange(scope)"
-					/>
+					<a-select v-model:value="scope.scope_type" style="width: 140px" :options="scopeTypeOptions" @change="() => handleScopeTypeChange(scope)" />
 					<a-select
 						v-if="scope.scope_type === 'course'"
 						v-model:value="scope.scope_value"
@@ -175,7 +152,11 @@
 						v-model:value="scope.sub_category_path"
 						style="flex: 1"
 						:options="categoryCascaderOptions"
-						:field-names="{ label: 'label', value: 'value', children: 'children' }"
+						:field-names="{
+							label: 'label',
+							value: 'value',
+							children: 'children',
+						}"
 						:show-search="{ filter: cascaderFilter }"
 						placeholder="请选择二级分类"
 						allow-clear
@@ -248,7 +229,9 @@ let autoCoverPreviewObjectUrl = ''
 
 const defaultCoverStyle = DEFAULT_PACKAGE_COVER_STYLE
 
-const createDefaultCoverStyle = (): PackageCoverStyle => ({ ...DEFAULT_PACKAGE_COVER_STYLE })
+const createDefaultCoverStyle = (): PackageCoverStyle => ({
+	...DEFAULT_PACKAGE_COVER_STYLE,
+})
 
 const coverMeta = computed(() => ({
 	courseList: courseList.value,
@@ -286,9 +269,30 @@ const scopeTypeOptions = [
 ]
 
 const defaultPlans = () => [
-	{ plan_type: 'monthly', name: '月卡', price: 30, duration_days: 30, enabled: true, sort: 1 },
-	{ plan_type: 'quarterly', name: '季卡', price: 80, duration_days: 90, enabled: true, sort: 2 },
-	{ plan_type: 'yearly', name: '年卡', price: 200, duration_days: 365, enabled: true, sort: 3 },
+	{
+		plan_type: 'monthly',
+		name: '月卡',
+		price: 30,
+		duration_days: 30,
+		enabled: true,
+		sort: 1,
+	},
+	{
+		plan_type: 'quarterly',
+		name: '季卡',
+		price: 80,
+		duration_days: 90,
+		enabled: true,
+		sort: 2,
+	},
+	{
+		plan_type: 'yearly',
+		name: '年卡',
+		price: 200,
+		duration_days: 365,
+		enabled: true,
+		sort: 3,
+	},
 ]
 
 const form = reactive({
@@ -307,10 +311,7 @@ const toColorPickerValue = (value?: string, fallback = '#FFFFFF') => normalizeCo
 const getEventTargetValue = (event: Event) => (event.target as HTMLInputElement | null)?.value || ''
 
 const normalizeCoverStyleField = (field: keyof PackageCoverStyle) => {
-	form.cover_style[field] = normalizeColorInput(
-		form.cover_style[field],
-		DEFAULT_PACKAGE_COVER_STYLE[field],
-	)
+	form.cover_style[field] = normalizeColorInput(form.cover_style[field], DEFAULT_PACKAGE_COVER_STYLE[field])
 	scheduleAutoCoverPreview()
 }
 
@@ -354,6 +355,24 @@ const courseNameMap = computed(() => {
 	return map
 })
 
+const parseSubCategoryScopeValue = (scopeValue: string): string[] => {
+	const normalized = String(scopeValue || '').trim()
+	if (!normalized.startsWith('[')) return []
+	try {
+		const path = JSON.parse(normalized)
+		if (!Array.isArray(path) || path.length !== 2) return []
+		const normalizedPath = path.map((item) => String(item || '').trim())
+		return normalizedPath.every(Boolean) ? normalizedPath : []
+	} catch {
+		return []
+	}
+}
+
+const encodeSubCategoryScopeValue = (path?: string[]) => {
+	const normalizedPath = (path || []).map((item) => String(item || '').trim())
+	return normalizedPath.length === 2 && normalizedPath.every(Boolean) ? JSON.stringify(normalizedPath) : ''
+}
+
 const scopeLabel = (scope: any) => {
 	const map: Record<string, string> = {
 		all: 'VIP全站',
@@ -369,27 +388,42 @@ const scopeLabel = (scope: any) => {
 	if (type === 'course') {
 		return `${map[type]}:${courseNameMap.value.get(String(value)) || value}`
 	}
+	if (type === 'sub_category') {
+		const path = parseSubCategoryScopeValue(String(value))
+		return `${map[type]}:${path.length === 2 ? path.join(' / ') : value}`
+	}
 	return `${map[type] || type}:${value}`
 }
 
 const cascaderFilter = (inputValue: string, path: any[]) =>
-	path.some((option) => String(option.label || '').toLowerCase().includes(inputValue.toLowerCase()))
+	path.some((option) =>
+		String(option.label || '')
+			.toLowerCase()
+			.includes(inputValue.toLowerCase()),
+	)
 
 const filterCourseOption = (input: string, option: any) =>
-	String(option?.label || '').toLowerCase().includes(input.toLowerCase())
+	String(option?.label || '')
+		.toLowerCase()
+		.includes(input.toLowerCase())
 
 const filterSelectOption = (input: string, option: any) =>
-	String(option?.label || '').toLowerCase().includes(input.toLowerCase())
+	String(option?.label || '')
+		.toLowerCase()
+		.includes(input.toLowerCase())
 
 const findSubCategoryPath = (subCategoryName: string) => {
+	const parsedPath = parseSubCategoryScopeValue(subCategoryName)
+	if (parsedPath.length === 2) return parsedPath
+	const matches: string[][] = []
 	for (const parent of categoryTree.value) {
 		for (const child of parent.children || []) {
 			if (child.name === subCategoryName) {
-				return [parent.name, child.name]
+				matches.push([parent.name, child.name])
 			}
 		}
 	}
-	return subCategoryName ? [subCategoryName] : []
+	return matches.length === 1 ? matches[0] : []
 }
 
 const normalizeScope = (item: any): ScopeFormItem => {
@@ -410,7 +444,7 @@ const handleScopeTypeChange = (scope: ScopeFormItem) => {
 
 const handleSubCategoryChange = (scope: ScopeFormItem, value: string[]) => {
 	scope.sub_category_path = value || []
-	scope.scope_value = value?.length ? value[value.length - 1] : ''
+	scope.scope_value = encodeSubCategoryScopeValue(value)
 	scheduleAutoCoverPreview()
 }
 
@@ -441,12 +475,7 @@ const refreshAutoCoverPreview = async () => {
 	}
 	try {
 		autoCoverLoading.value = true
-		const coverFile = await generatePackageCoverFile(
-			form.name,
-			form.scopes as PackageScopeInput[],
-			coverMeta.value,
-			form.cover_style,
-		)
+		const coverFile = await generatePackageCoverFile(form.name, form.scopes as PackageScopeInput[], coverMeta.value, form.cover_style)
 		if (!coverFile) {
 			clearAutoCoverPreview()
 			return
@@ -466,12 +495,7 @@ const refreshAutoCoverPreview = async () => {
 
 const ensureAutoCoverUploaded = async () => {
 	if (coverMode.value !== 'manual') {
-		const url = await generateAndUploadPackageCover(
-			form.name,
-			form.scopes as PackageScopeInput[],
-			coverMeta.value,
-			form.cover_style,
-		)
+		const url = await generateAndUploadPackageCover(form.name, form.scopes as PackageScopeInput[], coverMeta.value, form.cover_style)
 		if (url) {
 			form.cover_img = url
 		}
@@ -509,10 +533,7 @@ const resetForm = () => {
 
 const loadMetaOptions = async () => {
 	try {
-		const [courseRes, categoryRes] = await Promise.all([
-			getCourseOptions({ status: 1 }),
-			getCourseCategoryTree(),
-		])
+		const [courseRes, categoryRes] = await Promise.all([getCourseOptions({ status: 1 }), getCourseCategoryTree()])
 		courseList.value = Array.isArray(courseRes.data) ? courseRes.data : courseRes.data?.list || []
 		categoryTree.value = Array.isArray(categoryRes.data) ? categoryRes.data : []
 	} catch {
@@ -583,7 +604,11 @@ const openEdit = (record: any) => {
 }
 
 const addScope = () => {
-	form.scopes.push({ scope_type: 'category', scope_value: '', sub_category_path: [] })
+	form.scopes.push({
+		scope_type: 'category',
+		scope_value: '',
+		sub_category_path: [],
+	})
 	scheduleAutoCoverPreview()
 }
 
@@ -640,7 +665,12 @@ const buildPayload = () => ({
 	scopes: form.scopes
 		.map((item) => ({
 			scope_type: item.scope_type,
-			scope_value: item.scope_type === 'all' ? '*' : String(item.scope_value || '').trim(),
+			scope_value:
+				item.scope_type === 'all'
+					? '*'
+					: item.scope_type === 'sub_category'
+						? encodeSubCategoryScopeValue(item.sub_category_path)
+						: String(item.scope_value || '').trim(),
 		}))
 		.filter((item) => item.scope_type === 'all' || item.scope_value),
 	plans: form.plans.map((plan, index) => ({
@@ -656,6 +686,10 @@ const buildPayload = () => ({
 const handleSubmit = async () => {
 	if (!form.name.trim()) {
 		message.warning('请填写套餐名称')
+		return
+	}
+	if (form.scopes.some((item) => item.scope_type === 'sub_category' && (item.sub_category_path || []).length !== 2)) {
+		message.warning('存在重名或失效的二级分类，请重新选择完整分类路径')
 		return
 	}
 	submitLoading.value = true
@@ -704,8 +738,7 @@ watch(
 )
 
 watch(
-	() =>
-		`${form.cover_style.backgroundColor}|${form.cover_style.titleColor}|${form.cover_style.categoriesColor}`,
+	() => `${form.cover_style.backgroundColor}|${form.cover_style.titleColor}|${form.cover_style.categoriesColor}`,
 	() => scheduleAutoCoverPreview(),
 )
 

@@ -1,10 +1,5 @@
 import { uploadImage } from '@/api/upload'
-import {
-	DEFAULT_CATEGORY_COVER_CONFIG,
-	normalizeCourseCoverConfig,
-	renderCourseCover,
-	type CourseCoverConfig,
-} from '@/utils/course-cover'
+import { DEFAULT_CATEGORY_COVER_CONFIG, normalizeCourseCoverConfig, renderCourseCover, type CourseCoverConfig } from '@/utils/course-cover'
 
 export type PackageScopeInput = {
 	scope_type: string
@@ -113,21 +108,34 @@ export function buildPackageCoverConfig(style?: PackageCoverStyle | null): Cours
 	return config
 }
 
+function parseSubCategoryScopeValue(scopeValue: string) {
+	const normalized = String(scopeValue || '').trim()
+	if (!normalized.startsWith('[')) return []
+	try {
+		const path = JSON.parse(normalized)
+		if (!Array.isArray(path) || path.length !== 2) return []
+		const normalizedPath = path.map((item) => String(item || '').trim())
+		return normalizedPath.every(Boolean) ? normalizedPath : []
+	} catch {
+		return []
+	}
+}
+
 function findSubCategoryPath(subCategoryName: string, categoryTree: any[]) {
+	const parsedPath = parseSubCategoryScopeValue(subCategoryName)
+	if (parsedPath.length === 2) return parsedPath
+	const matches: string[][] = []
 	for (const parent of categoryTree) {
 		for (const child of parent.children || []) {
 			if (child.name === subCategoryName) {
-				return [parent.name, child.name]
+				matches.push([parent.name, child.name])
 			}
 		}
 	}
-	return subCategoryName ? [subCategoryName] : []
+	return matches.length === 1 ? matches[0] : []
 }
 
-export function collectPackageCategoryNames(
-	scopes: PackageScopeInput[],
-	meta: PackageCoverMeta,
-): string[] {
+export function collectPackageCategoryNames(scopes: PackageScopeInput[], meta: PackageCoverMeta): string[] {
 	const names: string[] = []
 	const seen = new Set<string>()
 
@@ -153,9 +161,7 @@ export function collectPackageCategoryNames(
 		}
 
 		if (scope.scope_type === 'sub_category') {
-			const path = scope.sub_category_path?.length
-				? scope.sub_category_path
-				: findSubCategoryPath(value, meta.categoryTree)
+			const path = scope.sub_category_path?.length ? scope.sub_category_path : findSubCategoryPath(value, meta.categoryTree)
 			if (path.length >= 2) {
 				pushName(`${path[0]} · ${path[1]}`)
 			} else {
