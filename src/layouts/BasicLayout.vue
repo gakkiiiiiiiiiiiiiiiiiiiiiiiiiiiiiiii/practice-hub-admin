@@ -81,6 +81,7 @@ import {
 	GiftOutlined,
 	UserSwitchOutlined,
 	SettingOutlined,
+	TeamOutlined,
 } from '@ant-design/icons-vue';
 import { useUserStore } from '@/store/user';
 import { useTabsStore } from '@/store/tabs';
@@ -255,6 +256,17 @@ const menuItems = computed(() => {
 	// 系统管理（super_admin）
 	if (isSuperAdmin) {
 		items.push({
+			key: 'distributor-admin',
+			icon: () => h(TeamOutlined),
+			label: '代理商管理',
+			children: [
+				{ key: '/system/distributor/list', label: '代理商列表' },
+				{ key: '/system/distributor/config', label: '代理配置' },
+				{ key: '/system/distributor/withdrawals', label: '提现管理' },
+				{ key: '/system/distributor/stats', label: '数据统计' },
+			],
+		});
+		items.push({
 			key: 'system',
 			icon: () => h(SettingOutlined),
 			label: '系统管理',
@@ -265,7 +277,6 @@ const menuItems = computed(() => {
 				{ key: '/system/recommend', label: '首页推荐管理' },
 				{ key: '/system/package', label: '套餐管理' },
 				{ key: '/system/feedback', label: '功能反馈' },
-				{ key: '/system/distributor', label: '分销管理' },
 				{ key: '/system/log', label: '系统操作日志' },
 			],
 		});
@@ -305,7 +316,10 @@ watch(
 		} else if (path.startsWith('/agent') && !currentOpenKeys.includes('agent')) {
 			currentOpenKeys.push('agent');
 			openKeys.value = currentOpenKeys;
-		} else if ((path.startsWith('/system') || path.startsWith('/distributor')) && !currentOpenKeys.includes('system')) {
+		} else if (path.startsWith('/system/distributor') && !currentOpenKeys.includes('distributor-admin')) {
+			currentOpenKeys.push('distributor-admin');
+			openKeys.value = currentOpenKeys;
+		} else if (path.startsWith('/system') && !currentOpenKeys.includes('system')) {
 			currentOpenKeys.push('system');
 			openKeys.value = currentOpenKeys;
 		} else if (path.startsWith('/user') && !currentOpenKeys.includes('user')) {

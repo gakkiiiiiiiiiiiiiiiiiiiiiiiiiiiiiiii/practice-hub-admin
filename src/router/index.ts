@@ -208,6 +208,42 @@ const routes: RouteRecordRaw[] = [
 		},
 		children: [
 			{
+				path: 'distributor',
+				redirect: '/system/distributor/list',
+			},
+			{
+				path: 'distributor/list',
+				name: 'DistributorList',
+				component: () => import('@/views/distributor/list.vue'),
+				meta: {
+					title: '代理商列表',
+				},
+			},
+			{
+				path: 'distributor/config',
+				name: 'DistributorConfig',
+				component: () => import('@/views/distributor/config.vue'),
+				meta: {
+					title: '代理配置',
+				},
+			},
+			{
+				path: 'distributor/withdrawals',
+				name: 'DistributorWithdrawals',
+				component: () => import('@/views/distributor/withdrawals.vue'),
+				meta: {
+					title: '代理提现管理',
+				},
+			},
+			{
+				path: 'distributor/stats',
+				name: 'DistributorStats',
+				component: () => import('@/views/distributor/stats.vue'),
+				meta: {
+					title: '代理数据统计',
+				},
+			},
+			{
 				path: 'account',
 				name: 'SystemAccount',
 				component: () => import('@/views/system/account/index.vue'),
@@ -261,14 +297,6 @@ const routes: RouteRecordRaw[] = [
 				component: () => import('@/views/package/index.vue'),
 				meta: {
 					title: '套餐管理',
-				},
-			},
-			{
-				path: 'distributor',
-				name: 'SystemDistributor',
-				component: () => import('@/views/distributor/index.vue'),
-				meta: {
-					title: '分销管理',
 				},
 			},
 			{
@@ -328,7 +356,9 @@ router.beforeEach(async (to, from, next) => {
 		if (!userStore.userInfo) {
 			await userStore.getUserInfo();
 		}
-		next({ path: getDefaultAdminPath(userStore.roles?.[0], userStore.userInfo?.permissions || []) });
+		next({
+			path: getDefaultAdminPath(userStore.roles?.[0], userStore.userInfo?.permissions || []),
+		});
 		return;
 	}
 
@@ -371,7 +401,9 @@ router.beforeEach(async (to, from, next) => {
 		}
 
 		if (to.path === '/') {
-			next({ path: getDefaultAdminPath(userStore.roles?.[0], userStore.userInfo?.permissions || []) });
+			next({
+				path: getDefaultAdminPath(userStore.roles?.[0], userStore.userInfo?.permissions || []),
+			});
 			return;
 		}
 
