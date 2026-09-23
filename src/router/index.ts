@@ -139,14 +139,6 @@ const routes: RouteRecordRaw[] = [
 					title: '激活码管理',
 				},
 			},
-			{
-				path: 'balance',
-				name: 'Balance',
-				component: () => import('@/views/agent/balance/index.vue'),
-				meta: {
-					title: '资金记录',
-				},
-			},
 		],
 	},
 	{

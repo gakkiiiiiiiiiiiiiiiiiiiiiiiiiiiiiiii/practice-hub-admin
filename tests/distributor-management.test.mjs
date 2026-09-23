@@ -17,6 +17,10 @@ test('agent management exposes independent admin routes and menu entries', () =>
 	assert.match(layoutSource, /label: ["']代理商管理["']/);
 	assert.match(layoutSource, /label: ["']代理商列表["']/);
 	assert.match(layoutSource, /label: ["']代理配置["']/);
+	assert.match(layoutSource, /key: ["']\/agent\/activation-code["'], label: ["']激活码管理["']/);
+	assert.doesNotMatch(layoutSource, /代理商中心/);
+	assert.doesNotMatch(layoutSource, /资金记录/);
+	assert.doesNotMatch(routerSource, /path: ["']balance["']/);
 });
 
 test('agent list shows user, commission, subordinate and sales fields', () => {
@@ -34,4 +38,6 @@ test('agent config supports poster upload and three commission rate groups', () 
 	assert.match(configSource, /base_commission_rates/);
 	assert.match(configSource, /direct_commission_rates/);
 	assert.match(configSource, /indirect_commission_rates/);
+	assert.match(configSource, /class="rate-input"/);
+	assert.match(configSource, /width: 200px/);
 });

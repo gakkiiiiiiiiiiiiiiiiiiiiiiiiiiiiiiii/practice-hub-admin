@@ -29,19 +29,19 @@
 			</a-form-item>
 
 			<a-form-item v-for="group in rateGroups" :key="group.key" :label="group.label">
-				<a-space>
+				<div class="rate-inputs">
 					<a-input-number
 						v-for="(_, index) in formState[group.key]"
 						:key="index"
+						class="rate-input"
 						v-model:value="formState[group.key][index]"
 						:min="0"
 						:max="100"
 						:precision="2"
-						style="width: 125px"
 						:addon-before="levelNames[index]"
 						addon-after="%"
 					/>
-				</a-space>
+				</div>
 				<div class="form-tip">{{ group.tip }}</div>
 			</a-form-item>
 
@@ -245,6 +245,17 @@ const handleSubmit = async () => {
 	margin-top: 8px;
 	color: #999;
 	font-size: 12px;
+}
+.rate-inputs {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+}
+.rate-input {
+	width: 200px;
+}
+.rate-input :deep(.ant-input-number-input) {
+	min-width: 72px;
 }
 .restore-button {
 	padding-left: 0;

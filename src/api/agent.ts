@@ -42,8 +42,3 @@ export function exportActivationCodes(params?: any) {
     responseType: 'blob',
   })
 }
-
-// 获取资金记录（需要根据实际 API 文档调整）
-export function getBalanceLog(params?: any) {
-  return request.get('/admin/balance-log', { params })
-}

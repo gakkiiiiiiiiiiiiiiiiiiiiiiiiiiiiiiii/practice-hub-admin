@@ -78,7 +78,6 @@ import {
 	LogoutOutlined,
 	DashboardOutlined,
 	BookOutlined,
-	GiftOutlined,
 	UserSwitchOutlined,
 	SettingOutlined,
 	TeamOutlined,
@@ -224,16 +223,24 @@ const menuItems = computed(() => {
 		});
 	}
 
-	// 代理商中心（super_admin, agent）
+	// 代理商管理（super_admin 可管理全部功能，agent 仅使用激活码）
 	if (isSuperAdmin || role === 'agent') {
+		const distributorChildren = [
+			{ key: '/agent/activation-code', label: '激活码管理' },
+		];
+		if (isSuperAdmin) {
+			distributorChildren.push(
+				{ key: '/system/distributor/list', label: '代理商列表' },
+				{ key: '/system/distributor/config', label: '代理配置' },
+				{ key: '/system/distributor/withdrawals', label: '提现管理' },
+				{ key: '/system/distributor/stats', label: '数据统计' },
+			);
+		}
 		items.push({
-			key: 'agent',
-			icon: () => h(GiftOutlined),
-			label: '代理商中心',
-			children: [
-				{ key: '/agent/activation-code', label: '激活码管理' },
-				{ key: '/agent/balance', label: '资金记录' },
-			],
+			key: 'distributor-admin',
+			icon: () => h(TeamOutlined),
+			label: '代理商管理',
+			children: distributorChildren,
 		});
 	}
 
@@ -255,17 +262,6 @@ const menuItems = computed(() => {
 
 	// 系统管理（super_admin）
 	if (isSuperAdmin) {
-		items.push({
-			key: 'distributor-admin',
-			icon: () => h(TeamOutlined),
-			label: '代理商管理',
-			children: [
-				{ key: '/system/distributor/list', label: '代理商列表' },
-				{ key: '/system/distributor/config', label: '代理配置' },
-				{ key: '/system/distributor/withdrawals', label: '提现管理' },
-				{ key: '/system/distributor/stats', label: '数据统计' },
-			],
-		});
 		items.push({
 			key: 'system',
 			icon: () => h(SettingOutlined),
@@ -313,10 +309,7 @@ watch(
 		if (path.startsWith('/question') && !currentOpenKeys.includes('question')) {
 			currentOpenKeys.push('question');
 			openKeys.value = currentOpenKeys;
-		} else if (path.startsWith('/agent') && !currentOpenKeys.includes('agent')) {
-			currentOpenKeys.push('agent');
-			openKeys.value = currentOpenKeys;
-		} else if (path.startsWith('/system/distributor') && !currentOpenKeys.includes('distributor-admin')) {
+		} else if ((path.startsWith('/agent/activation-code') || path.startsWith('/system/distributor')) && !currentOpenKeys.includes('distributor-admin')) {
 			currentOpenKeys.push('distributor-admin');
 			openKeys.value = currentOpenKeys;
 		} else if (path.startsWith('/system') && !currentOpenKeys.includes('system')) {
