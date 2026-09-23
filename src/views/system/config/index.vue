@@ -37,6 +37,9 @@
         <a-tab-pane key="cloud-print" tab="云打印">
           <cloud-print-config />
         </a-tab-pane>
+        <a-tab-pane key="paper-promotion" tab="纸质资料促销">
+          <paper-promotion-config />
+        </a-tab-pane>
         <a-tab-pane key="faq" tab="常见问题配置">
           <faq-config />
         </a-tab-pane>
@@ -70,6 +73,7 @@ import PointsConfig from './components/PointsConfig.vue'
 import UserTitleConfig from './components/UserTitleConfig.vue'
 import StorageProviderConfig from './components/StorageProviderConfig.vue'
 import CloudPrintConfig from './components/CloudPrintConfig.vue'
+import PaperPromotionConfig from './components/PaperPromotionConfig.vue'
 import { useCourseCoverTemplateSync } from './composables/useCourseCoverTemplateSync'
 
 const route = useRoute()
@@ -78,7 +82,7 @@ const {
 	syncing: syncCourseCoversLoading,
 	syncCurrentTemplate: handleSyncCourseCoverTemplate,
 } = useCourseCoverTemplateSync()
-const validTabs = new Set(['banner', 'home-popup', 'customer-service', 'ai', 'checkin', 'course-cover', 'course-intro-template', 'storage-provider', 'cloud-print', 'faq', 'referral-coupon', 'points', 'user-title'])
+const validTabs = new Set(['banner', 'home-popup', 'customer-service', 'ai', 'checkin', 'course-cover', 'course-intro-template', 'storage-provider', 'cloud-print', 'paper-promotion', 'faq', 'referral-coupon', 'points', 'user-title'])
 const activeTab = ref(getInitialTab())
 
 function getInitialTab() {

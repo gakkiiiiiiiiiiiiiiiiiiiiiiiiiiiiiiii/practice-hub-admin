@@ -114,6 +114,20 @@ export function setCloudPrintConfig(data: CloudPrintConfig) {
   return request.put('/admin/settings/cloud-print', data)
 }
 
+export interface PaperPromotionConfig {
+  enabled: boolean
+  minimum_items: number
+  discount_per_additional_item: number
+}
+
+export function getPaperPromotionConfig() {
+  return request.get('/admin/settings/paper-promotion')
+}
+
+export function setPaperPromotionConfig(data: PaperPromotionConfig) {
+  return request.put('/admin/settings/paper-promotion', data)
+}
+
 // 获取广播消息列表
 export function getDailyQuotes() {
   return request.get('/admin/settings/daily-quotes')
