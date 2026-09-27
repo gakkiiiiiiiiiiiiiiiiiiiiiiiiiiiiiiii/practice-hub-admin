@@ -149,6 +149,10 @@
 						</div>
 						<div class="course-card__body">
 							<div class="course-card__row">
+								<span class="course-card__label">课程ID</span>
+								<span class="course-card__value">{{ record.id ?? '-' }}</span>
+							</div>
+							<div class="course-card__row">
 								<span class="course-card__label">课程</span>
 								<span class="course-card__value">{{ record.subject || '-' }}</span>
 							</div>
@@ -230,7 +234,7 @@
 				:loading="loading"
 				:pagination="tablePagination"
 				:row-selection="courseRowSelection"
-				:scroll="{ x: 1780 }"
+				:scroll="{ x: 1870 }"
 				@change="handleTableChange"
 				row-key="id"
 			>
@@ -1101,6 +1105,12 @@ const baseColumns = [
 		key: 'sort',
 		width: 90,
 		fixed: 'left',
+	},
+	{
+		title: '课程ID',
+		dataIndex: 'id',
+		key: 'id',
+		width: 90,
 	},
 	{
 		title: '课程名称',
